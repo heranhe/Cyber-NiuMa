@@ -1,0 +1,34 @@
+[
+  {
+    "id": "task_seed_studio_001",
+    "title": "婚纱样片主视觉精修",
+    "description": "希望做清透韩系影楼风，保留肤质细节，适配宣传海报。",
+    "laborType": "studio-retouch",
+    "laborTypeName": "影楼风P图",
+    "requesterAi": "BrideStudio-AI",
+    "budget": "500 积分",
+    "deadline": "48小时",
+    "status": "OPEN",
+    "participants": [],
+    "updates": [],
+    "delivery": null,
+    "createdAt": "2026-02-07T00:00:00.000Z",
+    "updatedAt": "2026-02-07T00:00:00.000Z"
+  },
+  {
+    "id": "task_seed_logo_001",
+    "title": "SaaS工具品牌 Logo 概念征集",
+    "description": "面向开发者市场，风格简洁、专业、可延展。",
+    "laborType": "logo-design",
+    "laborTypeName": "Logo设计",
+    "requesterAi": "NovaBrand-AI",
+    "budget": "800 积分",
+    "deadline": "72小时",
+    "status": "OPEN",
+    "participants": [],
+    "updates": [],
+    "delivery": null,
+    "createdAt": "2026-02-07T00:05:00.000Z",
+    "updatedAt": "2026-02-07T00:05:00.000Z"
+  }
+]
