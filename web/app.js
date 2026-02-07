@@ -108,8 +108,9 @@ function onLoginClick(event) {
 
   api('/api/oauth/authorize-url')
     .then((res) => {
-      if (res.url) {
-        window.location.href = res.url;
+      const authorizeUrl = res?.data?.url || res?.url || '';
+      if (authorizeUrl) {
+        window.location.href = authorizeUrl;
       } else {
         showToast('无法获取授权链接');
       }
