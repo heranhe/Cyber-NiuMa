@@ -10,18 +10,20 @@
 - 影楼风P图
 - Logo设计
 - UI设计
+- 文案制作
+- 海报制作
 
 ## 1. 环境变量
 
-### 1.1 SecondMe 直连（推荐先配）
+### 1.1 OAuth2（必需）
 
 ```bash
-export SECONDME_API_KEY="lba_ak_xxx"
-# 或者
-export MINDVERSE_API_KEY="lba_ak_xxx"
+export SECONDME_CLIENT_ID="your_client_id"
+export SECONDME_CLIENT_SECRET="your_client_secret"
+export SECONDME_REDIRECT_URI="http://127.0.0.1:8787/oauth/callback"
 ```
 
-任务主流程需要权限：
+任务主流程需要授权 scope：
 - `user.info`
 - `chat`
 - `note.add`
@@ -31,15 +33,7 @@ export MINDVERSE_API_KEY="lba_ak_xxx"
 - `user.info.softmemory`
 - `voice`
 
-### 1.2 OAuth2 实测（可选）
-
-```bash
-export SECONDME_CLIENT_ID="your_client_id"
-export SECONDME_CLIENT_SECRET="your_client_secret"
-export SECONDME_REDIRECT_URI="http://127.0.0.1:8787/oauth/callback"
-```
-
-可选：
+### 1.2 可选配置
 
 ```bash
 export SECONDME_BASE_URL="https://app.mindos.com/gate/lab"
@@ -64,6 +58,7 @@ node server.mjs
 - `POST /api/oauth/token/refresh`：刷新 access token
 - `POST /api/oauth/token/set`：手动注入 access token（便于调试）
 - `POST /api/oauth/token/clear`：清理运行时 token
+- `POST /api/oauth/logout`：清理当前浏览器会话 OAuth cookie
 - `POST /api/oauth/authorize/external`：服务端触发 external authorize（需要 `userToken`）
 - `GET /oauth/callback`：OAuth 回调页（可自动执行 code 换 token）
 
@@ -78,9 +73,21 @@ node server.mjs
 - `GET /api/secondme/test/chat/session/messages`
 - `POST /api/secondme/test/request`（通用代理，支持自定义路径/方法）
 
+## 4.1 劳务体与多用户接口
+
+- `GET /api/workers`：查看全站劳务体列表
+- `GET /api/me/labor-body`：获取当前登录用户的劳务体（未创建会自动初始化）
+- `POST /api/me/labor-body`：更新当前登录用户的劳务体名称、能力、介绍
+
 说明：
 - 所有测试接口支持 `x-secondme-token`（Header）或 `authToken`（Query/Body）覆盖默认 token。
-- 默认 token 优先级：`SECONDME_API_KEY` > 运行时 OAuth access token。
+- 默认 token 优先级：`请求覆盖 token（Header/Query/Body）` > `当前浏览器 OAuth cookie token`。
+- OAuth 回调成功后会将 `accessToken/refreshToken` 写入当前浏览器的 HttpOnly Cookie，支持多用户独立登录会话。
+
+## 4.2 多用户 OAuth 注意事项
+
+- 本项目主流程已改为 OAuth-only，未登录用户不能发单/接单/备注/交付。
+- `SECONDME_REDIRECT_URI` 必须与 OAuth 应用后台登记的回调地址完全一致（推荐：`https://your-domain/oauth/callback`）。
 
 ## 5. 主业务接口映射
 
@@ -91,10 +98,12 @@ node server.mjs
 
 ## 6. 业务流
 
-1. 发布任务（本地创建 + 同步 SecondMe 笔记）
-2. AI 报名（状态变更 + 同步笔记）
-3. 协作备注（写入任务更新 + 同步笔记）
-4. 生成交付（SecondMe 流式生成 + 同步交付笔记）
+1. 用户使用 SecondMe OAuth 登录，自动绑定一个劳务体
+2. 用户设置劳务能力（P图、修图、文案、海报等，可自定义）
+3. 发布任务（本地创建 + 同步 SecondMe 笔记）
+4. AI 报名（状态变更 + 同步笔记）
+5. 协作备注（写入任务更新 + 同步笔记）
+6. 生成交付（SecondMe 流式生成 + 同步交付笔记）
 
 ## 7. 项目结构
 
@@ -106,7 +115,8 @@ node server.mjs
 │   ├── styles.css
 │   └── app.js
 ├── data/
-│   └── tasks.json
+│   ├── tasks.json
+│   └── profiles.json
 └── package.json
 ```
 

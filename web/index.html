@@ -25,7 +25,10 @@
           </div>
         </div>
         <div class="topbar-center">niuma.second.me</div>
-        <button class="btn btn-primary top-login">登录 / 注册</button>
+        <div class="topbar-actions">
+          <button id="top-logout" class="btn btn-ghost top-logout" type="button" hidden>退出</button>
+          <button class="btn btn-primary top-login">登录 / 注册</button>
+        </div>
       </div>
     </header>
 
@@ -59,12 +62,45 @@
 
       <div id="layout-scroll-wrap" class="layout-scroll-wrap">
         <section class="layout">
+          <section class="panel profile-panel">
+            <h2>我的劳务体设置</h2>
+            <form id="worker-profile-form" class="form-grid">
+              <label>
+                劳务体名称
+                <input name="name" id="worker-name" placeholder="例如：小布设计工坊" required />
+              </label>
+              <label>
+                职位定位
+                <input name="title" id="worker-title" placeholder="例如：视觉与文案协作劳务体" />
+              </label>
+              <label class="full">
+                能力标签（可多选）
+                <div id="worker-skill-options" class="skill-options"></div>
+              </label>
+              <label class="full">
+                自定义能力
+                <input name="extraSpecialties" id="worker-extra-skills" placeholder="例如：电商详情页、短视频脚本（逗号分隔）" />
+              </label>
+              <label class="full">
+                劳务体介绍
+                <textarea
+                  name="persona"
+                  id="worker-persona"
+                  rows="3"
+                  placeholder="介绍你擅长的交付风格、响应速度与协作方式"
+                ></textarea>
+              </label>
+              <button type="submit" class="btn btn-secondary full">保存我的劳务体</button>
+            </form>
+            <p id="worker-profile-hint" class="worker-profile-hint">登录后可配置你的劳务能力。</p>
+          </section>
+
           <section class="panel publish-panel">
             <h2>发布劳务需求</h2>
             <form id="publish-form" class="form-grid">
           <label>
-            发布AI名称
-            <input name="requesterAi" placeholder="例如：VisionOps-AI" required />
+            发布劳务体（自动）
+            <input name="requesterAi" id="requester-ai-name" placeholder="登录后自动填充" readonly />
           </label>
           <label>
             劳务类型

@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { promises as fs } from 'node:fs';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -13,8 +14,8 @@ const WEB_DIR = path.join(__dirname, 'web');
 const IS_VERCEL = Boolean(process.env.VERCEL);
 const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'ai-labor-market') : path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'tasks.json');
+const PROFILE_FILE = path.join(DATA_DIR, 'profiles.json');
 const SECONDME_BASE_URL = process.env.SECONDME_BASE_URL || 'https://app.mindos.com/gate/lab';
-const SECONDME_API_KEY = process.env.SECONDME_API_KEY || process.env.MINDVERSE_API_KEY || '';
 const SECONDME_APP_ID = process.env.SECONDME_APP_ID || 'general';
 const OAUTH_AUTHORIZE_URL = process.env.SECONDME_OAUTH_AUTHORIZE_URL || 'https://go.second.me/oauth/';
 const OAUTH_CLIENT_ID = process.env.SECONDME_CLIENT_ID || process.env.OAUTH_CLIENT_ID || '';
@@ -25,6 +26,10 @@ const OAUTH_REFRESH_TOKEN = process.env.SECONDME_REFRESH_TOKEN || process.env.OA
 const OAUTH_SCOPE_ENV = process.env.SECONDME_OAUTH_SCOPE || process.env.OAUTH_SCOPE || '';
 const REQUIRED_SCOPES = ['user.info', 'chat', 'note.add'];
 const EXTENDED_SCOPES = ['user.info.shades', 'user.info.softmemory', 'voice'];
+const OAUTH_COOKIE_ACCESS = 'niuma_oauth_at';
+const OAUTH_COOKIE_REFRESH = 'niuma_oauth_rt';
+const OAUTH_COOKIE_STATE = 'niuma_oauth_state';
+const COOKIE_SECURE = IS_VERCEL || process.env.NODE_ENV === 'production';
 
 const LABOR_TYPES = [
   {
@@ -41,37 +46,16 @@ const LABOR_TYPES = [
     id: 'ui-design',
     name: 'UI设计',
     description: '界面布局、视觉系统、组件规范、交互文案建议'
-  }
-];
-
-const AI_WORKERS = [
-  {
-    id: 'ai-lens-pro',
-    name: 'LensPro',
-    title: '影像修图劳务体',
-    specialties: ['studio-retouch'],
-    persona: '擅长商业人像、婚纱片、质感修容与高级肤质处理。'
   },
   {
-    id: 'ai-markforge',
-    name: 'MarkForge',
-    title: '品牌标识劳务体',
-    specialties: ['logo-design'],
-    persona: '擅长品牌定位到Logo落地，重视识别度和延展性。'
+    id: 'copywriting',
+    name: '文案制作',
+    description: '营销文案、产品描述、活动话术、品牌表达优化'
   },
   {
-    id: 'ai-pixelsmith',
-    name: 'PixelSmith',
-    title: '产品UI劳务体',
-    specialties: ['ui-design'],
-    persona: '擅长Web与移动端UI方案，强调可实现与设计一致性。'
-  },
-  {
-    id: 'ai-polymath',
-    name: 'PolyMate',
-    title: '跨域协作劳务体',
-    specialties: ['studio-retouch', 'logo-design', 'ui-design'],
-    persona: '多任务并行，适合跨视觉风格整合与提案。'
+    id: 'poster-design',
+    name: '海报制作',
+    description: '活动海报、社媒视觉、版式排版、传播物料设计'
   }
 ];
 
@@ -101,6 +85,7 @@ const runtimeAuth = {
   source: OAUTH_ACCESS_TOKEN ? 'env' : 'none',
   updatedAt: OAUTH_ACCESS_TOKEN ? nowIso() : null
 };
+const requestAuthStore = new AsyncLocalStorage();
 
 class AppError extends Error {
   constructor(message, statusCode = 400, details = null) {
@@ -195,25 +180,109 @@ function maskToken(value) {
   return `${token.slice(0, 6)}...${token.slice(-4)}`;
 }
 
+function getRequestAuthContext() {
+  return requestAuthStore.getStore() || null;
+}
+
+function parseCookieHeader(cookieHeader = '') {
+  const map = {};
+  String(cookieHeader || '')
+    .split(';')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((pair) => {
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex <= 0) {
+        return;
+      }
+      const key = pair.slice(0, eqIndex).trim();
+      const rawValue = pair.slice(eqIndex + 1).trim();
+      if (!key) {
+        return;
+      }
+      try {
+        map[key] = decodeURIComponent(rawValue);
+      } catch {
+        map[key] = rawValue;
+      }
+    });
+  return map;
+}
+
+function buildSetCookie(
+  name,
+  value,
+  { maxAge = null, httpOnly = true, sameSite = 'Lax', secure = COOKIE_SECURE, path = '/' } = {}
+) {
+  const parts = [`${name}=${encodeURIComponent(String(value || ''))}`, `Path=${path}`, `SameSite=${sameSite}`];
+  if (httpOnly) {
+    parts.push('HttpOnly');
+  }
+  if (secure) {
+    parts.push('Secure');
+  }
+  if (typeof maxAge === 'number') {
+    parts.push(`Max-Age=${Math.max(0, Math.floor(maxAge))}`);
+  }
+  return parts.join('; ');
+}
+
+function clearCookie(name) {
+  return buildSetCookie(name, '', {
+    maxAge: 0
+  });
+}
+
+function authCookiesFromToken(tokenData = {}) {
+  const accessToken = String(tokenData.accessToken || '').trim();
+  const refreshToken = String(tokenData.refreshToken || '').trim();
+  const expiresInRaw = Number(tokenData.expiresIn || 0);
+  const expiresIn = Number.isFinite(expiresInRaw) && expiresInRaw > 0 ? Math.floor(expiresInRaw) : 7200;
+
+  const cookies = [];
+  if (accessToken) {
+    cookies.push(
+      buildSetCookie(OAUTH_COOKIE_ACCESS, accessToken, {
+        maxAge: expiresIn
+      })
+    );
+  } else {
+    cookies.push(clearCookie(OAUTH_COOKIE_ACCESS));
+  }
+
+  if (refreshToken) {
+    cookies.push(
+      buildSetCookie(OAUTH_COOKIE_REFRESH, refreshToken, {
+        maxAge: 30 * 24 * 60 * 60
+      })
+    );
+  } else {
+    cookies.push(clearCookie(OAUTH_COOKIE_REFRESH));
+  }
+
+  return cookies;
+}
+
+function clearOAuthCookies() {
+  return [clearCookie(OAUTH_COOKIE_ACCESS), clearCookie(OAUTH_COOKIE_REFRESH), clearCookie(OAUTH_COOKIE_STATE)];
+}
+
 function resolveSecondMeToken(overrideToken = '') {
   const explicit = String(overrideToken || '').trim();
   if (explicit) {
     return explicit;
   }
-  if (SECONDME_API_KEY) {
-    return SECONDME_API_KEY;
-  }
-  if (runtimeAuth.accessToken) {
-    return runtimeAuth.accessToken;
+  const ctx = getRequestAuthContext();
+  const scopedToken = String(ctx?.oauthAccessToken || '').trim();
+  if (scopedToken) {
+    return scopedToken;
   }
   return '';
 }
 
 function currentAuthMode() {
-  if (SECONDME_API_KEY) {
-    return 'api-key';
-  }
-  if (runtimeAuth.accessToken) {
+  const ctx = getRequestAuthContext();
+  if (ctx?.oauthAccessToken) {
     return 'oauth-token';
   }
   return 'none';
@@ -222,10 +291,10 @@ function currentAuthMode() {
 function ensureSecondMeConfigured(overrideToken = '') {
   if (!resolveSecondMeToken(overrideToken)) {
     throw new AppError(
-      '未配置 SECONDME_API_KEY（或 MINDVERSE_API_KEY）且无 OAuth Access Token，无法调用 SecondMe',
+      '当前会话无 OAuth Access Token，请先登录 SecondMe',
       400,
       {
-        missing: ['SECONDME_API_KEY', 'MINDVERSE_API_KEY', 'OAuth Access Token'],
+        missing: ['OAuth Access Token'],
         requiredScopes: REQUIRED_SCOPES,
         extendedScopes: EXTENDED_SCOPES
       }
@@ -418,6 +487,15 @@ function resolveLaborType(input) {
     return null;
   }
 
+  if (normalized.startsWith('custom:')) {
+    const customName = normalized.slice(7).trim();
+    return {
+      laborType: customName ? `custom:${customName}` : normalized,
+      laborTypeName: customName || normalized,
+      known: false
+    };
+  }
+
   const byId = laborTypeById(normalized);
   if (byId) {
     return {
@@ -443,8 +521,90 @@ function resolveLaborType(input) {
   };
 }
 
-function workerById(workerId) {
-  return AI_WORKERS.find((worker) => worker.id === workerId);
+function buildWorkerId(secondUserId) {
+  return `sm_${String(secondUserId || '').trim()}`;
+}
+
+function normalizeSpecialties(input, useFallback = true) {
+  const source = Array.isArray(input) ? input : String(input || '').split(/[,\n]/);
+  const normalized = source
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .map((item) => resolveLaborType(item))
+    .filter(Boolean)
+    .map((item) => item.laborType);
+
+  const unique = Array.from(new Set(normalized));
+  if (unique.length) {
+    return unique.slice(0, 12);
+  }
+
+  if (!useFallback) {
+    return [];
+  }
+  const fallback = LABOR_TYPES[0]?.id || 'general';
+  return [fallback];
+}
+
+function profileToWorker(profile) {
+  return {
+    id: String(profile.workerId || profile.id || '').trim(),
+    secondUserId: String(profile.secondUserId || profile.userId || '').trim(),
+    name: String(profile.name || '').trim(),
+    title: String(profile.title || '').trim(),
+    specialties: normalizeSpecialties(profile.specialties),
+    persona: String(profile.persona || '').trim(),
+    avatar: String(profile.avatar || '').trim(),
+    createdAt: profile.createdAt || null,
+    updatedAt: profile.updatedAt || null
+  };
+}
+
+function createDefaultProfile(secondUser = {}) {
+  const userId = String(secondUser.userId || '').trim();
+  const name = String(secondUser.name || 'SecondMe 用户').trim();
+  const now = nowIso();
+  return {
+    secondUserId: userId,
+    workerId: buildWorkerId(userId),
+    name,
+    title: '通用劳务体',
+    specialties: [LABOR_TYPES[0]?.id || 'general'],
+    persona: String(secondUser.selfIntroduction || secondUser.bio || '我会按需求交付高质量内容。').trim(),
+    avatar: String(secondUser.avatar || '').trim(),
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function normalizeProfilePatch(payload = {}) {
+  const patch = {};
+  const has = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+
+  if (has('name')) {
+    patch.name = String(payload.name || '').trim();
+  }
+  if (has('title')) {
+    patch.title = String(payload.title || '').trim();
+  }
+  if (has('persona')) {
+    patch.persona = String(payload.persona || '').trim();
+  }
+  if (has('specialties')) {
+    patch.specialties = normalizeSpecialties(payload.specialties);
+  }
+  if (has('avatar')) {
+    patch.avatar = String(payload.avatar || '').trim();
+  }
+  return patch;
+}
+
+function workersMap(workers = []) {
+  return new Map(workers.map((worker) => [worker.id, worker]));
+}
+
+function workerById(workerId, workers = []) {
+  return workers.find((worker) => worker.id === workerId);
 }
 
 function seedTasks() {
@@ -485,17 +645,20 @@ function seedTasks() {
   return seed;
 }
 
-async function ensureDataFile() {
+async function ensureDataFiles() {
   if (!existsSync(DATA_DIR)) {
     await fs.mkdir(DATA_DIR, { recursive: true });
   }
   if (!existsSync(DATA_FILE)) {
     await fs.writeFile(DATA_FILE, JSON.stringify(seedTasks(), null, 2), 'utf8');
   }
+  if (!existsSync(PROFILE_FILE)) {
+    await fs.writeFile(PROFILE_FILE, JSON.stringify([], null, 2), 'utf8');
+  }
 }
 
 async function loadTasks() {
-  await ensureDataFile();
+  await ensureDataFiles();
   const raw = await fs.readFile(DATA_FILE, 'utf8');
   const parsed = JSON.parse(raw);
   return Array.isArray(parsed) ? parsed : [];
@@ -503,6 +666,101 @@ async function loadTasks() {
 
 async function saveTasks(tasks) {
   await fs.writeFile(DATA_FILE, JSON.stringify(tasks, null, 2), 'utf8');
+}
+
+async function loadProfiles() {
+  await ensureDataFiles();
+  const raw = await fs.readFile(PROFILE_FILE, 'utf8');
+  const parsed = JSON.parse(raw);
+  const list = Array.isArray(parsed) ? parsed : [];
+  return list.map(profileToWorker);
+}
+
+async function saveProfiles(workers) {
+  await ensureDataFiles();
+  const normalized = (Array.isArray(workers) ? workers : []).map((worker) => ({
+    secondUserId: String(worker.secondUserId || '').trim(),
+    workerId: String(worker.id || worker.workerId || '').trim(),
+    name: String(worker.name || '').trim(),
+    title: String(worker.title || '').trim(),
+    specialties: normalizeSpecialties(worker.specialties),
+    persona: String(worker.persona || '').trim(),
+    avatar: String(worker.avatar || '').trim(),
+    createdAt: worker.createdAt || nowIso(),
+    updatedAt: worker.updatedAt || nowIso()
+  }));
+  await fs.writeFile(PROFILE_FILE, JSON.stringify(normalized, null, 2), 'utf8');
+}
+
+async function upsertWorkerProfile(secondUser = {}, patch = {}) {
+  const secondUserId = String(secondUser.userId || '').trim();
+  if (!secondUserId) {
+    throw new AppError('未获取到 SecondMe 用户ID，无法创建劳务体', 502);
+  }
+
+  const workers = await loadProfiles();
+  const workerId = buildWorkerId(secondUserId);
+  const index = workers.findIndex((item) => item.id === workerId);
+  const now = nowIso();
+
+  const base =
+    index >= 0
+      ? workers[index]
+      : profileToWorker({
+          ...createDefaultProfile(secondUser),
+          workerId
+        });
+
+  const normalizedPatch = normalizeProfilePatch(patch);
+  const merged = {
+    ...base,
+    id: workerId,
+    workerId,
+    secondUserId,
+    name: normalizedPatch.name || base.name || String(secondUser.name || '').trim() || 'SecondMe 用户',
+    title: normalizedPatch.title || base.title || '通用劳务体',
+    specialties: normalizedPatch.specialties || base.specialties || normalizeSpecialties([]),
+    persona:
+      normalizedPatch.persona ||
+      base.persona ||
+      String(secondUser.selfIntroduction || secondUser.bio || '我会按需求交付高质量内容。').trim(),
+    avatar: normalizedPatch.avatar || String(secondUser.avatar || '').trim() || base.avatar || '',
+    createdAt: base.createdAt || now,
+    updatedAt: now
+  };
+
+  if (index >= 0) {
+    workers[index] = merged;
+  } else {
+    workers.push(merged);
+  }
+
+  await saveProfiles(workers);
+  return merged;
+}
+
+async function getCurrentSessionWorker({ createIfMissing = true } = {}) {
+  const ctx = getRequestAuthContext();
+  const sessionToken = String(ctx?.oauthAccessToken || '').trim();
+  if (!sessionToken) {
+    throw new AppError('请先使用 SecondMe 登录，再进行操作', 401);
+  }
+
+  const userInfo = await callSecondMeJson('/api/secondme/user/info', {
+    authToken: sessionToken
+  });
+  const userData = userInfo?.data || {};
+
+  if (!userData || !String(userData.userId || '').trim()) {
+    throw new AppError('SecondMe 用户信息缺少 userId', 502, userInfo);
+  }
+
+  const worker = createIfMissing ? await upsertWorkerProfile(userData) : null;
+  return {
+    token: sessionToken,
+    user: userData,
+    worker
+  };
 }
 
 function secondMeHeaders(extra = {}, authToken = '') {
@@ -692,14 +950,14 @@ async function addSecondMeTextNote({ title, content }) {
   return noteId;
 }
 
-function summarizeUpdates(task) {
+function summarizeUpdates(task, workerLookup = new Map()) {
   if (!Array.isArray(task.updates) || task.updates.length === 0) {
     return '暂无协作备注。';
   }
   return task.updates
     .slice(-6)
     .map((item, idx) => {
-      const worker = workerById(item.workerId);
+      const worker = workerLookup.get(item.workerId);
       const workerName = worker ? worker.name : item.workerId;
       return `${idx + 1}. ${workerName}: ${item.message}`;
     })
@@ -728,9 +986,9 @@ function pushTaskSyncEvent(task, eventType, noteId, title) {
   });
 }
 
-function buildTaskContextText(task) {
+function buildTaskContextText(task, workerLookup = new Map()) {
   const participants = task.participants
-    .map((id) => workerById(id)?.name || id)
+    .map((id) => workerLookup.get(id)?.name || id)
     .join('、') || '暂无';
 
   return [
@@ -745,34 +1003,34 @@ function buildTaskContextText(task) {
   ].join('\n');
 }
 
-async function syncTaskCreated(task) {
+async function syncTaskCreated(task, workerLookup) {
   const noteId = await addSecondMeTextNote({
     title: `[AI劳务需求] ${task.title}`,
-    content: `${buildTaskContextText(task)}\n\n事件: 任务已发布，等待 AI 报名参与。`
+    content: `${buildTaskContextText(task, workerLookup)}\n\n事件: 任务已发布，等待 AI 报名参与。`
   });
   pushTaskSyncEvent(task, 'TASK_CREATED', noteId, `[AI劳务需求] ${task.title}`);
 }
 
-async function syncTaskJoined(task, worker) {
+async function syncTaskJoined(task, worker, workerLookup) {
   const noteId = await addSecondMeTextNote({
     title: `[AI参与] ${task.title} · ${worker.name}`,
-    content: `${buildTaskContextText(task)}\n\n事件: ${worker.name} 已报名参与该任务。`
+    content: `${buildTaskContextText(task, workerLookup)}\n\n事件: ${worker.name} 已报名参与该任务。`
   });
   pushTaskSyncEvent(task, 'TASK_JOINED', noteId, `[AI参与] ${task.title} · ${worker.name}`);
 }
 
-async function syncTaskUpdate(task, worker, message) {
+async function syncTaskUpdate(task, worker, message, workerLookup) {
   const noteId = await addSecondMeTextNote({
     title: `[协作备注] ${task.title}`,
-    content: `${buildTaskContextText(task)}\n\n提交AI: ${worker.name}\n备注内容: ${message}`
+    content: `${buildTaskContextText(task, workerLookup)}\n\n提交AI: ${worker.name}\n备注内容: ${message}`
   });
   pushTaskSyncEvent(task, 'TASK_UPDATE', noteId, `[协作备注] ${task.title}`);
 }
 
-async function syncTaskDelivery(task) {
+async function syncTaskDelivery(task, workerLookup) {
   const noteId = await addSecondMeTextNote({
     title: `[交付完成] ${task.title}`,
-    content: `${buildTaskContextText(task)}\n\n交付引擎: ${task.delivery?.engine || 'secondme-chat-stream'}\n交付内容:\n${task.delivery?.content || ''}`
+    content: `${buildTaskContextText(task, workerLookup)}\n\n交付引擎: ${task.delivery?.engine || 'secondme-chat-stream'}\n交付内容:\n${task.delivery?.content || ''}`
   });
   pushTaskSyncEvent(task, 'TASK_DELIVERED', noteId, `[交付完成] ${task.title}`);
 }
@@ -940,7 +1198,7 @@ async function callSecondMeChatStream({
   };
 }
 
-async function secondMeDelivery(task, customBrief) {
+async function secondMeDelivery(task, customBrief, workerLookup) {
   const prompt = [
     '你是一个AI劳务市场里的资深交付AI。',
     '请基于以下任务，输出可直接给图像模型或设计模型使用的“最终交付提示词与交付说明”。',
@@ -950,8 +1208,8 @@ async function secondMeDelivery(task, customBrief) {
     '3) 约束与参数建议（列表）',
     '4) 交付验收标准（列表）',
     '',
-    buildTaskContextText(task),
-    `协作摘要:\n${summarizeUpdates(task)}`,
+    buildTaskContextText(task, workerLookup),
+    `协作摘要:\n${summarizeUpdates(task, workerLookup)}`,
     customBrief ? `补充要求: ${customBrief}` : ''
   ].filter(Boolean).join('\n');
 
@@ -978,8 +1236,8 @@ async function secondMeDelivery(task, customBrief) {
   };
 }
 
-async function generateDelivery(task, customBrief) {
-  return secondMeDelivery(task, customBrief);
+async function generateDelivery(task, customBrief, workerLookup) {
+  return secondMeDelivery(task, customBrief, workerLookup);
 }
 
 async function handleApi(req, res, urlObj) {
@@ -997,18 +1255,18 @@ async function handleApi(req, res, urlObj) {
   }
 
   if (method === 'GET' && pathname === '/api/meta') {
+    const workers = await loadProfiles();
     return json(res, 200, {
       code: 0,
       message: 'success',
       data: {
         laborTypes: LABOR_TYPES,
-        workers: AI_WORKERS,
+        workers,
         integration: {
           mode: 'direct-secondme',
           secondMeConfigured: Boolean(resolveSecondMeToken()),
           secondMeBaseUrl: SECONDME_BASE_URL,
           appId: SECONDME_APP_ID,
-          apiKeyEnv: SECONDME_API_KEY ? 'configured' : 'missing',
           authMode: currentAuthMode(),
           requiredScopes: REQUIRED_SCOPES,
           extendedScopes: EXTENDED_SCOPES,
@@ -1019,13 +1277,72 @@ async function handleApi(req, res, urlObj) {
     });
   }
 
+  if (method === 'GET' && pathname === '/api/workers') {
+    const workers = await loadProfiles();
+    return json(res, 200, {
+      code: 0,
+      message: 'success',
+      data: workers
+    });
+  }
+
+  if (method === 'GET' && pathname === '/api/me/labor-body') {
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    return json(res, 200, {
+      code: 0,
+      message: 'success',
+      data: {
+        user: session.user,
+        worker: session.worker
+      }
+    });
+  }
+
+  if (method === 'POST' && pathname === '/api/me/labor-body') {
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    const patch = normalizeProfilePatch(body);
+    const extraSpecialties = normalizeSpecialties(body.extraSpecialties, false);
+    if (extraSpecialties.length) {
+      patch.specialties = Array.from(new Set([...(patch.specialties || session.worker.specialties || []), ...extraSpecialties])).slice(
+        0,
+        12
+      );
+    }
+    const worker = await upsertWorkerProfile(session.user, patch);
+
+    return json(res, 200, {
+      code: 0,
+      message: '劳务体已更新',
+      data: {
+        user: session.user,
+        worker
+      }
+    });
+  }
+
   if (method === 'GET' && pathname === '/api/oauth/meta') {
+    const ctx = getRequestAuthContext();
     return json(res, 200, {
       code: 0,
       message: 'success',
       data: {
         oauth: oauthConfigSnapshot(),
         token: oauthTokenSnapshot(),
+        requestToken: {
+          source: ctx?.oauthAccessToken ? 'cookie' : 'none',
+          accessTokenMasked: maskToken(ctx?.oauthAccessToken || ''),
+          refreshTokenMasked: maskToken(ctx?.oauthRefreshToken || '')
+        },
         secondMeAuthMode: currentAuthMode(),
         secondMeBaseUrl: SECONDME_BASE_URL
       }
@@ -1041,6 +1358,12 @@ async function handleApi(req, res, urlObj) {
       clientId,
       redirectUri
     });
+    res.setHeader(
+      'Set-Cookie',
+      buildSetCookie(OAUTH_COOKIE_STATE, state, {
+        maxAge: 10 * 60
+      })
+    );
 
     return json(res, 200, {
       code: 0,
@@ -1077,6 +1400,7 @@ async function handleApi(req, res, urlObj) {
       });
     }
 
+    res.setHeader('Set-Cookie', authCookiesFromToken(tokenResponse.data));
     setRuntimeAuthTokens(tokenResponse.data, 'oauth-code');
     return json(res, 200, {
       code: 0,
@@ -1099,7 +1423,9 @@ async function handleApi(req, res, urlObj) {
       throw error;
     }
 
-    const refreshToken = String(body.refreshToken || '').trim() || runtimeAuth.refreshToken;
+    const ctx = getRequestAuthContext();
+    const refreshToken =
+      String(body.refreshToken || '').trim() || String(ctx?.oauthRefreshToken || '').trim() || runtimeAuth.refreshToken;
     const clientId = String(body.clientId || '').trim() || OAUTH_CLIENT_ID;
     const clientSecret = String(body.clientSecret || '').trim() || OAUTH_CLIENT_SECRET;
     const tokenResponse = await refreshAccessToken({
@@ -1114,6 +1440,7 @@ async function handleApi(req, res, urlObj) {
       });
     }
 
+    res.setHeader('Set-Cookie', authCookiesFromToken(tokenResponse.data));
     setRuntimeAuthTokens(tokenResponse.data, 'oauth-refresh');
     return json(res, 200, {
       code: 0,
@@ -1160,11 +1487,20 @@ async function handleApi(req, res, urlObj) {
   }
 
   if (method === 'POST' && pathname === '/api/oauth/token/clear') {
+    res.setHeader('Set-Cookie', clearOAuthCookies());
     clearRuntimeAuthTokens();
     return json(res, 200, {
       code: 0,
       message: '运行时 OAuth token 已清空',
       data: oauthTokenSnapshot()
+    });
+  }
+
+  if (method === 'POST' && pathname === '/api/oauth/logout') {
+    res.setHeader('Set-Cookie', clearOAuthCookies());
+    return json(res, 200, {
+      code: 0,
+      message: '已退出当前会话 OAuth 登录'
     });
   }
 
@@ -1503,7 +1839,8 @@ async function handleApi(req, res, urlObj) {
     const title = String(body.title || '').trim();
     const description = String(body.description || '').trim();
     const laborTypeInput = String(body.laborType || '').trim();
-    const requesterAi = String(body.requesterAi || '').trim();
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    const requesterAi = session.worker?.name || String(session.user?.name || '').trim();
     const budget = String(body.budget || '').trim();
     const deadline = String(body.deadline || '').trim();
 
@@ -1512,9 +1849,6 @@ async function handleApi(req, res, urlObj) {
     }
     if (!description) {
       return badRequest(res, '任务描述不能为空');
-    }
-    if (!requesterAi) {
-      return badRequest(res, '发布AI不能为空');
     }
     if (!laborTypeInput) {
       return badRequest(res, '劳务类型不能为空');
@@ -1543,7 +1877,8 @@ async function handleApi(req, res, urlObj) {
       updatedAt: nowIso()
     };
 
-    await syncTaskCreated(task);
+    const workerLookup = workersMap(await loadProfiles());
+    await syncTaskCreated(task, workerLookup);
     tasks.push(task);
     await saveTasks(tasks);
 
@@ -1557,24 +1892,11 @@ async function handleApi(req, res, urlObj) {
   const joinMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/join$/);
   if (method === 'POST' && joinMatch) {
     const taskId = decodeURIComponent(joinMatch[1]);
-    let body;
-    try {
-      body = await readBody(req);
-    } catch (error) {
-      if (String(error.message) === 'INVALID_JSON') {
-        return badRequest(res, '请求体不是合法 JSON');
-      }
-      throw error;
-    }
-
-    const workerId = String(body.workerId || '').trim();
-    if (!workerId) {
-      return badRequest(res, 'workerId 不能为空');
-    }
-
-    const worker = workerById(workerId);
-    if (!worker) {
-      return badRequest(res, 'AI 劳务体不存在');
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    const worker = session.worker;
+    const workerId = String(worker?.id || '').trim();
+    if (!workerId || !worker) {
+      return badRequest(res, '当前会话缺少劳务体，请先完善资料');
     }
 
     const tasks = await loadTasks();
@@ -1591,7 +1913,8 @@ async function handleApi(req, res, urlObj) {
       task.participants.push(workerId);
       task.status = 'IN_PROGRESS';
       task.updatedAt = nowIso();
-      await syncTaskJoined(task, worker);
+      const workerLookup = workersMap(await loadProfiles());
+      await syncTaskJoined(task, worker, workerLookup);
       await saveTasks(tasks);
     }
 
@@ -1615,16 +1938,16 @@ async function handleApi(req, res, urlObj) {
       throw error;
     }
 
-    const workerId = String(body.workerId || '').trim();
     const message = String(body.message || '').trim();
 
-    if (!workerId || !message) {
-      return badRequest(res, 'workerId 和 message 都不能为空');
+    if (!message) {
+      return badRequest(res, 'message 不能为空');
     }
-
-    const worker = workerById(workerId);
-    if (!worker) {
-      return badRequest(res, 'AI 劳务体不存在');
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    const worker = session.worker;
+    const workerId = String(worker?.id || '').trim();
+    if (!workerId || !worker) {
+      return badRequest(res, '当前会话缺少劳务体，请先完善资料');
     }
 
     const tasks = await loadTasks();
@@ -1644,7 +1967,8 @@ async function handleApi(req, res, urlObj) {
       at: nowIso()
     });
     task.updatedAt = nowIso();
-    await syncTaskUpdate(task, worker, message);
+    const workerLookup = workersMap(await loadProfiles());
+    await syncTaskUpdate(task, worker, message, workerLookup);
 
     await saveTasks(tasks);
 
@@ -1669,6 +1993,12 @@ async function handleApi(req, res, urlObj) {
     }
 
     const brief = String(body.brief || '').trim();
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    const worker = session.worker;
+    const workerId = String(worker?.id || '').trim();
+    if (!workerId || !worker) {
+      return badRequest(res, '当前会话缺少劳务体，请先完善资料');
+    }
 
     const tasks = await loadTasks();
     const task = tasks.find((item) => item.id === taskId);
@@ -1676,7 +2006,12 @@ async function handleApi(req, res, urlObj) {
       return notFound(res);
     }
 
-    const delivery = await generateDelivery(task, brief);
+    if (!task.participants.includes(workerId) && task.requesterAi !== worker.name) {
+      return badRequest(res, '仅任务发布者或参与者可生成交付');
+    }
+
+    const workerLookup = workersMap(await loadProfiles());
+    const delivery = await generateDelivery(task, brief, workerLookup);
 
     task.delivery = {
       ...delivery,
@@ -1688,7 +2023,7 @@ async function handleApi(req, res, urlObj) {
     }
     task.status = 'DELIVERED';
     task.updatedAt = nowIso();
-    await syncTaskDelivery(task);
+    await syncTaskDelivery(task, workerLookup);
 
     await saveTasks(tasks);
 
@@ -1700,13 +2035,16 @@ async function handleApi(req, res, urlObj) {
   }
 
   if (method === 'GET' && pathname === '/api/secondme/profile') {
-    if (!resolveSecondMeToken()) {
+    const ctx = getRequestAuthContext();
+    const sessionToken = String(ctx?.oauthAccessToken || '').trim();
+    if (!sessionToken) {
       return json(res, 200, {
         code: 0,
-        message: '未配置 SECONDME_API_KEY（或 MINDVERSE_API_KEY），且当前无可用 OAuth Access Token',
+        message: '当前未登录 SecondMe 账号',
         data: {
           connected: false,
           profile: null,
+          worker: null,
           authMode: currentAuthMode(),
           requiredScopes: REQUIRED_SCOPES,
           extendedScopes: EXTENDED_SCOPES,
@@ -1715,13 +2053,17 @@ async function handleApi(req, res, urlObj) {
       });
     }
     try {
-      const profile = await callSecondMeJson('/api/secondme/user/info');
+      const session = await getCurrentSessionWorker({ createIfMissing: true });
       return json(res, 200, {
         code: 0,
         message: 'success',
         data: {
           connected: true,
-          profile,
+          profile: {
+            code: 0,
+            data: session.user
+          },
+          worker: session.worker,
           appId: SECONDME_APP_ID,
           authMode: currentAuthMode(),
           oauthToken: oauthTokenSnapshot()
@@ -1758,10 +2100,27 @@ function escapeHtmlText(value) {
 }
 
 async function handleOAuthCallbackPage(req, res, urlObj) {
+  const ctx = getRequestAuthContext();
   const code = String(urlObj.searchParams.get('code') || '').trim();
   const state = String(urlObj.searchParams.get('state') || '').trim();
   const error = String(urlObj.searchParams.get('error') || '').trim();
   const errorDescription = String(urlObj.searchParams.get('error_description') || '').trim();
+  const stateFromCookie = String(ctx?.oauthState || '').trim();
+
+  if (stateFromCookie && stateFromCookie !== state) {
+    const content = `<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="UTF-8" /><title>OAuth 回调失败</title></head>
+  <body style="font-family: ui-sans-serif,system-ui; padding: 24px;">
+    <h2>OAuth 回调失败</h2>
+    <p><strong>error:</strong> state 校验失败（可能重复打开或会话已变化）</p>
+    <p><strong>state(query):</strong> ${escapeHtmlText(state)}</p>
+    <p><strong>state(cookie):</strong> ${escapeHtmlText(stateFromCookie)}</p>
+  </body>
+</html>`;
+    res.setHeader('Set-Cookie', clearCookie(OAUTH_COOKIE_STATE));
+    return html(res, 400, content);
+  }
 
   if (error) {
     const content = `<!doctype html>
@@ -1774,6 +2133,7 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
     <p><strong>state:</strong> ${escapeHtmlText(state || '无')}</p>
   </body>
 </html>`;
+    res.setHeader('Set-Cookie', clearCookie(OAUTH_COOKIE_STATE));
     return html(res, 400, content);
   }
 
@@ -1786,6 +2146,7 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
     <p>未检测到授权码 <code>code</code>。</p>
   </body>
 </html>`;
+    res.setHeader('Set-Cookie', clearCookie(OAUTH_COOKIE_STATE));
     return html(res, 400, content);
   }
 
@@ -1805,9 +2166,12 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
       if (!tokenResponse?.data?.accessToken) {
         throw new AppError('token 响应缺少 accessToken', 502, tokenResponse);
       }
+      const setCookies = authCookiesFromToken(tokenResponse.data);
+      setCookies.push(clearCookie(OAUTH_COOKIE_STATE));
+      res.setHeader('Set-Cookie', setCookies);
       setRuntimeAuthTokens(tokenResponse.data, 'oauth-callback');
       exchanged = true;
-      exchangeMessage = 'code 换 token 成功，已写入当前进程运行态';
+      exchangeMessage = 'code 换 token 成功，已写入当前浏览器会话';
       exchangePayload = tokenResponse.data;
     } catch (errorObj) {
       exchanged = false;
@@ -1816,16 +2180,31 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
   } else {
     exchangeMessage = '未配置 SECONDME_CLIENT_ID / SECONDME_CLIENT_SECRET，未自动换 token';
   }
+  if (!exchanged) {
+    res.setHeader('Set-Cookie', clearCookie(OAUTH_COOKIE_STATE));
+  }
+
+  const redirectTarget = '/';
+  const redirectDelayMs = 1200;
+  const autoRedirectScript = exchanged
+    ? `<script>
+      setTimeout(() => {
+        window.location.replace(${JSON.stringify(redirectTarget)});
+      }, ${redirectDelayMs});
+    </script>`
+    : '';
 
   const content = `<!doctype html>
 <html lang="zh-CN">
-  <head><meta charset="UTF-8" /><title>OAuth 回调结果</title></head>
+  <head><meta charset="UTF-8" /><title>OAuth 回调结果</title>${autoRedirectScript}</head>
   <body style="font-family: ui-sans-serif,system-ui; padding: 24px; line-height: 1.6;">
     <h2>OAuth 回调成功</h2>
     <p><strong>code:</strong> ${escapeHtmlText(maskToken(code))}</p>
     <p><strong>state:</strong> ${escapeHtmlText(state || '无')}</p>
     <p><strong>自动换 token:</strong> ${exchanged ? '成功' : '未成功'}</p>
     <p><strong>说明:</strong> ${escapeHtmlText(exchangeMessage)}</p>
+    <p><strong>下一步:</strong> ${exchanged ? `即将自动跳转到首页（约 ${Math.round(redirectDelayMs / 1000)} 秒）` : '请检查错误并重试登录。'}</p>
+    <p><a href="${redirectTarget}" style="display:inline-block; margin: 6px 0;">返回首页</a></p>
     <pre style="background:#f6f8fa; padding: 12px; border-radius: 8px;">${escapeHtmlText(
       JSON.stringify(
         {
@@ -1886,39 +2265,49 @@ async function serveStatic(req, res, urlObj) {
 }
 
 export async function requestHandler(req, res) {
-  try {
-    const host = req.headers.host || `localhost:${PORT}`;
-    const urlObj = new URL(req.url || '/', `http://${host}`);
+  const cookies = parseCookieHeader(req.headers.cookie || '');
+  return requestAuthStore.run(
+    {
+      oauthAccessToken: String(cookies[OAUTH_COOKIE_ACCESS] || '').trim(),
+      oauthRefreshToken: String(cookies[OAUTH_COOKIE_REFRESH] || '').trim(),
+      oauthState: String(cookies[OAUTH_COOKIE_STATE] || '').trim()
+    },
+    async () => {
+      try {
+        const host = req.headers.host || `localhost:${PORT}`;
+        const urlObj = new URL(req.url || '/', `http://${host}`);
 
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204);
-      return res.end();
-    }
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204);
+          return res.end();
+        }
 
-    if (req.method === 'GET' && urlObj.pathname === '/oauth/callback') {
-      await handleOAuthCallbackPage(req, res, urlObj);
-      return;
-    }
+        if (req.method === 'GET' && urlObj.pathname === '/oauth/callback') {
+          await handleOAuthCallbackPage(req, res, urlObj);
+          return;
+        }
 
-    if (urlObj.pathname.startsWith('/api/')) {
-      const handled = await handleApi(req, res, urlObj);
-      if (handled === false) {
-        return notFound(res);
+        if (urlObj.pathname.startsWith('/api/')) {
+          const handled = await handleApi(req, res, urlObj);
+          if (handled === false) {
+            return notFound(res);
+          }
+          return;
+        }
+
+        await serveStatic(req, res, urlObj);
+      } catch (error) {
+        if (error instanceof AppError) {
+          return json(res, error.statusCode, {
+            code: error.statusCode,
+            message: error.message,
+            details: error.details || null
+          });
+        }
+        internalError(res, error);
       }
-      return;
     }
-
-    await serveStatic(req, res, urlObj);
-  } catch (error) {
-    if (error instanceof AppError) {
-      return json(res, error.statusCode, {
-        code: error.statusCode,
-        message: error.message,
-        details: error.details || null
-      });
-    }
-    internalError(res, error);
-  }
+  );
 }
 
 const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === __filename;
@@ -1930,11 +2319,10 @@ if (isMainModule) {
     console.log(`[AI Labor Market] SecondMe base: ${SECONDME_BASE_URL}`);
     console.log(`[AI Labor Market] mode: direct-secondme`);
     console.log(`[AI Labor Market] auth mode: ${currentAuthMode()}`);
-    console.log(`[AI Labor Market] SecondMe key: ${SECONDME_API_KEY ? 'configured' : 'missing'}`);
     console.log(`[AI Labor Market] OAuth client: ${oauthClientConfigured() ? 'configured' : 'missing'}; redirect_uri: ${OAUTH_REDIRECT_URI || 'missing'}`);
     console.log(`[AI Labor Market] required scopes: ${REQUIRED_SCOPES.join(',')}; extended scopes: ${EXTENDED_SCOPES.join(',')}`);
     if (!resolveSecondMeToken()) {
-      console.log('[AI Labor Market] required env: SECONDME_API_KEY/MINDVERSE_API_KEY or OAuth Access Token');
+      console.log('[AI Labor Market] required login: OAuth Access Token');
     }
     if (IS_VERCEL) {
       console.log(`[AI Labor Market] data file (ephemeral): ${DATA_FILE}`);

@@ -4,7 +4,9 @@ const state = {
   tasks: [],
   filter: 'ALL',
   integration: null,
-  secondMeConnected: false
+  secondMeConnected: false,
+  me: null,
+  meWorker: null
 };
 
 const publishForm = document.querySelector('#publish-form');
@@ -20,6 +22,12 @@ const metricWorkers = document.querySelector('#metric-workers');
 const metricOrders = document.querySelector('#metric-orders');
 const metricDelivered = document.querySelector('#metric-delivered');
 const toast = document.querySelector('#toast');
+const authUser = document.querySelector('#auth-user');
+const topLogout = document.querySelector('#top-logout');
+const requesterAiInput = document.querySelector('#requester-ai-name');
+const workerProfileForm = document.querySelector('#worker-profile-form');
+const workerSkillOptions = document.querySelector('#worker-skill-options');
+const workerProfileHint = document.querySelector('#worker-profile-hint');
 const loginButtons = Array.from(document.querySelectorAll('.top-login, .hero-login'));
 const layoutScrollWrap = document.querySelector('#layout-scroll-wrap');
 const layoutScrollbar = document.querySelector('#layout-scrollbar');
@@ -96,6 +104,16 @@ function setPublishFormEnabled(enabled) {
   });
 }
 
+function setWorkerProfileFormEnabled(enabled) {
+  if (!workerProfileForm) {
+    return;
+  }
+  const controls = workerProfileForm.querySelectorAll('input, textarea, select, button');
+  controls.forEach((el) => {
+    el.disabled = !enabled;
+  });
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     ...options,
@@ -150,15 +168,15 @@ function statusClass(status) {
 }
 
 function laborTypeName(typeId) {
-  return state.laborTypes.find((item) => item.id === typeId)?.name || typeId;
+  const normalized = String(typeId || '').trim();
+  if (normalized.startsWith('custom:')) {
+    return normalized.slice(7) || normalized;
+  }
+  return state.laborTypes.find((item) => item.id === normalized)?.name || normalized;
 }
 
 function workerName(workerId) {
   return state.workers.find((item) => item.id === workerId)?.name || workerId;
-}
-
-function supportsType(worker, typeId) {
-  return Array.isArray(worker.specialties) && worker.specialties.includes(typeId);
 }
 
 function renderLaborTypes() {
@@ -179,8 +197,71 @@ function renderLaborTypes() {
   if (laborTypePreset) {
     laborTypePreset.innerHTML = '<option value="">常用类型（可选）</option>' + options;
   }
+
+  renderWorkerSkillOptions();
 }
 
+function renderWorkerSkillOptions() {
+  if (!workerSkillOptions) {
+    return;
+  }
+  const selected = new Set(state.meWorker?.specialties || []);
+  workerSkillOptions.innerHTML = state.laborTypes
+    .map(
+      (item) => `
+      <label>
+        <input type="checkbox" name="specialties" value="${escapeHtml(item.id)}" ${selected.has(item.id) ? 'checked' : ''} />
+        <span>${escapeHtml(item.name)}</span>
+      </label>
+    `
+    )
+    .join('');
+}
+
+function selectedSpecialties() {
+  if (!workerProfileForm) {
+    return [];
+  }
+  const checked = workerProfileForm.querySelectorAll('input[name="specialties"]:checked');
+  return Array.from(checked)
+    .map((item) => String(item.value || '').trim())
+    .filter(Boolean);
+}
+
+function fillWorkerProfileForm() {
+  if (!workerProfileForm) {
+    return;
+  }
+
+  const nameInput = workerProfileForm.querySelector('input[name="name"]');
+  const titleInput = workerProfileForm.querySelector('input[name="title"]');
+  const personaInput = workerProfileForm.querySelector('textarea[name="persona"]');
+  const extraInput = workerProfileForm.querySelector('input[name="extraSpecialties"]');
+  const worker = state.meWorker;
+  const me = state.me;
+
+  if (nameInput) {
+    nameInput.value = worker?.name || me?.name || '';
+  }
+  if (titleInput) {
+    titleInput.value = worker?.title || '';
+  }
+  if (personaInput) {
+    personaInput.value = worker?.persona || '';
+  }
+  if (extraInput) {
+    const customSpecialties = (worker?.specialties || [])
+      .filter((item) => String(item || '').startsWith('custom:'))
+      .map((item) => String(item || '').slice(7))
+      .filter(Boolean);
+    extraInput.value = customSpecialties.join(', ');
+  }
+  if (requesterAiInput) {
+    requesterAiInput.value = worker?.name || me?.name || '';
+  }
+
+  renderWorkerSkillOptions();
+}
 function workerStatsByOrders() {
   const orderMap = new Map(state.workers.map((worker) => [worker.id, 0]));
 
@@ -255,6 +336,12 @@ function renderWorkers() {
   }
 
   workerCount.textContent = `${state.workers.length} 个`;
+  if (!state.workers.length) {
+    workersList.innerHTML = '<div class="empty">暂无劳务体，登录后创建你的专属劳务能力。</div>';
+    renderRanking();
+    renderOverview();
+    return;
+  }
   workersList.innerHTML = state.workers
     .map((worker) => {
       const tags = (worker.specialties || [])
@@ -274,36 +361,10 @@ function renderWorkers() {
   renderOverview();
 }
 
-function joinOptions(task) {
-  const available = state.workers.filter(
-    (worker) => !task.laborType || task.laborType.startsWith('custom:') || supportsType(worker, task.laborType)
-  );
-  if (!available.length) {
-    return '<option value="">暂无可参与AI</option>';
-  }
-
-  return available
-    .map((worker) => {
-      const joined = task.participants.includes(worker.id);
-      return `<option value="${escapeHtml(worker.id)}">${escapeHtml(worker.name)}${joined ? '（已参与）' : ''}</option>`;
-    })
-    .join('');
-}
-
-function noteOptions(task) {
-  if (!task.participants.length) {
-    return '<option value="">暂无参与AI</option>';
-  }
-
-  return task.participants
-    .map((workerId) => `<option value="${escapeHtml(workerId)}">${escapeHtml(workerName(workerId))}</option>`)
-    .join('');
-}
-
 function renderTaskCard(task) {
   const operationBlocked = !canOperate();
   const disabledAttr = operationBlocked ? 'disabled' : '';
-  const disabledHint = operationBlocked ? 'title="需先完成 SecondMe 直连接入"' : '';
+  const disabledHint = operationBlocked ? 'title="请先使用 SecondMe 登录并配置劳务体"' : '';
 
   const participantsHtml = task.participants.length
     ? task.participants
@@ -342,7 +403,7 @@ function renderTaskCard(task) {
         <span class="status ${statusClass(task.status)}">${statusText(task.status)}</span>
       </div>
       <div class="task-body">
-        <div class="task-meta">
+        <div class="task-meta-row">
           <div>劳务类型：${escapeHtml(task.laborTypeName || laborTypeName(task.laborType))}</div>
           <div>发布AI：${escapeHtml(task.requesterAi)}</div>
           <div>预算：${escapeHtml(task.budget || '未设置')} · 期限：${escapeHtml(task.deadline || '未设置')}</div>
@@ -360,10 +421,7 @@ function renderTaskCard(task) {
 
         <section class="task-action">
           <div class="action-row">
-            <label>
-              AI 报名参与
-              <select class="join-worker" ${disabledAttr}>${joinOptions(task)}</select>
-            </label>
+            <div class="task-action-hint">以你的劳务体身份参与：${escapeHtml(state.meWorker?.name || '未登录')}</div>
             <button class="btn btn-secondary" data-action="join" ${disabledAttr} ${disabledHint}>参与任务</button>
           </div>
 
@@ -372,10 +430,7 @@ function renderTaskCard(task) {
               协作备注
               <input class="note-input" placeholder="输入本轮协作建议或阶段结论" ${disabledAttr} />
             </label>
-            <div>
-              <select class="note-worker" ${disabledAttr}>${noteOptions(task)}</select>
-              <button class="btn btn-ghost" data-action="note" ${disabledAttr} ${disabledHint}>提交备注</button>
-            </div>
+            <button class="btn btn-ghost" data-action="note" ${disabledAttr} ${disabledHint}>提交备注</button>
           </div>
 
           <label>
@@ -411,16 +466,32 @@ function renderTasks() {
   syncLayoutScrollbar();
 }
 
-function setIntegrationView(profile) {
-  if (profile?.data?.connected) {
-    state.secondMeConnected = true;
-    setPublishFormEnabled(true);
-    renderTasks();
-    return;
+function setIntegrationView(sessionInfo) {
+  const me = sessionInfo?.data?.user || null;
+  const worker = sessionInfo?.data?.worker || null;
+  state.me = me;
+  state.meWorker = worker;
+  state.secondMeConnected = Boolean(me && worker);
+  setPublishFormEnabled(state.secondMeConnected);
+  setWorkerProfileFormEnabled(state.secondMeConnected);
+
+  if (authUser) {
+    authUser.textContent = state.secondMeConnected ? `${worker.name}（${me.name || me.userId}）` : '未登录';
+  }
+  if (topLogout) {
+    topLogout.hidden = !state.secondMeConnected;
+  }
+  loginButtons.forEach((button) => {
+    button.hidden = state.secondMeConnected;
+  });
+
+  if (workerProfileHint) {
+    workerProfileHint.textContent = state.secondMeConnected
+      ? '你就是一个劳务体。可设置能力后参与任务、发布需求、提交协作。'
+      : '请先登录 SecondMe，登录后即可创建并编辑你的劳务体能力。';
   }
 
-  state.secondMeConnected = false;
-  setPublishFormEnabled(false);
+  fillWorkerProfileForm();
   renderTasks();
 }
 
@@ -453,15 +524,21 @@ async function loadTasks() {
 }
 
 async function refreshEverything() {
+  let meInfo = null;
+  try {
+    meInfo = await api('/api/me/labor-body');
+  } catch {
+    meInfo = null;
+  }
+  setIntegrationView(meInfo);
+  await loadMeta();
   await loadTasks();
-  const profile = await api('/api/secondme/profile');
-  setIntegrationView(profile);
 }
 
 async function onPublishSubmit(event) {
   event.preventDefault();
   if (!canOperate()) {
-    showToast('当前为 SecondMe 直连模式，请先完成密钥和权限配置');
+    showToast('请先使用 SecondMe 登录并配置劳务体');
     return;
   }
 
@@ -484,10 +561,61 @@ async function onPublishSubmit(event) {
     if (laborTypeInput) {
       laborTypeInput.value = '';
     }
+    if (requesterAiInput) {
+      requesterAiInput.value = state.meWorker?.name || '';
+    }
     showToast('任务发布成功');
-    await loadTasks();
+    await refreshEverything();
   } catch (error) {
     showToast(error.message || '任务发布失败');
+  }
+}
+
+async function onWorkerProfileSubmit(event) {
+  event.preventDefault();
+  if (!canOperate()) {
+    showToast('请先登录 SecondMe');
+    return;
+  }
+
+  const formData = new FormData(workerProfileForm);
+  const specialties = selectedSpecialties();
+  const extraSpecialties = String(formData.get('extraSpecialties') || '').trim();
+  if (!specialties.length && !extraSpecialties) {
+    showToast('请至少选择或输入一个劳务能力');
+    return;
+  }
+
+  const payload = {
+    name: String(formData.get('name') || '').trim(),
+    title: String(formData.get('title') || '').trim(),
+    persona: String(formData.get('persona') || '').trim(),
+    specialties,
+    extraSpecialties
+  };
+
+  try {
+    await api('/api/me/labor-body', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    showToast('劳务体能力已更新');
+    await refreshEverything();
+  } catch (error) {
+    showToast(error.message || '保存失败');
+  }
+}
+
+async function onLogoutClick() {
+  try {
+    await api('/api/oauth/logout', {
+      method: 'POST'
+    });
+    showToast('已退出登录');
+    setIntegrationView(null);
+    await refreshEverything();
+  } catch (error) {
+    showToast(error.message || '退出失败');
   }
 }
 
@@ -533,25 +661,17 @@ async function onTaskActionClick(event) {
   }
 
   if (!canOperate()) {
-    showToast('当前为 SecondMe 直连模式，请先完成接入后再操作');
+    showToast('请先使用 SecondMe 登录并配置劳务体');
     return;
   }
 
   if (action === 'join') {
-    const select = card.querySelector('.join-worker');
-    const workerId = String(select?.value || '').trim();
-    if (!workerId) {
-      showToast('请选择可参与的AI');
-      return;
-    }
-
     try {
       await api(`/api/tasks/${encodeURIComponent(taskId)}/join`, {
-        method: 'POST',
-        body: JSON.stringify({ workerId })
+        method: 'POST'
       });
       showToast('AI 参与成功');
-      await loadTasks();
+      await refreshEverything();
     } catch (error) {
       showToast(error.message || '参与失败');
     }
@@ -559,15 +679,9 @@ async function onTaskActionClick(event) {
   }
 
   if (action === 'note') {
-    const workerSelect = card.querySelector('.note-worker');
     const input = card.querySelector('.note-input');
-    const workerId = String(workerSelect?.value || '').trim();
     const message = String(input?.value || '').trim();
 
-    if (!workerId) {
-      showToast('当前任务还没有参与AI');
-      return;
-    }
     if (!message) {
       showToast('请输入协作备注');
       return;
@@ -576,10 +690,10 @@ async function onTaskActionClick(event) {
     try {
       await api(`/api/tasks/${encodeURIComponent(taskId)}/updates`, {
         method: 'POST',
-        body: JSON.stringify({ workerId, message })
+        body: JSON.stringify({ message })
       });
       showToast('协作备注已提交');
-      await loadTasks();
+      await refreshEverything();
     } catch (error) {
       showToast(error.message || '提交失败');
     }
@@ -598,7 +712,7 @@ async function onTaskActionClick(event) {
         body: JSON.stringify({ brief })
       });
       showToast('交付已生成');
-      await loadTasks();
+      await refreshEverything();
     } catch (error) {
       showToast(error.message || '生成交付失败');
     } finally {
@@ -610,7 +724,6 @@ async function onTaskActionClick(event) {
 
 async function bootstrap() {
   try {
-    await loadMeta();
     await refreshEverything();
   } catch (error) {
     console.error(error);
@@ -620,6 +733,14 @@ async function bootstrap() {
 
 if (publishForm) {
   publishForm.addEventListener('submit', onPublishSubmit);
+}
+
+if (workerProfileForm) {
+  workerProfileForm.addEventListener('submit', onWorkerProfileSubmit);
+}
+
+if (topLogout) {
+  topLogout.addEventListener('click', onLogoutClick);
 }
 
 if (statusFilters) {
@@ -649,6 +770,7 @@ if (layoutScrollWrap && layoutScrollbar) {
 }
 
 setPublishFormEnabled(false);
+setWorkerProfileFormEnabled(false);
 
 if (laborTypePreset && laborTypeInput) {
   laborTypePreset.addEventListener('change', (event) => {
