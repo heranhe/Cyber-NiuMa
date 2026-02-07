@@ -16,12 +16,13 @@ const workerCount = document.querySelector('#worker-count');
 const rankingList = document.querySelector('#ranking-list');
 const taskList = document.querySelector('#task-list');
 const statusFilters = document.querySelector('#status-filters');
-const integrationState = document.querySelector('#integration-state');
-const integrationDetail = document.querySelector('#integration-detail');
 const metricWorkers = document.querySelector('#metric-workers');
 const metricOrders = document.querySelector('#metric-orders');
 const metricDelivered = document.querySelector('#metric-delivered');
 const toast = document.querySelector('#toast');
+const loginButtons = Array.from(document.querySelectorAll('.top-login, .hero-login'));
+const layoutScrollWrap = document.querySelector('#layout-scroll-wrap');
+const layoutScrollbar = document.querySelector('#layout-scrollbar');
 
 function escapeHtml(value) {
   return String(value || '')
@@ -43,6 +44,41 @@ function showToast(message) {
   showToast.timer = setTimeout(() => {
     toast.classList.remove('show');
   }, 2100);
+}
+
+function oauthState() {
+  const random = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID().replaceAll('-', '')
+    : Math.random().toString(36).slice(2);
+  return `web_${Date.now().toString(36)}_${random.slice(0, 10)}`;
+}
+
+async function onLoginClick(event) {
+  event.preventDefault();
+
+  const button = event.currentTarget;
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const oldText = button.textContent;
+  try {
+    button.disabled = true;
+    button.textContent = '跳转中...';
+    const redirectUri = `${window.location.origin}/oauth/callback`;
+    const stateValue = oauthState();
+    const url = `/api/oauth/authorize-url?redirectUri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(stateValue)}`;
+    const auth = await api(url);
+    const authorizeUrl = String(auth?.data?.url || '').trim();
+    if (!authorizeUrl) {
+      throw new Error('授权链接为空，请检查 OAuth 配置');
+    }
+    window.location.assign(authorizeUrl);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = oldText;
+    showToast(error.message || '登录失败，请检查 OAuth 配置');
+  }
 }
 
 function canOperate() {
@@ -372,17 +408,12 @@ function renderTasks() {
   taskList.innerHTML = filtered.map(renderTaskCard).join('');
   renderRanking();
   renderOverview();
+  syncLayoutScrollbar();
 }
 
 function setIntegrationView(profile) {
-  if (!integrationState || !integrationDetail) {
-    return;
-  }
-
   if (profile?.data?.connected) {
     state.secondMeConnected = true;
-    integrationState.textContent = 'SecondMe 已连接';
-    integrationDetail.textContent = `直连模式已启用（AppId: ${state.integration?.appId || 'general'}）`;
     setPublishFormEnabled(true);
     renderTasks();
     return;
@@ -390,16 +421,19 @@ function setIntegrationView(profile) {
 
   state.secondMeConnected = false;
   setPublishFormEnabled(false);
+  renderTasks();
+}
 
-  if (state.integration?.secondMeConfigured) {
-    integrationState.textContent = 'SecondMe 连接失败';
-    integrationDetail.textContent = '已配置认证信息但权限或连通性异常，请检查 user.info/chat/note.add 权限';
-  } else {
-    integrationState.textContent = '等待 SecondMe 接入';
-    integrationDetail.textContent = '请配置 SECONDME_API_KEY / MINDVERSE_API_KEY，或先完成 OAuth2 换取 Access Token';
+function syncLayoutScrollbar() {
+  if (!layoutScrollWrap || !layoutScrollbar) {
+    return;
   }
 
-  renderTasks();
+  const maxScroll = Math.max(layoutScrollWrap.scrollWidth - layoutScrollWrap.clientWidth, 0);
+  layoutScrollbar.max = String(maxScroll);
+  layoutScrollbar.value = String(Math.min(layoutScrollWrap.scrollLeft, maxScroll));
+  layoutScrollbar.disabled = maxScroll === 0;
+  layoutScrollbar.style.visibility = maxScroll === 0 ? 'hidden' : 'visible';
 }
 
 async function loadMeta() {
@@ -602,6 +636,18 @@ if (taskList) {
   taskList.addEventListener('click', onTaskActionClick);
 }
 
+if (layoutScrollWrap && layoutScrollbar) {
+  layoutScrollWrap.addEventListener('scroll', () => {
+    layoutScrollbar.value = String(layoutScrollWrap.scrollLeft);
+  });
+
+  layoutScrollbar.addEventListener('input', () => {
+    layoutScrollWrap.scrollLeft = Number(layoutScrollbar.value || 0);
+  });
+
+  window.addEventListener('resize', syncLayoutScrollbar);
+}
+
 setPublishFormEnabled(false);
 
 if (laborTypePreset && laborTypeInput) {
@@ -614,4 +660,11 @@ if (laborTypePreset && laborTypeInput) {
   });
 }
 
+if (loginButtons.length) {
+  loginButtons.forEach((button) => {
+    button.addEventListener('click', onLoginClick);
+  });
+}
+
 bootstrap();
+syncLayoutScrollbar();
