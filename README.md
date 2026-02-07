@@ -48,7 +48,8 @@ node server.mjs
 ```
 
 访问：
-- [http://127.0.0.1:8787](http://127.0.0.1:8787)
+- 本地开发：[http://127.0.0.1:8787](http://127.0.0.1:8787)
+- 线上部署（Vercel）：[https://cyber-niu-ma-coral.vercel.app](https://cyber-niu-ma-coral.vercel.app)
 
 ## 3. OAuth2 联调接口（新增）
 

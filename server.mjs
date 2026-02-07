@@ -15,6 +15,7 @@ const IS_VERCEL = Boolean(process.env.VERCEL);
 const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'ai-labor-market') : path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'tasks.json');
 const PROFILE_FILE = path.join(DATA_DIR, 'profiles.json');
+const ABILITIES_FILE = path.join(DATA_DIR, 'abilities.json');
 const SECONDME_BASE_URL = process.env.SECONDME_BASE_URL || 'https://app.mindos.com/gate/lab';
 const SECONDME_APP_ID = process.env.SECONDME_APP_ID || 'general';
 const OAUTH_AUTHORIZE_URL = process.env.SECONDME_OAUTH_AUTHORIZE_URL || 'https://go.second.me/oauth/';
@@ -655,6 +656,9 @@ async function ensureDataFiles() {
   if (!existsSync(PROFILE_FILE)) {
     await fs.writeFile(PROFILE_FILE, JSON.stringify([], null, 2), 'utf8');
   }
+  if (!existsSync(ABILITIES_FILE)) {
+    await fs.writeFile(ABILITIES_FILE, JSON.stringify({}, null, 2), 'utf8');
+  }
 }
 
 async function loadTasks() {
@@ -692,6 +696,82 @@ async function saveProfiles(workers) {
   await fs.writeFile(PROFILE_FILE, JSON.stringify(normalized, null, 2), 'utf8');
 }
 
+// ===== 能力库 CRUD =====
+async function loadAbilities() {
+  await ensureDataFiles();
+  const raw = await fs.readFile(ABILITIES_FILE, 'utf8');
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveAbilities(data) {
+  await ensureDataFiles();
+  await fs.writeFile(ABILITIES_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+async function getUserAbilities(userId) {
+  const all = await loadAbilities();
+  return Array.isArray(all[userId]) ? all[userId] : [];
+}
+
+async function addUserAbility(userId, ability) {
+  const all = await loadAbilities();
+  if (!Array.isArray(all[userId])) {
+    all[userId] = [];
+  }
+  const newAbility = {
+    id: uid('ability'),
+    name: String(ability.name || '').trim(),
+    icon: String(ability.icon || '🔧').trim(),
+    description: String(ability.description || '').trim(),
+    prompt: String(ability.prompt || '').trim(),
+    createdAt: nowIso()
+  };
+  all[userId].push(newAbility);
+  await saveAbilities(all);
+  return newAbility;
+}
+
+async function updateUserAbility(userId, abilityId, patch) {
+  const all = await loadAbilities();
+  if (!Array.isArray(all[userId])) {
+    return null;
+  }
+  const idx = all[userId].findIndex((a) => a.id === abilityId);
+  if (idx < 0) {
+    return null;
+  }
+  const updated = {
+    ...all[userId][idx],
+    name: patch.name !== undefined ? String(patch.name || '').trim() : all[userId][idx].name,
+    icon: patch.icon !== undefined ? String(patch.icon || '🔧').trim() : all[userId][idx].icon,
+    description: patch.description !== undefined ? String(patch.description || '').trim() : all[userId][idx].description,
+    prompt: patch.prompt !== undefined ? String(patch.prompt || '').trim() : all[userId][idx].prompt,
+    updatedAt: nowIso()
+  };
+  all[userId][idx] = updated;
+  await saveAbilities(all);
+  return updated;
+}
+
+async function deleteUserAbility(userId, abilityId) {
+  const all = await loadAbilities();
+  if (!Array.isArray(all[userId])) {
+    return false;
+  }
+  const idx = all[userId].findIndex((a) => a.id === abilityId);
+  if (idx < 0) {
+    return false;
+  }
+  all[userId].splice(idx, 1);
+  await saveAbilities(all);
+  return true;
+}
+
 async function upsertWorkerProfile(secondUser = {}, patch = {}) {
   const secondUserId = String(secondUser.userId || '').trim();
   if (!secondUserId) {
@@ -707,9 +787,9 @@ async function upsertWorkerProfile(secondUser = {}, patch = {}) {
     index >= 0
       ? workers[index]
       : profileToWorker({
-          ...createDefaultProfile(secondUser),
-          workerId
-        });
+        ...createDefaultProfile(secondUser),
+        workerId
+      });
 
   const normalizedPatch = normalizeProfilePatch(patch);
   const merged = {
@@ -1288,12 +1368,14 @@ async function handleApi(req, res, urlObj) {
 
   if (method === 'GET' && pathname === '/api/me/labor-body') {
     const session = await getCurrentSessionWorker({ createIfMissing: true });
+    const abilities = session?.user?.userId ? await getUserAbilities(session.user.userId) : [];
     return json(res, 200, {
       code: 0,
       message: 'success',
       data: {
         user: session.user,
-        worker: session.worker
+        worker: session.worker,
+        abilities
       }
     });
   }
@@ -1327,6 +1409,97 @@ async function handleApi(req, res, urlObj) {
         user: session.user,
         worker
       }
+    });
+  }
+
+  // ===== 能力库 API =====
+  if (method === 'GET' && pathname === '/api/me/abilities') {
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+    const abilities = await getUserAbilities(session.user.userId);
+    return json(res, 200, {
+      code: 0,
+      message: 'success',
+      data: abilities
+    });
+  }
+
+  if (method === 'POST' && pathname === '/api/me/abilities') {
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    if (!body.name?.trim()) {
+      return badRequest(res, '能力名称不能为空');
+    }
+
+    const ability = await addUserAbility(session.user.userId, body);
+    return json(res, 200, {
+      code: 0,
+      message: '能力已添加',
+      ability
+    });
+  }
+
+  const abilityUpdateMatch = pathname.match(/^\/api\/me\/abilities\/([^/]+)$/);
+  if (method === 'PUT' && abilityUpdateMatch) {
+    const abilityId = decodeURIComponent(abilityUpdateMatch[1]);
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    const updated = await updateUserAbility(session.user.userId, abilityId, body);
+    if (!updated) {
+      return notFound(res);
+    }
+
+    return json(res, 200, {
+      code: 0,
+      message: '能力已更新',
+      ability: updated
+    });
+  }
+
+  if (method === 'DELETE' && abilityUpdateMatch) {
+    const abilityId = decodeURIComponent(abilityUpdateMatch[1]);
+
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    const deleted = await deleteUserAbility(session.user.userId, abilityId);
+    if (!deleted) {
+      return notFound(res);
+    }
+
+    return json(res, 200, {
+      code: 0,
+      message: '能力已删除'
     });
   }
 
@@ -2206,16 +2379,16 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
     <p><strong>下一步:</strong> ${exchanged ? `即将自动跳转到首页（约 ${Math.round(redirectDelayMs / 1000)} 秒）` : '请检查错误并重试登录。'}</p>
     <p><a href="${redirectTarget}" style="display:inline-block; margin: 6px 0;">返回首页</a></p>
     <pre style="background:#f6f8fa; padding: 12px; border-radius: 8px;">${escapeHtmlText(
-      JSON.stringify(
-        {
-          redirectUri,
-          runtime: oauthTokenSnapshot(),
-          token: exchangePayload
-        },
-        null,
-        2
-      )
-    )}</pre>
+    JSON.stringify(
+      {
+        redirectUri,
+        runtime: oauthTokenSnapshot(),
+        token: exchangePayload
+      },
+      null,
+      2
+    )
+  )}</pre>
   </body>
 </html>`;
 

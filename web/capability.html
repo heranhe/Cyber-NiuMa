@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>AI Capability Management - Cyber NiuMa</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#D97706", // A warm amber matching the '1' count in the screenshot
+                        "background-light": "#F9F7F2", // Creamy background from screenshot
+                        "background-dark": "#121212",
+                        "card-light": "#FFFFFF",
+                        "card-dark": "#1E1E1E",
+                    },
+                    fontFamily: {
+                        display: ["Noto Sans SC", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "1rem",
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+
+        .grid-bg {
+            background-image: linear-gradient(#e5e7eb 1px, transparent 1px), linear-gradient(90deg, #e5e7eb 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        .dark .grid-bg {
+            background-image: linear-gradient(#2d2d2d 1px, transparent 1px), linear-gradient(90deg, #2d2d2d 1px, transparent 1px);
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 min-h-screen transition-colors duration-200">
+    <header
+        class="sticky top-0 z-30 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="flex items-center">
+                    <img alt="Cyber NiuMa Logo" class="w-10 h-10 rounded-lg"
+                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuCUFugeWXCOmqk1CwwPnYey6QeurTQpOiNoe3X6NvpJlIYDyzra01rAOI8wU68bgi1tFI0dCsjrPP46s68mC2h42SGXEl34fCaTo348LdaDmBoh8lEsioqkGMZbPGOpg2-nWt7WExijMC2YUulwvfSplH6O7bk_yl4UKMOmRx1herExhbQjs3BvxEGNvZcUnrBnGXrQLKOJKobEUztEOYtowwZmeQbmmT8gboyN9FXlXRUaHMJQpd3PoIujW1oaW0xpmJj1aF6tJAxC" />
+                </div>
+                <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Cyber NiuMa</h1>
+                <span
+                    class="hidden md:block text-slate-400 dark:text-slate-500 font-mono text-sm ml-4">niuma.second.me</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <button class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                    onclick="document.documentElement.classList.toggle('dark')">
+                    <span class="material-icons-outlined text-slate-600 dark:text-slate-400">dark_mode</span>
+                </button>
+                <button
+                    class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 py-2 rounded-xl font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm">
+                    退出
+                </button>
+            </div>
+        </div>
+    </header>
+    <main class="max-w-7xl mx-auto px-6 py-10 relative">
+        <div class="fixed inset-0 grid-bg pointer-events-none opacity-20 -z-10"></div>
+        <div class="text-center mb-12">
+            <h2 class="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-4">AI 劳务能力管理</h2>
+            <p class="text-slate-500 dark:text-slate-400 text-lg">配置你的 AI 劳务代理人，让他们替你在线打工赚钱。</p>
+            <div class="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+                <button
+                    class="bg-primary text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform flex items-center justify-center gap-2">
+                    <span class="material-icons-outlined">search</span>
+                    基于我的能力匹配任务
+                </button>
+                <button
+                    class="bg-white dark:bg-slate-800 border-2 border-primary text-primary px-8 py-3 rounded-2xl font-bold hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
+                    onclick="toggleModal('add-capability-modal')">
+                    <span class="material-icons-outlined">add</span>
+                    新增劳务能力
+                </button>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <div
+                class="bg-white/60 dark:bg-slate-800/60 border border-white dark:border-slate-700 p-8 rounded-[2rem] text-center backdrop-blur-sm shadow-xl shadow-slate-200/50 dark:shadow-none">
+                <div class="text-5xl font-black text-primary mb-2">3</div>
+                <div class="text-slate-500 dark:text-slate-400 font-medium">我的 AI 分身</div>
+            </div>
+            <div
+                class="bg-white/60 dark:bg-slate-800/60 border border-white dark:border-slate-700 p-8 rounded-[2rem] text-center backdrop-blur-sm shadow-xl shadow-slate-200/50 dark:shadow-none">
+                <div class="text-5xl font-black text-primary mb-2">12</div>
+                <div class="text-slate-500 dark:text-slate-400 font-medium">累计接单数</div>
+            </div>
+            <div
+                class="bg-white/60 dark:bg-slate-800/60 border border-white dark:border-slate-700 p-8 rounded-[2rem] text-center backdrop-blur-sm shadow-xl shadow-slate-200/50 dark:shadow-none">
+                <div class="text-5xl font-black text-primary mb-2">10</div>
+                <div class="text-slate-500 dark:text-slate-400 font-medium">已交付任务</div>
+            </div>
+        </div>
+        <div class="space-y-6">
+            <h3 class="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <span class="material-icons-outlined text-primary">psychology</span>
+                当前可用能力
+            </h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div
+                    class="bg-white dark:bg-slate-800 p-6 rounded-[1.5rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex items-start gap-5">
+                        <div
+                            class="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400">
+                            <span class="material-icons-outlined text-3xl">brush</span>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start">
+                                <h4 class="text-xl font-bold text-slate-900 dark:text-white">视觉美化大师</h4>
+                                <div class="flex gap-2">
+                                    <button class="p-2 text-slate-400 hover:text-primary transition-colors"><span
+                                            class="material-icons-outlined">edit</span></button>
+                                    <button class="p-2 text-slate-400 hover:text-red-500 transition-colors"><span
+                                            class="material-icons-outlined">delete</span></button>
+                                </div>
+                            </div>
+                            <p class="text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                                精通各类修图、海报设计与UI美化。能根据简单描述生成高质量的视觉方案，适配多种风格。</p>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                <span
+                                    class="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-xs rounded-full font-medium">UI设计</span>
+                                <span
+                                    class="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-xs rounded-full font-medium">影楼P图</span>
+                                <span
+                                    class="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-xs rounded-full font-medium">海报制作</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    class="bg-white dark:bg-slate-800 p-6 rounded-[1.5rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex items-start gap-5">
+                        <div
+                            class="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600 dark:text-amber-400">
+                            <span class="material-icons-outlined text-3xl">description</span>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start">
+                                <h4 class="text-xl font-bold text-slate-900 dark:text-white">创意文案助手</h4>
+                                <div class="flex gap-2">
+                                    <button class="p-2 text-slate-400 hover:text-primary transition-colors"><span
+                                            class="material-icons-outlined">edit</span></button>
+                                    <button class="p-2 text-slate-400 hover:text-red-500 transition-colors"><span
+                                            class="material-icons-outlined">delete</span></button>
+                                </div>
+                            </div>
+                            <p class="text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                                擅长小红书风格、公众号推文、以及各类产品描述编写。自带SEO优化属性。</p>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                <span
+                                    class="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-xs rounded-full font-medium">文案策划</span>
+                                <span
+                                    class="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-xs rounded-full font-medium">内容创作</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    class="bg-white dark:bg-slate-800 p-6 rounded-[1.5rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex items-start gap-5">
+                        <div
+                            class="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-2xl flex items-center justify-center text-purple-600 dark:text-purple-400">
+                            <span class="material-icons-outlined text-3xl">code</span>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start">
+                                <h4 class="text-xl font-bold text-slate-900 dark:text-white">极速代码专家</h4>
+                                <div class="flex gap-2">
+                                    <button class="p-2 text-slate-400 hover:text-primary transition-colors"><span
+                                            class="material-icons-outlined">edit</span></button>
+                                    <button class="p-2 text-slate-400 hover:text-red-500 transition-colors"><span
+                                            class="material-icons-outlined">delete</span></button>
+                                </div>
+                            </div>
+                            <p class="text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                                解决复杂的前端交互逻辑、后端API对接及各类脚本编写任务。熟练掌握主流技术栈。</p>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                <span
+                                    class="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-xs rounded-full font-medium">Web开发</span>
+                                <span
+                                    class="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-xs rounded-full font-medium">自动化脚本</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <!-- 添加能力模态框 -->
+    <div class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+        id="add-capability-modal">
+        <div
+            class="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-[2rem] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300 my-8 relative">
+            <!-- 渐变头部背景 -->
+            <div class="h-24 bg-gradient-to-r from-orange-400 to-pink-500 opacity-90 relative overflow-hidden">
+                <div
+                    class="absolute inset-0 bg-[linear-gradient(#e5e7eb_1px,transparent_1px),linear-gradient(90deg,#e5e7eb_1px,transparent_1px)] bg-[size:40px_40px] opacity-20">
+                </div>
+                <div class="absolute -bottom-10 -right-10 w-40 h-40 bg-white/20 rounded-full blur-2xl"></div>
+                <!-- 关闭按钮 -->
+                <button class="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
+                    onclick="toggleModal('add-capability-modal')">
+                    <span class="material-icons-outlined text-2xl">close</span>
+                </button>
+            </div>
+
+            <div class="px-8 pb-8 -mt-12 relative">
+                <form class="space-y-6" onsubmit="event.preventDefault();">
+                    <!-- 头像上传区域 -->
+                    <div class="flex flex-col items-center justify-center mb-6">
+                        <div class="relative group cursor-pointer">
+                            <div
+                                class="w-24 h-24 rounded-2xl bg-white dark:bg-slate-800 p-1 shadow-lg ring-4 ring-white dark:ring-slate-800 overflow-hidden relative border border-slate-100 dark:border-slate-700">
+                                <div
+                                    class="w-full h-full bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center group-hover:opacity-75 transition-opacity">
+                                    <span class="material-icons-outlined text-4xl text-slate-400">smart_toy</span>
+                                </div>
+                                <div
+                                    class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 rounded-xl">
+                                    <span class="material-icons-outlined text-white text-2xl">photo_camera</span>
+                                </div>
+                            </div>
+                            <div
+                                class="absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 bg-primary text-white p-1.5 rounded-full shadow-md border-2 border-white dark:border-slate-800 flex items-center justify-center hover:bg-amber-700 transition-colors">
+                                <span class="material-icons-outlined text-xs font-bold">edit</span>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-sm font-medium text-slate-500 dark:text-slate-400">点击修改图标</p>
+                    </div>
+
+                    <!-- AI 名称 -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider"
+                            for="modal-ai-name">
+                            AI 名称 (Name)
+                        </label>
+                        <div class="relative">
+                            <input
+                                class="block w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm focus:border-primary focus:ring-primary sm:text-lg py-3 px-4 font-bold"
+                                id="modal-ai-name" placeholder="给你的 AI 起一个酷炫的名字..." type="text" />
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                                <span class="material-icons-outlined text-slate-400">badge</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 一句话介绍 -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider"
+                            for="modal-ai-intro">
+                            一句话介绍 (Short Intro)
+                        </label>
+                        <div class="relative">
+                            <input
+                                class="block w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm focus:border-primary focus:ring-primary py-3 px-4"
+                                id="modal-ai-intro" maxlength="50" placeholder="这个 AI 最擅长做什么？" type="text" />
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 text-right"><span
+                                id="intro-char-count">0</span>/50 字符</p>
+                    </div>
+
+                    <!-- 核心 Prompt -->
+                    <div class="space-y-3 pt-2">
+                        <div class="flex items-center justify-between">
+                            <label
+                                class="block text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2"
+                                for="modal-ai-prompt">
+                                <span class="material-icons-outlined text-primary">terminal</span>
+                                核心 Prompt (System Prompt)
+                            </label>
+                            <span
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-100 dark:border-red-800">
+                                <span class="material-icons-outlined text-[14px]">lock</span>
+                                Private - 仅你可见
+                            </span>
+                        </div>
+                        <div class="relative group">
+                            <div
+                                class="absolute -inset-0.5 bg-gradient-to-r from-orange-300 to-pink-300 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-200 pointer-events-none">
+                            </div>
+                            <textarea
+                                class="relative block w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 shadow-sm focus:border-primary focus:ring-primary font-mono text-sm leading-relaxed p-4 resize-y"
+                                id="modal-ai-prompt" placeholder="输入系统指令。例如：你是一个专业的照片编辑，专精于韩式婚纱摄影风格..."
+                                rows="5"></textarea>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                            <span class="material-icons-outlined text-[14px] text-primary">tips_and_updates</span>
+                            提示：包含具体的约束和风格指南可以获得更好的效果。
+                        </p>
+                    </div>
+
+                    <!-- 自定义 API 配置 -->
+                    <div class="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                        <div class="flex items-center gap-2">
+                            <span class="material-icons-outlined text-primary">api</span>
+                            <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">自定义
+                                API 配置 (Custom API)</h3>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase"
+                                    for="modal-api-url">API URL</label>
+                                <input
+                                    class="block w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm focus:border-primary focus:ring-primary py-2.5 px-4 text-sm"
+                                    id="modal-api-url" placeholder="https://api.your-model.com/v1" type="text" />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase"
+                                    for="modal-api-key">API Key</label>
+                                <input
+                                    class="block w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm focus:border-primary focus:ring-primary py-2.5 px-4 text-sm"
+                                    id="modal-api-key" placeholder="sk-..." type="password" />
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                            * 提供你自己的 API 详情以使用特定的模型，例如 nanobanana 模型。
+                        </p>
+                    </div>
+
+                    <!-- 按钮区域 -->
+                    <div
+                        class="pt-4 flex items-center justify-end gap-4 border-t border-slate-100 dark:border-slate-800 mt-6">
+                        <button
+                            class="px-6 py-2.5 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            type="button" onclick="toggleModal('add-capability-modal')">
+                            取消 (Cancel)
+                        </button>
+                        <button
+                            class="px-8 py-2.5 rounded-xl text-sm font-bold text-white bg-black hover:bg-slate-800 shadow-lg shadow-slate-200/50 dark:shadow-none transition-all transform active:scale-95 flex items-center gap-2"
+                            type="submit">
+                            <span class="material-icons-outlined text-lg">save</span>
+                            保存配置 (Save)
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            } else {
+                modal.classList.add('hidden');
+                document.body.style.overflow = 'auto';
+            }
+        }
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const modals = ['add-capability-modal'];
+                modals.forEach(id => {
+                    const modal = document.getElementById(id);
+                    if (!modal.classList.contains('hidden')) {
+                        toggleModal(id);
+                    }
+                });
+            }
+        });
+
+        // 字符计数器功能
+        document.addEventListener('DOMContentLoaded', () => {
+            const introInput = document.getElementById('modal-ai-intro');
+            const charCount = document.getElementById('intro-char-count');
+            if (introInput && charCount) {
+                introInput.addEventListener('input', () => {
+                    charCount.textContent = introInput.value.length;
+                });
+            }
+        });
+    </script>
+
+</body>
+
+</html>
