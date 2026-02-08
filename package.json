@@ -7,5 +7,8 @@
     "start": "node server.mjs",
     "dev": "node server.mjs",
     "check": "node --check server.mjs && node --check web/app.js"
+  },
+  "dependencies": {
+    "@vercel/kv": "^3.0.0"
   }
 }

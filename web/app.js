@@ -268,24 +268,19 @@ function renderTaskCard(task) {
         <!-- 右侧：讨论与结果 -->
         <div class="col-span-5 bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-800/50 dark:to-gray-900/30 p-5 flex flex-col border-l border-gray-100 dark:border-border-dark">
           <!-- 讨论区头部 -->
-          <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2 mb-3">
             <span class="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1">
               <span class="material-icons-round text-[14px] text-primary">forum</span>
               讨论与结果
             </span>
-          </div>
-          
-          <!-- 统计信息 -->
-          <div class="border-2 border-green-400 dark:border-green-600 rounded-xl p-2 mb-3">
-            <div class="grid grid-cols-2 gap-1.5">
-              <div class="bg-white dark:bg-surface-dark rounded-lg p-2 text-center">
-                <div class="text-base font-black ${deliveryCount > 0 ? 'text-green-500' : 'text-gray-300'}">${deliveryCount}</div>
-                <div class="text-[9px] text-gray-500 dark:text-gray-400 font-medium">交付方案</div>
-              </div>
-              <div class="bg-white dark:bg-surface-dark rounded-lg p-2 text-center">
-                <div class="text-base font-black ${commentCount > 0 ? 'text-blue-500' : 'text-gray-300'}">${commentCount}</div>
-                <div class="text-[9px] text-gray-500 dark:text-gray-400 font-medium">讨论消息</div>
-              </div>
+            <!-- 徽章统计 -->
+            <div class="flex items-center gap-1.5 ml-auto">
+              <span class="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] font-bold rounded-md border border-green-200 dark:border-green-800">
+                交付 ${deliveryCount}
+              </span>
+              <span class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold rounded-md border border-blue-200 dark:border-blue-800">
+                讨论 ${commentCount}
+              </span>
             </div>
           </div>
           
@@ -373,26 +368,69 @@ function renderSkillsList() {
   if (skillsActions) skillsActions.hidden = false;
   if (workerProfileHint) workerProfileHint.hidden = true;
 
-  skillsList.innerHTML = state.abilities.map((ability) => `
-    <div class="group flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-primary transition-colors cursor-pointer" data-ability-id="${ability.id}">
-      <div class="flex items-center gap-3">
-        <span class="text-lg">${ability.icon || '🔧'}</span>
-        <div>
-          <h4 class="font-bold text-sm text-gray-900 dark:text-white">${escapeHtml(ability.name)}</h4>
-          ${ability.description ? `<p class="text-xs text-subtext-light dark:text-subtext-dark mt-0.5">${escapeHtml(ability.description)}</p>` : ''}
-        </div>
-      </div>
-      <button class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary transition-opacity" data-action="edit" data-ability-id="${ability.id}">
-        <span class="material-icons-round text-sm">edit</span>
-      </button>
+  // 以标签形式显示技能
+  skillsList.innerHTML = `
+    <div class="flex flex-wrap gap-2">
+      ${state.abilities.map((ability) => `
+        <button class="ability-tag group relative px-3 py-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs font-medium rounded-lg border border-orange-200 dark:border-orange-800 hover:bg-orange-200 dark:hover:bg-orange-800/50 transition-colors flex items-center gap-1.5" data-ability-id="${ability.id}">
+          <span class="text-sm">${ability.icon || '🔧'}</span>
+          <span>${escapeHtml(ability.name)}</span>
+          <span class="tooltip hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap z-10">
+            ${escapeHtml(ability.description || ability.name)}
+          </span>
+        </button>
+      `).join('')}
     </div>
-  `).join('');
+  `;
 
   if (workerCount) workerCount.textContent = `${state.abilities.length}个`;
 }
 
+// 渲染 AI 分身容器
+function renderAIAvatar() {
+  const avatarContainer = document.querySelector('#ai-avatar-container');
+  const userAvatar = document.querySelector('#user-avatar');
+  const aiName = document.querySelector('#ai-name');
+  const capabilityTags = document.querySelector('#capability-tags');
+
+  if (!avatarContainer || !state.me) {
+    if (avatarContainer) avatarContainer.classList.add('hidden');
+    return;
+  }
+
+  // 如果用户已登录且有能力，显示 AI 分身容器
+  if (state.abilities.length > 0) {
+    avatarContainer.classList.remove('hidden');
+
+    // 设置用户头像
+    const avatar = state.me.avatar || state.me.profileImageUrl || '';
+    if (userAvatar) {
+      userAvatar.src = avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(state.me.displayName || '游客')}&background=random`;
+    }
+
+    // 设置 AI 分身名称
+    const username = state.me.displayName || state.me.username || '游客';
+    if (aiName) {
+      aiName.textContent = `${username}的AI分身`;
+    }
+
+    // 渲染技能标签（胶囊样式）
+    if (capabilityTags) {
+      capabilityTags.innerHTML = state.abilities.map((ability) => `
+        <span class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-black dark:text-white rounded-full text-sm font-medium transition-all hover:bg-gray-200 dark:hover:bg-gray-700">
+          <span>${ability.icon || '🔧'}</span>
+          <span>${escapeHtml(ability.name)}</span>
+        </span>
+      `).join('');
+    }
+  } else {
+    avatarContainer.classList.add('hidden');
+  }
+}
+
 function renderWorkerProfile() {
   renderSkillsList();
+  renderAIAvatar();
 }
 
 function setIntegrationView(sessionInfo) {
@@ -746,9 +784,9 @@ if (deleteAbilityBtn) deleteAbilityBtn.addEventListener('click', deleteAbility);
 
 if (skillsList) {
   skillsList.addEventListener('click', (e) => {
-    const editBtn = e.target.closest('[data-action="edit"]');
-    if (editBtn) {
-      const id = editBtn.dataset.abilityId;
+    const tag = e.target.closest('.ability-tag');
+    if (tag) {
+      const id = tag.dataset.abilityId;
       const ability = state.abilities.find((a) => a.id === id);
       if (ability) openAbilityModal(ability);
     }

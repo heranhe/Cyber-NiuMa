@@ -1,2 +1,26 @@
 .DS_Store
 node_modules
+
+# Vercel 部署配置
+.vercel
+
+# 环境变量文件（包含敏感的数据库凭证和密钥，禁止提交）
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# 日志文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

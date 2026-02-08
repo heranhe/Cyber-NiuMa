@@ -188,7 +188,7 @@
             </div>
           </button>
 
-          <!-- 我的技能 -->
+          <!-- 我的 AI 分身 -->
           <div
             class="bg-white dark:bg-surface-dark rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-border-dark">
             <div class="flex justify-between items-center mb-6">
@@ -203,6 +203,28 @@
                   <span class="material-icons-round text-sm">settings</span>
                   管理
                 </a>
+              </div>
+            </div>
+
+            <!-- AI 分身信息容器 -->
+            <div id="ai-avatar-container" class="mb-6 hidden">
+              <!-- 用户头像和名称 -->
+              <div class="flex items-center gap-3 mb-4">
+                <img id="user-avatar" src="" alt="用户头像"
+                  class="w-12 h-12 rounded-full object-cover border-2 border-gray-200 dark:border-gray-700" />
+                <div>
+                  <h3 id="ai-name" class="font-bold text-gray-900 dark:text-white">
+                    周杰伦的AI分身
+                  </h3>
+                </div>
+              </div>
+
+              <!-- 技能标签区域 -->
+              <div class="space-y-2">
+                <p class="text-sm text-gray-600 dark:text-gray-400">AI分身的技能：</p>
+                <div id="capability-tags" class="flex flex-wrap gap-2">
+                  <!-- 技能标签将由 JS 动态渲染 -->
+                </div>
               </div>
             </div>
 
