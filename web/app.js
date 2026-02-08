@@ -387,34 +387,26 @@ function renderSkillsList() {
   if (workerCount) workerCount.textContent = `${state.abilities.length}个`;
 }
 
-// 渲染 AI 分身容器 (双行布局)
+// 渲染 AI 分身容器
 function renderAIAvatar() {
-  const defaultTitle = document.querySelector('#default-title');
-  const aiIdentity = document.querySelector('#ai-identity');
+  const avatarContainer = document.querySelector('#ai-avatar-container');
   const userAvatar = document.querySelector('#user-avatar');
   const aiName = document.querySelector('#ai-name');
-  const aiSkillsRow = document.querySelector('#ai-skills-row');
   const capabilityTags = document.querySelector('#capability-tags');
 
-  // 未登录时隐藏 AI 信息，恢复默认标题
-  if (!state.me) {
-    if (defaultTitle) defaultTitle.classList.remove('hidden');
-    if (aiIdentity) aiIdentity.classList.add('hidden');
-    if (aiSkillsRow) aiSkillsRow.classList.add('hidden');
+  // 未登录时隐藏容器
+  if (!avatarContainer || !state.me) {
+    if (avatarContainer) avatarContainer.classList.add('hidden');
     return;
   }
 
-  // 用户已登录：隐藏默认标题，显示头像和分身名称（首行）
-  if (defaultTitle) defaultTitle.classList.add('hidden');
-  if (aiIdentity) aiIdentity.classList.remove('hidden');
-  if (aiSkillsRow) aiSkillsRow.classList.remove('hidden');
+  // 用户已登录，显示 AI 分身容器
+  avatarContainer.classList.remove('hidden');
 
   // 设置用户头像
-  const avatar = state.me.name || state.me.displayName || state.me.avatar || state.me.profileImageUrl || '';
+  const avatar = state.me.avatar || state.me.profileImageUrl || '';
   if (userAvatar) {
-    userAvatar.src = avatar.length <= 2 ?
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(avatar)}&background=random` :
-      (avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(state.me.name || '游客')}&background=random`);
+    userAvatar.src = avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(state.me.name || state.me.displayName || '游客')}&background=random`;
   }
 
   // 设置 AI 分身名称
@@ -423,9 +415,9 @@ function renderAIAvatar() {
     aiName.textContent = `${username}的AI分身`;
   }
 
-  // 渲染技能标签（第二行）
+  // 渲染技能标签（胶囊样式）
   if (capabilityTags) {
-    if (state.abilities && state.abilities.length > 0) {
+    if (state.abilities.length > 0) {
       capabilityTags.innerHTML = state.abilities.map((ability) => `
         <span class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-black dark:text-white rounded-full text-sm font-medium transition-all hover:bg-gray-200 dark:hover:bg-gray-700">
           <span>${ability.icon || '🔧'}</span>
