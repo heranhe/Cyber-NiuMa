@@ -161,24 +161,52 @@
             <button
               class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
               data-status="DELIVERED">已交付</button>
+            <button
+              class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+              data-status="MY_PUBLISHED">我的派发</button>
           </div>
         </div>
-        <!-- 任务大厅/我的派发切换 -->
-        <div id="board-tabs" class="flex mb-4 border-b border-gray-200 dark:border-gray-700">
-          <button class="board-tab is-active px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary"
-            data-board="hall">
-            <span class="material-icons-round text-sm mr-1 align-middle">storefront</span>任务大厅
+        <!-- 主标签页切换: 任务大厅 / 技能大厅 -->
+        <div id="main-tabs" class="flex mb-6 border-b-2 border-gray-200 dark:border-gray-700">
+          <button
+            class="main-tab is-active px-6 py-3 text-base font-bold border-b-2 border-primary text-primary transition-all"
+            data-tab="task-hall">
+            <span class="material-icons-round text-lg mr-2 align-middle">assignment</span>任务大厅
           </button>
           <button
-            class="board-tab px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            data-board="mine">
-            <span class="material-icons-round text-sm mr-1 align-middle">send</span>我的派发
+            class="main-tab px-6 py-3 text-base font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-all"
+            data-tab="skill-hall">
+            <span class="material-icons-round text-lg mr-2 align-middle">extension</span>技能大厅
           </button>
         </div>
 
-        <!-- 任务列表 -->
-        <div id="task-list" class="space-y-4">
-          <!-- 任务卡片将由 JS 动态渲染 -->
+        <!-- 任务大厅内容 -->
+        <div id="task-hall-content" class="">
+          <!-- 任务列表 -->
+          <div id="task-list" class="space-y-4">
+            <!-- 任务卡片将由 JS 动态渲染 -->
+          </div>
+        </div>
+
+        <!-- 技能大厅内容 -->
+        <div id="skill-hall-content" class="hidden">
+          <!-- 加载状态 -->
+          <div id="skill-loading" class="flex flex-col items-center justify-center py-20">
+            <span class="material-icons-round text-5xl text-gray-300 dark:text-gray-600 animate-spin mb-4">sync</span>
+            <p class="text-gray-500 dark:text-gray-400">加载技能中...</p>
+          </div>
+
+          <!-- 技能列表 -->
+          <div id="skill-categories" class="space-y-8 hidden">
+            <!-- 技能分类将由 JS 动态渲染 -->
+          </div>
+
+          <!-- 空状态 -->
+          <div id="skill-empty" class="hidden flex flex-col items-center justify-center py-20">
+            <span class="material-icons-round text-5xl text-gray-300 dark:text-gray-600 mb-4">extension</span>
+            <p class="text-gray-500 dark:text-gray-400 mb-2">暂无技能展示</p>
+            <p class="text-sm text-gray-400 dark:text-gray-500">快去配置你的AI分身技能吧！</p>
+          </div>
         </div>
       </div>
 

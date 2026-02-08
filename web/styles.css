@@ -201,3 +201,153 @@
     border-radius: 16px;
   }
 }
+
+/* ===== 主标签页样式 ===== */
+.main-tab {
+  position: relative;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.main-tab.is-active {
+  color: #D97706;
+  border-bottom-color: #D97706;
+}
+
+.main-tab:not(.is-active) {
+  color: #9CA3AF;
+}
+
+.main-tab:not(.is-active):hover {
+  color: #6B7280;
+}
+
+/* ===== 技能卡片样式 ===== */
+.skill-card {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  border: 1px solid #F3F4F6;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dark .skill-card {
+  background: #2D2D2D;
+  border-color: #404040;
+}
+
+.skill-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-color: rgba(217, 119, 6, 0.3);
+  transform: translateY(-2px);
+}
+
+.skill-card-header {
+  display: flex;
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.skill-card-icon {
+  font-size: 1.875rem;
+  flex-shrink: 0;
+}
+
+.skill-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.skill-card-name {
+  font-weight: 700;
+  color: #111827;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.dark .skill-card-name {
+  color: white;
+}
+
+.skill-card-description {
+  font-size: 0.875rem;
+  color: #6B7280;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dark .skill-card-description {
+  color: #9CA3AF;
+}
+
+.skill-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: #6B7280;
+}
+
+.dark .skill-card-footer {
+  color: #9CA3AF;
+}
+
+.skill-card-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* ===== 技能分类区块样式 ===== */
+.skill-category-section {
+  margin-bottom: 2rem;
+}
+
+.skill-category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.skill-category-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dark .skill-category-title {
+  color: white;
+}
+
+.skill-category-count {
+  font-size: 0.875rem;
+  color: #6B7280;
+}
+
+.dark .skill-category-count {
+  color: #9CA3AF;
+}
+
+.skill-category-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .skill-category-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

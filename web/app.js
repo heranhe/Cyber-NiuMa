@@ -3,13 +3,14 @@ const state = {
   laborTypes: [],
   workers: [],
   tasks: [],
-  filter: 'ALL',
-  boardFilter: 'hall',  // 'hall' 任务大厅 | 'mine' 我的派发
+  filter: 'ALL',  // 'ALL' | 'OPEN' | 'IN_PROGRESS' | 'DELIVERED' | 'MY_PUBLISHED'
+  mainTab: 'task-hall',  // 'task-hall' | 'skill-hall'
   integration: null,
   secondMeConnected: false,
   me: null,
   meWorker: null,
-  abilities: [] // 用户能力库
+  abilities: [], // 用户能力库
+  skills: [] // 所有技能列表
 };
 
 // ===== DOM 元素 =====
@@ -338,10 +339,11 @@ function renderTaskCard(task) {
 function renderTasks() {
   if (!taskList) return;
 
-  // 先按看板类型过滤
+  // 按筛选器过滤任务
   let tasks = state.tasks;
-  if (state.boardFilter === 'mine') {
-    // 我的派发：只显示当前用户发布的任务
+
+  // 如果是"我的派发"，只显示当前用户发布的任务
+  if (state.filter === 'MY_PUBLISHED') {
     // 收集当前用户可能的所有ID
     const myIds = [
       state.me?.id,
@@ -355,17 +357,15 @@ function renderTasks() {
     if (myIds.length > 0) {
       tasks = tasks.filter((t) => myIds.includes(t.publisherId));
     } else {
-      tasks = []
+      tasks = [];
     }
+  } else if (state.filter !== 'ALL') {
+    // 按状态过滤
+    tasks = tasks.filter((t) => t.status === state.filter);
   }
 
-  // 再按状态过滤
-  const filtered = state.filter === 'ALL'
-    ? tasks
-    : tasks.filter((t) => t.status === state.filter);
-
-  if (filtered.length === 0) {
-    const emptyMsg = state.boardFilter === 'mine'
+  if (tasks.length === 0) {
+    const emptyMsg = state.filter === 'MY_PUBLISHED'
       ? (state.me ? '你还没有派发任何任务' : '请先登录查看我的派发')
       : '暂无任务';
     taskList.innerHTML = `
@@ -377,7 +377,7 @@ function renderTasks() {
     return;
   }
 
-  taskList.innerHTML = filtered.map(renderTaskCard).join('');
+  taskList.innerHTML = tasks.map(renderTaskCard).join('');
 }
 
 function renderSkillsList() {
@@ -1018,31 +1018,6 @@ if (statusFilters) {
   });
 }
 
-// 任务看板标签页切换
-const boardTabs = document.querySelector('#board-tabs');
-if (boardTabs) {
-  boardTabs.addEventListener('click', (e) => {
-    const btn = e.target.closest('.board-tab');
-    if (!btn) return;
-
-    const board = btn.dataset.board;
-    state.boardFilter = board;
-
-    // 更新激活状态
-    boardTabs.querySelectorAll('.board-tab').forEach(tab => {
-      if (tab.dataset.board === board) {
-        tab.classList.add('is-active', 'border-primary', 'text-primary');
-        tab.classList.remove('border-transparent', 'text-gray-500');
-      } else {
-        tab.classList.remove('is-active', 'border-primary', 'text-primary');
-        tab.classList.add('border-transparent', 'text-gray-500');
-      }
-    });
-
-    renderTasks();
-  });
-}
-
 if (taskList) {
   taskList.addEventListener('click', onTaskActionClick);
 }
@@ -1091,5 +1066,174 @@ if (takeTaskModal) {
     if (e.target === takeTaskModal) closeTakeTaskModalFn();
   });
 }
+
+// ===== 主标签页切换 =====
+function switchMainTab(tabName) {
+  state.mainTab = tabName;
+
+  const taskHallContent = document.querySelector('#task-hall-content');
+  const skillHallContent = document.querySelector('#skill-hall-content');
+  const mainTabs = document.querySelectorAll('.main-tab');
+
+  // 更新标签页激活状态
+  mainTabs.forEach(tab => {
+    if (tab.dataset.tab === tabName) {
+      tab.classList.add('is-active');
+    } else {
+      tab.classList.remove('is-active');
+    }
+  });
+
+  // 切换内容显示
+  if (tabName === 'task-hall') {
+    taskHallContent?.classList.remove('hidden');
+    skillHallContent?.classList.add('hidden');
+  } else if (tabName === 'skill-hall') {
+    taskHallContent?.classList.add('hidden');
+    skillHallContent?.classList.remove('hidden');
+    // 加载技能大厅数据
+    loadSkillHall();
+  }
+}
+
+// ===== 技能大厅相关 =====
+async function loadSkillHall() {
+  const skillLoading = document.querySelector('#skill-loading');
+  const skillCategories = document.querySelector('#skill-categories');
+  const skillEmpty = document.querySelector('#skill-empty');
+
+  // 显示加载状态
+  skillLoading?.classList.remove('hidden');
+  skillCategories?.classList.add('hidden');
+  skillEmpty?.classList.add('hidden');
+
+  try {
+    // 从用户能力中构建技能列表
+    // 实际项目中应该调用 API: const res = await api('/api/skills');
+    const skills = state.abilities.map(ability => ({
+      ...ability,
+      ownerId: state.me?.id || '',
+      ownerName: state.me?.name || state.me?.displayName || '匿名用户',
+      ownerAvatar: state.me?.avatar || state.me?.profileImageUrl || '',
+      completedOrders: 0,
+      rating: 0
+    }));
+
+    state.skills = skills;
+
+    // 隐藏加载状态
+    skillLoading?.classList.add('hidden');
+
+    if (skills.length === 0) {
+      skillEmpty?.classList.remove('hidden');
+    } else {
+      skillCategories?.classList.remove('hidden');
+      renderSkillCategories(skills);
+    }
+  } catch (err) {
+    console.error('加载技能失败:', err);
+    skillLoading?.classList.add('hidden');
+    skillEmpty?.classList.remove('hidden');
+  }
+}
+
+// 技能分类定义
+const SKILL_CATEGORIES = [
+  { id: 'visual', name: '🎨 视觉设计', icon: '🎨' },
+  { id: 'writing', name: '✍️ 文案创作', icon: '✍️' },
+  { id: 'image', name: '🖼️ 图像处理', icon: '🖼️' },
+  { id: 'design', name: '🎯 UI设计', icon: '🎯' },
+  { id: 'other', name: '💡 其他技能', icon: '💡' }
+];
+
+// 将技能分配到分类
+function categorizeSkill(skill) {
+  const name = skill.name.toLowerCase();
+  if (name.includes('设计') || name.includes('logo') || name.includes('海报')) {
+    return 'visual';
+  }
+  if (name.includes('文案') || name.includes('写作') || name.includes('撰写')) {
+    return 'writing';
+  }
+  if (name.includes('图') || name.includes('p图') || name.includes('修图') || name.includes('精修')) {
+    return 'image';
+  }
+  if (name.includes('ui') || name.includes('界面')) {
+    return 'design';
+  }
+  return 'other';
+}
+
+// 渲染技能分类列表
+function renderSkillCategories(skills) {
+  const container = document.querySelector('#skill-categories');
+  if (!container) return;
+
+  // 按分类组织技能
+  const categorized = {};
+  skills.forEach(skill => {
+    const category = categorizeSkill(skill);
+    if (!categorized[category]) {
+      categorized[category] = [];
+    }
+    categorized[category].push(skill);
+  });
+
+  // 渲染每个分类
+  container.innerHTML = SKILL_CATEGORIES
+    .filter(cat => categorized[cat.id] && categorized[cat.id].length > 0)
+    .map(category => {
+      const categorySkills = categorized[category.id];
+      return `
+        <div class="skill-category-section">
+          <div class="skill-category-header">
+            <h3 class="skill-category-title">
+              <span>${category.icon}</span>
+              <span>${category.name.replace(category.icon, '').trim()}</span>
+            </h3>
+            <span class="skill-category-count">${categorySkills.length} 个技能</span>
+          </div>
+          <div class="skill-category-grid">
+            ${categorySkills.map(renderSkillCard).join('')}
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+}
+
+// 渲染单个技能卡片
+function renderSkillCard(skill) {
+  return `
+    <div class="skill-card" data-skill-id="${skill.id}">
+      <div class="skill-card-header">
+        <div class="skill-card-icon">${skill.icon || '🔧'}</div>
+        <div class="skill-card-info">
+          <div class="skill-card-name">${escapeHtml(skill.name)}</div>
+          <div class="skill-card-description">${escapeHtml(skill.description || '暂无描述')}</div>
+        </div>
+      </div>
+      <div class="skill-card-footer">
+        <div class="skill-card-stat">
+          <span class="material-icons-round" style="font-size: 14px;">star</span>
+          <span>${skill.rating || '新技能'}</span>
+        </div>
+        <div class="skill-card-stat">
+          <span class="material-icons-round" style="font-size: 14px;">check_circle</span>
+          <span>${skill.completedOrders || 0} 单完成</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 主标签页点击事件
+const mainTabs = document.querySelectorAll('.main-tab');
+mainTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    const tabName = tab.dataset.tab;
+    switchMainTab(tabName);
+  });
+});
 
 bootstrap();
