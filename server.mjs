@@ -4,7 +4,12 @@ import { promises as fs } from 'node:fs';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { kv } from '@vercel/kv';
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase 客户端初始化（仅在有配置时创建）
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -794,16 +799,27 @@ async function saveProfiles(workers) {
 }
 
 // ===== 能力库 CRUD =====
-const ABILITIES_KV_KEY = 'ai-labor-market:abilities';
+// Supabase 使用 kv_store 表存储 JSON 数据（键值存储模式）
+const ABILITIES_KEY = 'abilities';
 
 async function loadAbilities() {
-  // Vercel 环境使用 KV 存储
-  if (IS_VERCEL) {
+  // Supabase 环境使用数据库存储
+  if (IS_VERCEL && supabase) {
     try {
-      const data = await kv.get(ABILITIES_KV_KEY);
-      return typeof data === 'object' && data !== null ? data : {};
+      const { data, error } = await supabase
+        .from('kv_store')
+        .select('value')
+        .eq('key', ABILITIES_KEY)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+        console.error('Supabase loadAbilities error:', error);
+        return {};
+      }
+
+      return data?.value || {};
     } catch (err) {
-      console.error('KV loadAbilities error:', err);
+      console.error('Supabase loadAbilities exception:', err);
       return {};
     }
   }
@@ -820,13 +836,21 @@ async function loadAbilities() {
 }
 
 async function saveAbilities(data) {
-  // Vercel 环境使用 KV 存储
-  if (IS_VERCEL) {
+  // Supabase 环境使用数据库存储
+  if (IS_VERCEL && supabase) {
     try {
-      await kv.set(ABILITIES_KV_KEY, data);
+      const { error } = await supabase
+        .from('kv_store')
+        .upsert({ key: ABILITIES_KEY, value: data, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+
+      if (error) {
+        console.error('Supabase saveAbilities error:', error);
+        throw new AppError('保存能力失败，请稍后重试', 500);
+      }
       return;
     } catch (err) {
-      console.error('KV saveAbilities error:', err);
+      if (err instanceof AppError) throw err;
+      console.error('Supabase saveAbilities exception:', err);
       throw new AppError('保存能力失败，请稍后重试', 500);
     }
   }

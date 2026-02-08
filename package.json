@@ -9,6 +9,7 @@
     "check": "node --check server.mjs && node --check web/app.js && node --check web/capability.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
     "@vercel/kv": "^3.0.0"
   }
 }
