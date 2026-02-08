@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { kv } from '@vercel/kv';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -793,7 +794,21 @@ async function saveProfiles(workers) {
 }
 
 // ===== 能力库 CRUD =====
+const ABILITIES_KV_KEY = 'ai-labor-market:abilities';
+
 async function loadAbilities() {
+  // Vercel 环境使用 KV 存储
+  if (IS_VERCEL) {
+    try {
+      const data = await kv.get(ABILITIES_KV_KEY);
+      return typeof data === 'object' && data !== null ? data : {};
+    } catch (err) {
+      console.error('KV loadAbilities error:', err);
+      return {};
+    }
+  }
+
+  // 本地环境使用文件存储
   await ensureDataFiles();
   const raw = await fs.readFile(ABILITIES_FILE, 'utf8');
   try {
@@ -805,6 +820,18 @@ async function loadAbilities() {
 }
 
 async function saveAbilities(data) {
+  // Vercel 环境使用 KV 存储
+  if (IS_VERCEL) {
+    try {
+      await kv.set(ABILITIES_KV_KEY, data);
+      return;
+    } catch (err) {
+      console.error('KV saveAbilities error:', err);
+      throw new AppError('保存能力失败，请稍后重试', 500);
+    }
+  }
+
+  // 本地环境使用文件存储
   await ensureDataFiles();
   await fs.writeFile(ABILITIES_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
