@@ -27,7 +27,7 @@ const metricDelivered = document.querySelector('#metric-delivered');
 const myWorkerCard = document.querySelector('#my-worker-card');
 const workerProfileHint = document.querySelector('#worker-profile-hint');
 const workerNameDisplay = document.querySelector('#worker-name-display');
-const workerIntroDisplay = document.querySelector('#worker-intro-display');
+
 const workerCount = document.querySelector('#worker-count');
 const abilitiesList = document.querySelector('#abilities-list');
 const addAbilityBtn = document.querySelector('#add-ability-btn');
@@ -382,7 +382,6 @@ function renderWorkerProfile() {
   if (workerProfileHint) workerProfileHint.hidden = true;
 
   if (workerNameDisplay) workerNameDisplay.textContent = state.meWorker.name || '我的劳务体';
-  if (workerIntroDisplay) workerIntroDisplay.textContent = state.meWorker.persona || '我会按需求交付高质量内容。';
   if (workerCount) workerCount.textContent = '1个';
 
   renderAbilities();
