@@ -4,6 +4,7 @@ const state = {
   workers: [],
   tasks: [],
   filter: 'ALL',
+  boardFilter: 'hall',  // 'hall' 任务大厅 | 'mine' 我的派发
   integration: null,
   secondMeConnected: false,
   me: null,
@@ -337,15 +338,31 @@ function renderTaskCard(task) {
 function renderTasks() {
   if (!taskList) return;
 
+  // 先按看板类型过滤
+  let tasks = state.tasks;
+  if (state.boardFilter === 'mine') {
+    // 我的派发：只显示当前用户发布的任务
+    const myId = state.me?.id || state.me?.userId || '';
+    if (myId) {
+      tasks = tasks.filter((t) => t.publisherId === myId);
+    } else {
+      tasks = [];
+    }
+  }
+
+  // 再按状态过滤
   const filtered = state.filter === 'ALL'
-    ? state.tasks
-    : state.tasks.filter((t) => t.status === state.filter);
+    ? tasks
+    : tasks.filter((t) => t.status === state.filter);
 
   if (filtered.length === 0) {
+    const emptyMsg = state.boardFilter === 'mine'
+      ? (state.me ? '你还没有派发任何任务' : '请先登录查看我的派发')
+      : '暂无任务';
     taskList.innerHTML = `
       <div class="bg-white dark:bg-surface-dark rounded-2xl p-12 text-center border border-gray-100 dark:border-border-dark">
         <span class="material-icons-round text-5xl text-gray-300 dark:text-gray-600 mb-4 block">inbox</span>
-        <p class="text-gray-500 dark:text-gray-400">暂无任务</p>
+        <p class="text-gray-500 dark:text-gray-400">${emptyMsg}</p>
       </div>
     `;
     return;
@@ -989,6 +1006,31 @@ if (statusFilters) {
   statusFilters.addEventListener('click', (e) => {
     const btn = e.target.closest('.filter');
     if (btn) setFilter(btn.dataset.status);
+  });
+}
+
+// 任务看板标签页切换
+const boardTabs = document.querySelector('#board-tabs');
+if (boardTabs) {
+  boardTabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('.board-tab');
+    if (!btn) return;
+
+    const board = btn.dataset.board;
+    state.boardFilter = board;
+
+    // 更新激活状态
+    boardTabs.querySelectorAll('.board-tab').forEach(tab => {
+      if (tab.dataset.board === board) {
+        tab.classList.add('is-active', 'border-primary', 'text-primary');
+        tab.classList.remove('border-transparent', 'text-gray-500');
+      } else {
+        tab.classList.remove('is-active', 'border-primary', 'text-primary');
+        tab.classList.add('border-transparent', 'text-gray-500');
+      }
+    });
+
+    renderTasks();
   });
 }
 

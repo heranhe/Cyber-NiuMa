@@ -143,7 +143,7 @@
         </div>
 
         <!-- 任务看板 -->
-        <div class="flex items-center justify-between mb-4 pt-2">
+        <div class="flex items-center justify-between mb-3 pt-2">
           <h2 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <span class="material-icons-round text-primary">assignment</span>
             任务看板
@@ -162,6 +162,18 @@
               class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
               data-status="DELIVERED">已交付</button>
           </div>
+        </div>
+        <!-- 任务大厅/我的派发切换 -->
+        <div id="board-tabs" class="flex mb-4 border-b border-gray-200 dark:border-gray-700">
+          <button class="board-tab is-active px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary"
+            data-board="hall">
+            <span class="material-icons-round text-sm mr-1 align-middle">storefront</span>任务大厅
+          </button>
+          <button
+            class="board-tab px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            data-board="mine">
+            <span class="material-icons-round text-sm mr-1 align-middle">send</span>我的派发
+          </button>
         </div>
 
         <!-- 任务列表 -->
