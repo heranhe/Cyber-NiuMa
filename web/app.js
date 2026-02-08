@@ -342,11 +342,20 @@ function renderTasks() {
   let tasks = state.tasks;
   if (state.boardFilter === 'mine') {
     // 我的派发：只显示当前用户发布的任务
-    const myId = state.me?.id || state.me?.userId || '';
-    if (myId) {
-      tasks = tasks.filter((t) => t.publisherId === myId);
+    // 收集当前用户可能的所有ID
+    const myIds = [
+      state.me?.id,
+      state.me?.userId,
+      state.me?.user_id,
+      state.me?.secondUserId,
+      state.meWorker?.id,
+      state.meWorker?.secondUserId
+    ].filter(Boolean);
+
+    if (myIds.length > 0) {
+      tasks = tasks.filter((t) => myIds.includes(t.publisherId));
     } else {
-      tasks = [];
+      tasks = []
     }
   }
 
