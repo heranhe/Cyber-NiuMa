@@ -353,6 +353,20 @@
           <!-- 已选文件列表 -->
           <div id="publish-file-list" class="mt-2 space-y-1 hidden"></div>
         </div>
+        <!-- 积分设置 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            悬赏积分
+            <span class="text-xs text-gray-400 font-normal ml-1">（可选，0表示无悬赏）</span>
+          </label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-primary material-icons-round text-lg">toll</span>
+            <input name="budget" type="number" min="0" step="1" value="0"
+              class="w-full pl-10 pr-16 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+              placeholder="0" />
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">积分</span>
+          </div>
+        </div>
         <div class="text-xs text-subtext-light dark:text-subtext-dark">
           <span class="font-medium">示例：</span>logo设计、ai修图、文案修改、出点主意
         </div>

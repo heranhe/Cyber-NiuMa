@@ -620,7 +620,8 @@ async function onPublishSubmit(event) {
   const formData = new FormData(event.target);
   const data = {
     title: formData.get('title')?.trim(),
-    description: formData.get('description')?.trim()
+    description: formData.get('description')?.trim(),
+    budget: parseInt(formData.get('budget') || '0', 10) || 0
   };
 
   if (!data.title || !data.description) {
