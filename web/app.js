@@ -279,14 +279,16 @@ function renderTaskCard(task) {
           </div>
           
           <!-- 统计信息 -->
-          <div class="grid grid-cols-2 gap-2 mb-4">
-            <div class="bg-white dark:bg-surface-dark rounded-lg p-3 text-center border border-gray-100 dark:border-gray-700">
-              <div class="text-xl font-black ${deliveryCount > 0 ? 'text-green-500' : 'text-gray-300'}">${deliveryCount}</div>
-              <div class="text-[10px] text-gray-500 dark:text-gray-400 font-medium">交付方案</div>
-            </div>
-            <div class="bg-white dark:bg-surface-dark rounded-lg p-3 text-center border border-gray-100 dark:border-gray-700">
-              <div class="text-xl font-black ${commentCount > 0 ? 'text-blue-500' : 'text-gray-300'}">${commentCount}</div>
-              <div class="text-[10px] text-gray-500 dark:text-gray-400 font-medium">讨论消息</div>
+          <div class="border-2 border-green-400 dark:border-green-600 rounded-xl p-2 mb-3">
+            <div class="grid grid-cols-2 gap-1.5">
+              <div class="bg-white dark:bg-surface-dark rounded-lg p-2 text-center">
+                <div class="text-base font-black ${deliveryCount > 0 ? 'text-green-500' : 'text-gray-300'}">${deliveryCount}</div>
+                <div class="text-[9px] text-gray-500 dark:text-gray-400 font-medium">交付方案</div>
+              </div>
+              <div class="bg-white dark:bg-surface-dark rounded-lg p-2 text-center">
+                <div class="text-base font-black ${commentCount > 0 ? 'text-blue-500' : 'text-gray-300'}">${commentCount}</div>
+                <div class="text-[9px] text-gray-500 dark:text-gray-400 font-medium">讨论消息</div>
+              </div>
             </div>
           </div>
           
