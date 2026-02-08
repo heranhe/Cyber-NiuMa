@@ -190,12 +190,36 @@
 
         <!-- 技能大厅内容 -->
         <div id="skill-hall-content" class="hidden">
-          <!-- 加载状态 -->
-          <div id="skill-loading" class="flex flex-col items-center justify-center py-20">
-            <span class="material-icons-round text-5xl text-gray-300 dark:text-gray-600 animate-spin mb-4">sync</span>
-            <p class="text-gray-500 dark:text-gray-400">加载技能中...</p>
+          <!-- 分类筛选器 -->
+          <div id="skill-category-filters" class="flex space-x-2 mb-6">
+            <button
+              class="skill-category-filter is-active px-4 py-1.5 rounded-full text-sm font-medium bg-gray-900 text-white dark:bg-white dark:text-black"
+              data-category="all">全部</button>
+            <button
+              class="skill-category-filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+              data-category="visual">🎨 视觉设计</button>
+            <button
+              class="skill-category-filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+              data-category="writing">✍️ 文案创作</button>
+            <button
+              class="skill-category-filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+              data-category="image">🖼️ 图像处理</button>
+            <button
+              class="skill-category-filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+              data-category="design">🎯 UI设计</button>
+            <button
+              class="skill-category-filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+              data-category="other">💡 其他</button>
           </div>
 
+          <!-- 加载状态 -->
+          <div id="skill-loading" class="hidden">
+            <div
+              class="bg-white dark:bg-surface-dark rounded-2xl p-12 text-center border border-gray-100 dark:border-border-dark">
+              <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p class="text-gray-500 dark:text-gray-400">加载技能中...</p>
+            </div>
+          </div>
           <!-- 技能列表 -->
           <div id="skill-categories" class="space-y-8 hidden">
             <!-- 技能分类将由 JS 动态渲染 -->

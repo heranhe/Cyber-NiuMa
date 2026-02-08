@@ -5,6 +5,7 @@ const state = {
   tasks: [],
   filter: 'ALL',  // 'ALL' | 'OPEN' | 'IN_PROGRESS' | 'DELIVERED' | 'MY_PUBLISHED'
   mainTab: 'task-hall',  // 'task-hall' | 'skill-hall'
+  skillCategoryFilter: 'all',  // 'all' | 'visual' | 'writing' | 'image' | 'design' | 'other'
   integration: null,
   secondMeConnected: false,
   me: null,
@@ -1179,8 +1180,13 @@ function renderSkillCategories(skills) {
     categorized[category].push(skill);
   });
 
+  // 根据当前筛选器决定显示哪些分类
+  const categoriesToShow = state.skillCategoryFilter === 'all'
+    ? SKILL_CATEGORIES
+    : SKILL_CATEGORIES.filter(cat => cat.id === state.skillCategoryFilter);
+
   // 渲染每个分类
-  container.innerHTML = SKILL_CATEGORIES
+  container.innerHTML = categoriesToShow
     .filter(cat => categorized[cat.id] && categorized[cat.id].length > 0)
     .map(category => {
       const categorySkills = categorized[category.id];
@@ -1235,5 +1241,31 @@ mainTabs.forEach(tab => {
     switchMainTab(tabName);
   });
 });
+
+// 技能分类筛选器点击事件
+const skillCategoryFilters = document.querySelector('#skill-category-filters');
+if (skillCategoryFilters) {
+  skillCategoryFilters.addEventListener('click', (e) => {
+    const btn = e.target.closest('.skill-category-filter');
+    if (!btn) return;
+
+    const category = btn.dataset.category;
+    state.skillCategoryFilter = category;
+
+    // 更新筛选按钮激活状态
+    skillCategoryFilters.querySelectorAll('.skill-category-filter').forEach(filter => {
+      if (filter.dataset.category === category) {
+        filter.classList.add('is-active', 'bg-gray-900', 'text-white');
+        filter.classList.remove('bg-white', 'border', 'border-gray-200', 'text-gray-600');
+      } else {
+        filter.classList.remove('is-active', 'bg-gray-900', 'text-white');
+        filter.classList.add('bg-white', 'border', 'border-gray-200', 'text-gray-600');
+      }
+    });
+
+    // 重新渲染技能列表
+    renderSkillCategories(state.skills);
+  });
+}
 
 bootstrap();
