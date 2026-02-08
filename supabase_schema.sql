@@ -20,3 +20,31 @@ CREATE POLICY "Allow all access" ON kv_store
 
 -- 创建索引以加速查询
 CREATE INDEX IF NOT EXISTS idx_kv_store_key ON kv_store(key);
+
+-- ===== 交付历史表 =====
+-- deliveries 表：存储 AI 交付记录
+CREATE TABLE IF NOT EXISTS deliveries (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  worker_id TEXT NOT NULL,
+  ability_id TEXT,
+  ability_name TEXT,
+  content TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'completed',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 启用 RLS
+ALTER TABLE deliveries ENABLE ROW LEVEL SECURITY;
+
+-- 允许服务端完全访问
+CREATE POLICY "Allow all access on deliveries" ON deliveries
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- 创建索引
+CREATE INDEX IF NOT EXISTS idx_deliveries_task_id ON deliveries(task_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_worker_id ON deliveries(worker_id);
+

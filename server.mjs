@@ -860,6 +860,97 @@ async function saveAbilities(data) {
   await fs.writeFile(ABILITIES_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
+// ===== 交付历史 CRUD =====
+// Supabase 使用 deliveries 表存储交付历史
+
+async function saveDeliveryHistory(delivery) {
+  if (!IS_VERCEL || !supabase) {
+    console.log('Local mode: saveDeliveryHistory skipped');
+    return delivery;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('deliveries')
+      .insert({
+        id: delivery.id,
+        task_id: delivery.taskId,
+        worker_id: delivery.workerId,
+        ability_id: delivery.abilityId || null,
+        ability_name: delivery.abilityName || null,
+        content: delivery.content,
+        status: delivery.status || 'completed',
+        created_at: delivery.createdAt || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) {
+      console.error('Supabase saveDeliveryHistory error:', error);
+      // 不抛错，让交付继续进行
+    }
+    return delivery;
+  } catch (err) {
+    console.error('Supabase saveDeliveryHistory exception:', err);
+    return delivery;
+  }
+}
+
+async function getTaskDeliveries(taskId) {
+  if (!IS_VERCEL || !supabase) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('deliveries')
+      .select('*')
+      .eq('task_id', taskId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Supabase getTaskDeliveries error:', error);
+      return [];
+    }
+
+    return (data || []).map(row => ({
+      id: row.id,
+      taskId: row.task_id,
+      workerId: row.worker_id,
+      abilityId: row.ability_id,
+      abilityName: row.ability_name,
+      content: row.content,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  } catch (err) {
+    console.error('Supabase getTaskDeliveries exception:', err);
+    return [];
+  }
+}
+
+async function deleteDeliveryById(deliveryId) {
+  if (!IS_VERCEL || !supabase) {
+    return false;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('deliveries')
+      .delete()
+      .eq('id', deliveryId);
+
+    if (error) {
+      console.error('Supabase deleteDeliveryById error:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Supabase deleteDeliveryById exception:', err);
+    return false;
+  }
+}
+
 async function getUserAbilities(userId) {
   const all = await loadAbilities();
   const list = Array.isArray(all[userId]) ? all[userId] : [];
@@ -2789,12 +2880,59 @@ async function handleApi(req, res, urlObj) {
     task.updatedAt = nowIso();
     await syncTaskDelivery(task, workerLookup);
 
+    // 保存交付历史到 Supabase
+    await saveDeliveryHistory({
+      id: uid('delivery'),
+      taskId: task.id,
+      workerId,
+      abilityId: selectedAbility?.id || null,
+      abilityName: selectedAbility?.name || null,
+      content: delivery.content || '',
+      status: 'completed',
+      createdAt: nowIso()
+    });
+
     await saveTasks(tasks);
 
     return json(res, 200, {
       code: 0,
       message: '交付已生成',
       data: safeTaskSummary(task)
+    });
+  }
+
+  // 获取任务交付历史
+  const deliveriesMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/deliveries$/);
+  if (method === 'GET' && deliveriesMatch) {
+    const taskId = decodeURIComponent(deliveriesMatch[1]);
+    const deliveries = await getTaskDeliveries(taskId);
+    return json(res, 200, {
+      code: 0,
+      message: 'success',
+      data: deliveries
+    });
+  }
+
+  // 删除交付记录
+  const deleteDeliveryMatch = pathname.match(/^\/api\/deliveries\/([^/]+)$/);
+  if (method === 'DELETE' && deleteDeliveryMatch) {
+    const deliveryId = decodeURIComponent(deleteDeliveryMatch[1]);
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.worker) {
+      return badRequest(res, '请先登录');
+    }
+
+    const success = await deleteDeliveryById(deliveryId);
+    if (!success) {
+      return json(res, 500, {
+        code: -1,
+        message: '删除失败'
+      });
+    }
+
+    return json(res, 200, {
+      code: 0,
+      message: '删除成功'
     });
   }
 

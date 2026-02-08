@@ -681,18 +681,147 @@ async function onTaskActionClick(event) {
       // 打开接单弹窗
       openTakeTaskModal(taskId);
     } else if (action === 'deliver') {
-      // TODO: 实现交付逻辑（选择能力后调用 chat/stream）
-      showToast('交付功能开发中');
+      // 实现 AI 交付逻辑
+      await deliverTask(taskId, button);
     } else if (action === 'discuss') {
       // TODO: 实现讨论功能
       showToast('讨论功能开发中');
     } else if (action === 'view') {
-      // TODO: 查看详情
-      showToast('详情页开发中');
+      // 查看任务详情（包括交付结果）
+      await viewTaskDetails(taskId);
     }
   } catch (err) {
     showToast(err.message || '操作失败');
   }
+}
+
+// AI 交付任务
+async function deliverTask(taskId, button) {
+  // 保存原始按钮内容
+  const originalContent = button.innerHTML;
+
+  // 更新按钮状态为"正在交付"
+  button.disabled = true;
+  button.innerHTML = `
+    <span class="material-icons-round text-[14px] animate-spin">sync</span>
+    AI 正在交付中...
+  `;
+  button.classList.add('opacity-75', 'cursor-not-allowed');
+
+  try {
+    const res = await api(`/api/tasks/${taskId}/deliver`, {
+      method: 'POST',
+      body: JSON.stringify({ brief: '' })
+    });
+
+    if (res.code === 0) {
+      showToast('🎉 交付成功！');
+      await loadTasks(); // 刷新任务列表
+    } else {
+      throw new Error(res.message || '交付失败');
+    }
+  } catch (err) {
+    // 恢复按钮状态
+    button.innerHTML = originalContent;
+    button.disabled = false;
+    button.classList.remove('opacity-75', 'cursor-not-allowed');
+    throw err;
+  }
+}
+
+// 查看任务详情
+async function viewTaskDetails(taskId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) {
+    showToast('任务不存在');
+    return;
+  }
+
+  // 如果任务已交付，显示交付结果
+  if (task.status === 'DELIVERED' && task.delivery) {
+    showDeliveryModal(task);
+  } else {
+    showToast('任务详情页开发中');
+  }
+}
+
+// 显示交付结果弹窗
+function showDeliveryModal(task) {
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4';
+  modal.innerHTML = `
+    <div class="bg-white dark:bg-surface-dark rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
+      <div class="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-700">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <span class="material-icons-round text-green-500">verified</span>
+          交付结果
+        </h3>
+        <button class="close-modal p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
+          <span class="material-icons-round text-gray-500">close</span>
+        </button>
+      </div>
+      <div class="p-4 overflow-y-auto max-h-[60vh]">
+        <div class="mb-4">
+          <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">任务标题</h4>
+          <p class="text-gray-900 dark:text-white">${escapeHtml(task.title)}</p>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">AI 交付内容</h4>
+          <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 prose dark:prose-invert max-w-none">
+            <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">${escapeHtml(task.delivery?.content || '暂无内容')}</pre>
+          </div>
+        </div>
+        <div class="text-xs text-gray-400 dark:text-gray-500">
+          交付时间: ${task.delivery?.createdAt || task.updatedAt}
+        </div>
+      </div>
+      <div class="flex gap-2 p-4 border-t border-gray-100 dark:border-gray-700">
+        <button class="close-modal flex-1 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+          关闭
+        </button>
+        <button class="redeliver-btn flex-1 py-2.5 bg-primary text-white rounded-lg font-medium hover:bg-amber-600 transition-colors" data-task-id="${task.id}">
+          重新交付
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // 关闭弹窗
+  modal.querySelectorAll('.close-modal').forEach(btn => {
+    btn.addEventListener('click', () => modal.remove());
+  });
+
+  // 点击背景关闭
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+
+  // 重新交付
+  modal.querySelector('.redeliver-btn')?.addEventListener('click', async (e) => {
+    const btn = e.target;
+    const taskId = btn.dataset.taskId;
+    modal.remove();
+
+    // 找到任务卡片中的交付按钮并模拟点击触发交付
+    const taskCard = document.querySelector(`[data-task-id="${taskId}"][data-action="deliver"]`);
+    if (taskCard) {
+      // 重置任务状态为 IN_PROGRESS 以允许重新交付
+      const task = state.tasks.find(t => t.id === taskId);
+      if (task) {
+        task.status = 'IN_PROGRESS';
+        renderTasks();
+        // 给一点时间让 DOM 更新
+        setTimeout(() => {
+          const newBtn = document.querySelector(`[data-task-id="${taskId}"][data-action="deliver"]`);
+          if (newBtn) newBtn.click();
+        }, 100);
+      }
+    } else {
+      showToast('重新交付功能开发中');
+    }
+  });
 }
 
 // ===== 筛选器 =====
