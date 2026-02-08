@@ -2578,6 +2578,199 @@ async function handleApi(req, res, urlObj) {
     });
   }
 
+  // 获取单个任务详情
+  const taskDetailMatch = pathname.match(/^\/api\/tasks\/([^/]+)$/);
+  if (method === 'GET' && taskDetailMatch) {
+    const taskId = decodeURIComponent(taskDetailMatch[1]);
+    const tasks = await loadTasks();
+    const task = tasks.find((t) => t.id === taskId);
+
+    if (!task) {
+      return json(res, 404, { code: 404, message: '任务不存在' });
+    }
+
+    // 获取派活人信息
+    const workers = await loadProfiles();
+    let publisherInfo = {};
+    if (task.publisherId) {
+      const publisher = workers.find(w => w.id === task.publisherId || w.secondUserId === task.publisherId);
+      if (publisher) {
+        publisherInfo = {
+          publisherName: publisher.name,
+          publisherAvatar: publisher.avatar
+        };
+      }
+    }
+
+    // 获取接单者信息
+    let assigneeInfo = {};
+    if (task.assigneeId) {
+      const assignee = workers.find(w => w.id === task.assigneeId);
+      if (assignee) {
+        assigneeInfo = {
+          assigneeName: assignee.name,
+          assigneeAvatar: assignee.avatar,
+          assigneeAbility: task.abilityBindings?.[task.assigneeId] || null
+        };
+      }
+    }
+
+    // 获取交付记录
+    let deliveries = [];
+    if (supabase) {
+      try {
+        const { data } = await supabase
+          .from('deliveries')
+          .select('*')
+          .eq('task_id', taskId)
+          .order('created_at', { ascending: false });
+        deliveries = (data || []).map(d => ({
+          id: d.id,
+          workerId: d.worker_id,
+          workerName: d.worker_name || 'AI 分身',
+          abilityId: d.ability_id,
+          abilityName: d.ability_name,
+          content: d.content,
+          status: d.status,
+          createdAt: d.created_at
+        }));
+      } catch (err) {
+        console.error('获取交付记录失败:', err);
+      }
+    }
+
+    // 获取讨论（从任务的 comments 字段）
+    const comments = task.comments || [];
+
+    return json(res, 200, {
+      code: 0,
+      message: 'success',
+      task: {
+        ...safeTaskSummary(task),
+        ...publisherInfo,
+        ...assigneeInfo,
+        publisherId: task.publisherId,
+        assigneeId: task.assigneeId,
+        takenAt: task.takenAt,
+        deliveryVisibility: task.deliveryVisibility || 'public'
+      },
+      deliveries,
+      comments
+    });
+  }
+
+  // 获取任务讨论
+  const commentsGetMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/comments$/);
+  if (method === 'GET' && commentsGetMatch) {
+    const taskId = decodeURIComponent(commentsGetMatch[1]);
+    const tasks = await loadTasks();
+    const task = tasks.find((t) => t.id === taskId);
+
+    if (!task) {
+      return json(res, 404, { code: 404, message: '任务不存在' });
+    }
+
+    return json(res, 200, {
+      code: 0,
+      message: 'success',
+      comments: task.comments || []
+    });
+  }
+
+  // 发布讨论
+  if (method === 'POST' && commentsGetMatch) {
+    const taskId = decodeURIComponent(commentsGetMatch[1]);
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+
+    if (!session?.user) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const content = String(body.content || '').trim();
+    if (!content) {
+      return badRequest(res, '讨论内容不能为空');
+    }
+
+    const tasks = await loadTasks();
+    const taskIndex = tasks.findIndex((t) => t.id === taskId);
+
+    if (taskIndex < 0) {
+      return json(res, 404, { code: 404, message: '任务不存在' });
+    }
+
+    // 初始化 comments 数组
+    if (!tasks[taskIndex].comments) {
+      tasks[taskIndex].comments = [];
+    }
+
+    const comment = {
+      id: uid('comment'),
+      userId: session.user.id || session.user.userId,
+      userName: session.user.name || session.user.displayName || '匿名用户',
+      userAvatar: session.user.avatar || session.user.profileImageUrl,
+      content,
+      createdAt: nowIso()
+    };
+
+    tasks[taskIndex].comments.push(comment);
+    tasks[taskIndex].updatedAt = nowIso();
+    await saveTasks(tasks);
+
+    return json(res, 201, {
+      code: 0,
+      message: '发送成功',
+      comment
+    });
+  }
+
+  // 取消任务
+  const cancelMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/cancel$/);
+  if (method === 'POST' && cancelMatch) {
+    const taskId = decodeURIComponent(cancelMatch[1]);
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+
+    if (!session?.user) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    const tasks = await loadTasks();
+    const taskIndex = tasks.findIndex((t) => t.id === taskId);
+
+    if (taskIndex < 0) {
+      return json(res, 404, { code: 404, message: '任务不存在' });
+    }
+
+    const task = tasks[taskIndex];
+
+    // 只有派活人可以取消
+    if (task.publisherId !== session.user.id && task.publisherId !== session.user.userId) {
+      return json(res, 403, { code: 403, message: '只有派活人可以取消任务' });
+    }
+
+    if (task.status === 'DELIVERED') {
+      return badRequest(res, '已交付的任务不能取消');
+    }
+
+    // 删除任务
+    tasks.splice(taskIndex, 1);
+    await saveTasks(tasks);
+
+    return json(res, 200, {
+      code: 0,
+      message: '任务已取消'
+    });
+  }
+
   if (method === 'POST' && pathname === '/api/tasks') {
     let body;
     try {
@@ -2609,6 +2802,9 @@ async function handleApi(req, res, urlObj) {
     const typeInfo = resolveLaborType(laborTypeInput);
 
     const tasks = await loadTasks();
+    const publisherId = session.worker?.id || session.user?.id || session.user?.userId || '';
+    const deliveryVisibility = String(body.deliveryVisibility || 'public').trim();
+
     const task = {
       id: uid('task'),
       title,
@@ -2616,12 +2812,16 @@ async function handleApi(req, res, urlObj) {
       laborType: typeInfo.laborType,
       laborTypeName: typeInfo.laborTypeName,
       requesterAi,
+      publisherId,
+      publisherName: requesterAi,
       budget,
       deadline,
+      deliveryVisibility: ['public', 'private'].includes(deliveryVisibility) ? deliveryVisibility : 'public',
       status: 'OPEN',
       participants: [],
       abilityBindings: {},
       updates: [],
+      comments: [],
       delivery: null,
       sync: {
         events: [],
@@ -2741,6 +2941,9 @@ async function handleApi(req, res, urlObj) {
     let shouldSave = false;
     if (!task.participants.includes(workerId)) {
       task.participants.push(workerId);
+      task.assigneeId = workerId;  // 保存接单者ID
+      task.assigneeName = worker.name;  // 保存接单者名称
+      task.takenAt = nowIso();  // 保存接单时间
       task.status = 'IN_PROGRESS';
       task.updatedAt = nowIso();
       await syncTaskJoined(task, worker, workerLookup);

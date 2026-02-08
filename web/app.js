@@ -666,32 +666,46 @@ async function onTakeTaskSubmit(event) {
 // ===== 任务操作 =====
 async function onTaskActionClick(event) {
   const button = event.target.closest('.task-action');
-  if (!button) return;
+  const taskCard = event.target.closest('article[data-task-id]');
 
-  const action = button.dataset.action;
-  const taskId = button.dataset.taskId;
+  // 如果点击的是操作按钮，处理按钮操作
+  if (button) {
+    event.stopPropagation();  // 阻止跳转到详情页
 
-  if (!canOperate()) {
-    showToast('请先登录');
+    const action = button.dataset.action;
+    const taskId = button.dataset.taskId;
+
+    if (!canOperate()) {
+      showToast('请先登录');
+      return;
+    }
+
+    try {
+      if (action === 'take') {
+        // 打开接单弹窗
+        openTakeTaskModal(taskId);
+      } else if (action === 'deliver') {
+        // 实现 AI 交付逻辑
+        await deliverTask(taskId, button);
+      } else if (action === 'discuss') {
+        // 跳转到详情页讨论区
+        window.location.href = `/task-detail.html?id=${taskId}#discussions`;
+      } else if (action === 'view') {
+        // 查看任务详情（包括交付结果）
+        await viewTaskDetails(taskId);
+      }
+    } catch (err) {
+      showToast(err.message || '操作失败');
+    }
     return;
   }
 
-  try {
-    if (action === 'take') {
-      // 打开接单弹窗
-      openTakeTaskModal(taskId);
-    } else if (action === 'deliver') {
-      // 实现 AI 交付逻辑
-      await deliverTask(taskId, button);
-    } else if (action === 'discuss') {
-      // TODO: 实现讨论功能
-      showToast('讨论功能开发中');
-    } else if (action === 'view') {
-      // 查看任务详情（包括交付结果）
-      await viewTaskDetails(taskId);
+  // 如果点击的是任务卡片（非按钮），跳转到详情页
+  if (taskCard) {
+    const taskId = taskCard.dataset.taskId;
+    if (taskId) {
+      window.location.href = `/task-detail.html?id=${taskId}`;
     }
-  } catch (err) {
-    showToast(err.message || '操作失败');
   }
 }
 
