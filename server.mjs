@@ -851,13 +851,13 @@ async function updateUserAbility(userId, abilityId, patch) {
     hasOwn(patch, 'model');
   const mergedCustomApi = shouldPatchCustomApi
     ? normalizeCustomApiConfig(
-        {
-          endpoint: sourceCustomApi.endpoint ?? patch.apiEndpoint ?? patch.endpoint,
-          apiKey: sourceCustomApi.apiKey ?? patch.apiKey,
-          model: sourceCustomApi.model ?? patch.model
-        },
-        current.customApi
-      )
+      {
+        endpoint: sourceCustomApi.endpoint ?? patch.apiEndpoint ?? patch.endpoint,
+        apiKey: sourceCustomApi.apiKey ?? patch.apiKey,
+        model: sourceCustomApi.model ?? patch.model
+      },
+      current.customApi
+    )
     : current.customApi;
   const updated = normalizeStoredAbility({
     ...current,
@@ -923,6 +923,9 @@ async function upsertWorkerProfile(secondUser = {}, patch = {}) {
       base.persona ||
       String(secondUser.selfIntroduction || secondUser.bio || '我会按需求交付高质量内容。').trim(),
     avatar: normalizedPatch.avatar || String(secondUser.avatar || '').trim() || base.avatar || '',
+    // 积分系统字段
+    earnedPoints: base.earnedPoints || 0,
+    completedOrders: base.completedOrders || 0,
     createdAt: base.createdAt || now,
     updatedAt: now
   };

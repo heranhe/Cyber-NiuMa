@@ -355,71 +355,65 @@ function renderTasks() {
 }
 
 function renderSkillsList() {
-  if (!skillsList) return;
-
-  if (state.abilities.length === 0) {
-    skillsList.hidden = true;
-    if (skillsActions) skillsActions.hidden = true;
-    // 只有未登录时才显示提示，登录后由 AI 分身容器显示
-    if (workerProfileHint) workerProfileHint.hidden = !!state.me;
-    return;
-  }
-
-  skillsList.hidden = false;
-  if (skillsActions) skillsActions.hidden = false;
-  if (workerProfileHint) workerProfileHint.hidden = true;
-
-  // 以标签形式显示技能
-  skillsList.innerHTML = `
-    <div class="flex flex-wrap gap-2">
-      ${state.abilities.map((ability) => `
-        <button class="ability-tag group relative px-3 py-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs font-medium rounded-lg border border-orange-200 dark:border-orange-800 hover:bg-orange-200 dark:hover:bg-orange-800/50 transition-colors flex items-center gap-1.5" data-ability-id="${ability.id}">
-          <span class="text-sm">${ability.icon || '🔧'}</span>
-          <span>${escapeHtml(ability.name)}</span>
-          <span class="tooltip hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap z-10">
-            ${escapeHtml(ability.description || ability.name)}
-          </span>
-        </button>
-      `).join('')}
-    </div>
-  `;
-
-  if (workerCount) workerCount.textContent = `${state.abilities.length}个`;
+  // 技能列表现在由 renderAIAvatar 函数统一处理
+  // 这个函数保留是为了兼容性，实际渲染逻辑已移至 renderAIAvatar
 }
 
-// 渲染 AI 分身容器
+// 渲染 AI 分身容器（三行布局）
 function renderAIAvatar() {
   const avatarContainer = document.querySelector('#ai-avatar-container');
   const userAvatar = document.querySelector('#user-avatar');
   const aiName = document.querySelector('#ai-name');
+  const earnedPointsEl = document.querySelector('#earned-points');
+  const completedOrdersEl = document.querySelector('#completed-orders');
+  const workerCount = document.querySelector('#worker-count');
   const capabilityTags = document.querySelector('#capability-tags');
+  const workerProfileHint = document.querySelector('#worker-profile-hint');
 
-  // 未登录时隐藏容器
+  // 未登录时隐藏容器，显示提示
   if (!avatarContainer || !state.me) {
     if (avatarContainer) avatarContainer.classList.add('hidden');
+    if (workerProfileHint) workerProfileHint.classList.remove('hidden');
     return;
   }
 
-  // 用户已登录，显示 AI 分身容器
+  // 用户已登录，显示 AI 分身容器，隐藏提示
   avatarContainer.classList.remove('hidden');
+  if (workerProfileHint) workerProfileHint.classList.add('hidden');
 
-  // 设置用户头像
+  // 第一行：设置用户头像
   const avatar = state.me.avatar || state.me.profileImageUrl || '';
   if (userAvatar) {
     userAvatar.src = avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(state.me.name || state.me.displayName || '游客')}&background=random`;
   }
 
-  // 设置 AI 分身名称
+  // 第一行：设置 AI 分身名称
   const username = state.me.name || state.me.displayName || state.me.username || '游客';
   if (aiName) {
     aiName.textContent = `${username}的AI分身`;
   }
 
-  // 渲染技能标签（胶囊样式）
+  // 第一行：设置积分和接单数（从 meWorker 获取）
+  const earnedPoints = state.meWorker?.earnedPoints || 0;
+  const completedOrders = state.meWorker?.completedOrders || 0;
+
+  if (earnedPointsEl) {
+    earnedPointsEl.textContent = `已赚 ${earnedPoints} 积分`;
+  }
+  if (completedOrdersEl) {
+    completedOrdersEl.textContent = `已接单 ${completedOrders} 单`;
+  }
+
+  // 第二行：设置技能数量
+  if (workerCount) {
+    workerCount.textContent = `${state.abilities.length}个`;
+  }
+
+  // 第三行：渲染技能标签（灰色胶囊样式）
   if (capabilityTags) {
     if (state.abilities.length > 0) {
       capabilityTags.innerHTML = state.abilities.map((ability) => `
-        <span class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-black dark:text-white rounded-full text-sm font-medium transition-all hover:bg-gray-200 dark:hover:bg-gray-700">
+        <span class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-full text-sm font-medium transition-all hover:bg-gray-200 dark:hover:bg-gray-700">
           <span>${ability.icon || '🔧'}</span>
           <span>${escapeHtml(ability.name)}</span>
         </span>
