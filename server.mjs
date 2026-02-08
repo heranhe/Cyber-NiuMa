@@ -763,7 +763,30 @@ async function ensureDataFiles() {
   }
 }
 
+// ===== 任务 CRUD =====
+const TASKS_KEY = 'tasks';
+
 async function loadTasks() {
+  // Vercel 环境使用 Supabase 存储
+  if (IS_VERCEL && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('kv_store')
+        .select('value')
+        .eq('key', TASKS_KEY)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('[loadTasks] Supabase error:', error);
+      }
+      return data?.value || [];
+    } catch (err) {
+      console.error('[loadTasks] Error:', err);
+      return [];
+    }
+  }
+
+  // 本地开发使用 JSON 文件
   await ensureDataFiles();
   const raw = await fs.readFile(DATA_FILE, 'utf8');
   const parsed = JSON.parse(raw);
@@ -771,6 +794,23 @@ async function loadTasks() {
 }
 
 async function saveTasks(tasks) {
+  // Vercel 环境使用 Supabase 存储
+  if (IS_VERCEL && supabase) {
+    try {
+      const { error } = await supabase
+        .from('kv_store')
+        .upsert({ key: TASKS_KEY, value: tasks }, { onConflict: 'key' });
+
+      if (error) {
+        console.error('[saveTasks] Supabase error:', error);
+      }
+    } catch (err) {
+      console.error('[saveTasks] Error:', err);
+    }
+    return;
+  }
+
+  // 本地开发使用 JSON 文件
   await fs.writeFile(DATA_FILE, JSON.stringify(tasks, null, 2), 'utf8');
 }
 
