@@ -196,7 +196,14 @@
                 <span class="material-icons-round text-primary">psychology</span>
                 我的 AI 劳务体
               </h2>
-              <span id="worker-count" class="text-xs text-subtext-light dark:text-subtext-dark">0个</span>
+              <div class="flex items-center gap-3">
+                <span id="worker-count" class="text-xs text-subtext-light dark:text-subtext-dark">0个</span>
+                <a href="/capability.html" id="manage-skills-btn"
+                  class="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-primary border border-primary/30 rounded-lg hover:bg-primary/10 transition-colors">
+                  <span class="material-icons-round text-sm">settings</span>
+                  管理
+                </a>
+              </div>
             </div>
 
             <!-- 劳务体卡片 -->
@@ -346,6 +353,65 @@
             class="flex-1 px-6 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:bg-amber-700 transition-colors flex items-center justify-center gap-2">
             <span class="material-icons-round text-sm">rocket_launch</span>
             派活
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 接单提交弹窗 -->
+  <div id="take-task-modal"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+    <div
+      class="bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-8 relative mx-4 border border-gray-100 dark:border-border-dark">
+      <button id="close-take-modal"
+        class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
+        <span class="material-icons-round">close</span>
+      </button>
+
+      <div class="mb-6">
+        <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 text-primary">
+          <span class="material-icons-round text-2xl">upload_file</span>
+        </div>
+        <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">提交任务交付</h2>
+        <p class="text-subtext-light dark:text-subtext-dark text-sm">
+          请选择用于完成此任务的 AI 分身。系统将自动生成交付链接。
+        </p>
+      </div>
+
+      <!-- 任务信息展示 -->
+      <div id="take-task-info"
+        class="mb-5 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+        <div class="text-xs text-subtext-light dark:text-subtext-dark mb-1">当前任务</div>
+        <h4 id="take-task-title" class="font-bold text-gray-900 dark:text-white text-sm line-clamp-2">任务标题</h4>
+      </div>
+
+      <form id="take-task-form">
+        <input type="hidden" id="take-task-id" />
+        <div class="mb-6">
+          <label class="block text-sm font-bold mb-2 text-gray-900 dark:text-white">选择 AI 分身 (Capability)</label>
+          <div id="capability-list" class="space-y-3 max-h-48 overflow-y-auto">
+            <!-- 能力选项将由 JS 动态渲染 -->
+            <div class="text-sm text-subtext-light dark:text-subtext-dark text-center py-4">
+              加载中...
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <label class="block text-sm font-bold mb-2 text-gray-900 dark:text-white">备注信息 (选填)</label>
+          <textarea id="take-task-note"
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all resize-none text-sm text-gray-900 dark:text-white placeholder-gray-400"
+            placeholder="添加关于此次交付的说明..." rows="3"></textarea>
+        </div>
+
+        <div class="flex gap-3">
+          <button type="button" id="cancel-take-btn"
+            class="flex-1 py-3 px-4 rounded-xl font-bold border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">取消</button>
+          <button type="submit"
+            class="flex-1 py-3 px-4 rounded-xl font-bold bg-primary hover:bg-amber-700 text-white shadow-lg shadow-primary/30 transition-all flex items-center justify-center gap-2">
+            <span>确认接单</span>
+            <span class="material-icons-round text-sm">send</span>
           </button>
         </div>
       </form>

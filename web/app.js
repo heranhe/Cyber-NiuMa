@@ -54,6 +54,16 @@ const publishForm = document.querySelector('#publish-form');
 const closePublishModal = document.querySelector('#close-publish-modal');
 const cancelPublishBtn = document.querySelector('#cancel-publish-btn');
 
+// 接单弹窗元素
+const takeTaskModal = document.querySelector('#take-task-modal');
+const takeTaskForm = document.querySelector('#take-task-form');
+const takeTaskIdInput = document.querySelector('#take-task-id');
+const takeTaskTitle = document.querySelector('#take-task-title');
+const takeTaskNote = document.querySelector('#take-task-note');
+const capabilityList = document.querySelector('#capability-list');
+const closeTakeModal = document.querySelector('#close-take-modal');
+const cancelTakeBtn = document.querySelector('#cancel-take-btn');
+
 // 排行榜
 const rankingList = document.querySelector('#ranking-list');
 
@@ -508,6 +518,105 @@ async function onPublishSubmit(event) {
   }
 }
 
+// ===== 接单弹窗 =====
+function openTakeTaskModal(taskId) {
+  if (!takeTaskModal) return;
+
+  // 查找当前任务
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) {
+    showToast('任务不存在');
+    return;
+  }
+
+  // 填充任务信息
+  takeTaskIdInput.value = taskId;
+  if (takeTaskTitle) takeTaskTitle.textContent = task.title || '未命名任务';
+  if (takeTaskNote) takeTaskNote.value = '';
+
+  // 渲染能力选项
+  renderCapabilityOptions();
+
+  takeTaskModal.classList.remove('hidden');
+}
+
+function closeTakeTaskModalFn() {
+  if (takeTaskModal) takeTaskModal.classList.add('hidden');
+}
+
+function renderCapabilityOptions() {
+  if (!capabilityList) return;
+
+  if (state.abilities.length === 0) {
+    capabilityList.innerHTML = `
+      <div class="text-sm text-subtext-light dark:text-subtext-dark text-center py-4">
+        <span class="material-icons-round text-3xl text-gray-300 dark:text-gray-600 mb-2 block">psychology</span>
+        <p>暂无可用的 AI 能力</p>
+        <p class="text-xs mt-1">请先添加 AI 能力后再接单</p>
+      </div>
+    `;
+    return;
+  }
+
+  capabilityList.innerHTML = state.abilities.map((ability, index) => `
+    <label class="relative flex items-center p-4 border-2 ${index === 0 ? 'border-primary bg-primary/5 dark:bg-primary/10' : 'border-gray-200 dark:border-gray-700 hover:border-primary/50 dark:hover:border-primary/50 bg-white dark:bg-surface-dark'} rounded-xl cursor-pointer transition-colors">
+      <input type="radio" name="capability" value="${ability.id}" class="form-radio text-primary w-5 h-5 border-gray-300 focus:ring-primary" ${index === 0 ? 'checked' : ''} />
+      <div class="ml-3 flex-1">
+        <div class="flex justify-between items-center">
+          <span class="font-bold text-gray-900 dark:text-white">${ability.icon || '🔧'} ${escapeHtml(ability.name)}</span>
+          ${index === 0 ? '<span class="text-xs bg-primary text-white px-2 py-0.5 rounded-md">推荐</span>' : ''}
+        </div>
+        ${ability.description ? `<div class="text-xs text-subtext-light dark:text-subtext-dark mt-1">擅长: ${escapeHtml(ability.description)}</div>` : ''}
+      </div>
+    </label>
+  `).join('');
+
+  // 添加点击事件更新选中样式
+  capabilityList.querySelectorAll('label').forEach(label => {
+    label.addEventListener('click', () => {
+      capabilityList.querySelectorAll('label').forEach(l => {
+        l.classList.remove('border-primary', 'bg-primary/5', 'dark:bg-primary/10');
+        l.classList.add('border-gray-200', 'dark:border-gray-700', 'bg-white', 'dark:bg-surface-dark');
+      });
+      label.classList.remove('border-gray-200', 'dark:border-gray-700', 'bg-white', 'dark:bg-surface-dark');
+      label.classList.add('border-primary', 'bg-primary/5', 'dark:bg-primary/10');
+    });
+  });
+}
+
+async function onTakeTaskSubmit(event) {
+  event.preventDefault();
+
+  const taskId = takeTaskIdInput.value;
+  const selectedCapability = document.querySelector('input[name="capability"]:checked');
+  const note = takeTaskNote?.value?.trim() || '';
+
+  if (!taskId) {
+    showToast('任务 ID 不存在');
+    return;
+  }
+
+  if (!selectedCapability && state.abilities.length > 0) {
+    showToast('请选择一个 AI 能力');
+    return;
+  }
+
+  try {
+    await api(`/api/tasks/${taskId}/take`, {
+      method: 'POST',
+      body: {
+        abilityId: selectedCapability?.value,
+        note: note
+      }
+    });
+    showToast('接单成功');
+    closeTakeTaskModalFn();
+    await loadTasks();
+  } catch (err) {
+    showToast(err.message || '接单失败');
+  }
+}
+
 // ===== 任务操作 =====
 async function onTaskActionClick(event) {
   const button = event.target.closest('.task-action');
@@ -523,9 +632,8 @@ async function onTaskActionClick(event) {
 
   try {
     if (action === 'take') {
-      await api(`/api/tasks/${taskId}/take`, { method: 'POST' });
-      showToast('接单成功');
-      await loadTasks();
+      // 打开接单弹窗
+      openTakeTaskModal(taskId);
     } else if (action === 'deliver') {
       // TODO: 实现交付逻辑（选择能力后调用 chat/stream）
       showToast('交付功能开发中');
@@ -654,6 +762,16 @@ if (abilityModal) {
 if (publishModal) {
   publishModal.addEventListener('click', (e) => {
     if (e.target === publishModal) closePublishModalFn();
+  });
+}
+
+// 接单弹窗事件
+if (closeTakeModal) closeTakeModal.addEventListener('click', closeTakeTaskModalFn);
+if (cancelTakeBtn) cancelTakeBtn.addEventListener('click', closeTakeTaskModalFn);
+if (takeTaskForm) takeTaskForm.addEventListener('submit', onTakeTaskSubmit);
+if (takeTaskModal) {
+  takeTaskModal.addEventListener('click', (e) => {
+    if (e.target === takeTaskModal) closeTakeTaskModalFn();
   });
 }
 
