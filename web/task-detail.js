@@ -626,16 +626,29 @@ async function loadDiscussions() {
 
 async function loadSessionInfo() {
     try {
-        const res = await api('/api/session');
-        state.secondMeConnected = res?.connected;
-        state.me = res?.user || null;
-        state.abilities = res?.abilities || [];
+        const res = await api('/api/oauth/meta');
+        // 从 OAuth meta 接口解析会话信息
+        state.secondMeConnected = !!res?.data?.sessionInfo;
+        state.me = res?.data?.sessionInfo || null;
+        state.abilities = [];
+
+        // 如果已登录，加载劳务体能力
+        if (state.me) {
+            try {
+                const workerRes = await api('/api/me/labor-body');
+                state.abilities = workerRes?.worker?.abilities || [];
+            } catch {
+                // 忽略错误
+            }
+        }
+
         renderLoginState();
     } catch {
         state.secondMeConnected = false;
         state.me = null;
     }
 }
+
 
 function showError(message) {
     document.querySelector('#loading-state')?.classList.add('hidden');

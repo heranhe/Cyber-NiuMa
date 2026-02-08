@@ -304,10 +304,10 @@ function renderTaskCard(task) {
           
           <!-- 操作按钮 -->
           <div class="mt-auto space-y-2">
-            <!-- 查看详情按钮 -->
+            <!-- 交付详情按钮 -->
             <button class="task-action w-full py-2.5 bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-200 hover:text-primary hover:border-primary/50 transition-all flex items-center justify-center gap-1.5" data-action="view" data-task-id="${task.id}">
-              <span class="material-icons-round text-[14px]">visibility</span>
-              查看详情
+              <span class="material-icons-round text-[14px]">inventory_2</span>
+              交付详情
             </button>
             
             <!-- AI交付/接单按钮 -->
