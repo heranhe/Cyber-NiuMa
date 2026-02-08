@@ -537,6 +537,81 @@ function openPublishModal() {
 
 function closePublishModalFn() {
   if (publishModal) publishModal.classList.add('hidden');
+  // 清空文件列表
+  const fileList = document.querySelector('#publish-file-list');
+  if (fileList) {
+    fileList.innerHTML = '';
+    fileList.classList.add('hidden');
+  }
+  const fileInput = document.querySelector('#publish-files');
+  if (fileInput) fileInput.value = '';
+}
+
+// 已选文件存储
+let selectedFiles = [];
+
+// 更新文件列表显示
+function updateFileListDisplay() {
+  const fileList = document.querySelector('#publish-file-list');
+  if (!fileList) return;
+
+  if (selectedFiles.length === 0) {
+    fileList.classList.add('hidden');
+    fileList.innerHTML = '';
+    return;
+  }
+
+  fileList.classList.remove('hidden');
+  fileList.innerHTML = selectedFiles.map((file, index) => `
+    <div class="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-xs">
+      <span class="material-icons-round text-sm text-gray-400">${file.type.startsWith('image/') ? 'image' : 'description'}</span>
+      <span class="flex-1 truncate text-gray-700 dark:text-gray-300">${escapeHtml(file.name)}</span>
+      <span class="text-gray-400">${(file.size / 1024).toFixed(1)}KB</span>
+      <button type="button" class="remove-file text-gray-400 hover:text-red-500" data-index="${index}">
+        <span class="material-icons-round text-sm">close</span>
+      </button>
+    </div>
+  `).join('');
+
+  // 绑定删除按钮
+  fileList.querySelectorAll('.remove-file').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt(btn.dataset.index);
+      selectedFiles.splice(idx, 1);
+      updateFileListDisplay();
+    });
+  });
+}
+
+// 初始化文件上传监听
+function initFileUpload() {
+  const fileInput = document.querySelector('#publish-files');
+  const dropzone = document.querySelector('#publish-dropzone');
+
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      selectedFiles = [...selectedFiles, ...files];
+      updateFileListDisplay();
+    });
+  }
+
+  if (dropzone) {
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('border-primary');
+    });
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('border-primary');
+    });
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('border-primary');
+      const files = Array.from(e.dataTransfer?.files || []);
+      selectedFiles = [...selectedFiles, ...files];
+      updateFileListDisplay();
+    });
+  }
 }
 
 async function onPublishSubmit(event) {
@@ -941,6 +1016,7 @@ if (publishTaskBtn) publishTaskBtn.addEventListener('click', openPublishModal);
 if (closePublishModal) closePublishModal.addEventListener('click', closePublishModalFn);
 if (cancelPublishBtn) cancelPublishBtn.addEventListener('click', closePublishModalFn);
 if (publishForm) publishForm.addEventListener('submit', onPublishSubmit);
+initFileUpload();  // 初始化文件上传
 
 // 点击弹窗外部关闭
 if (abilityModal) {

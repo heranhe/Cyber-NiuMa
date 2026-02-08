@@ -332,9 +332,26 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">任务描述</label>
-          <textarea name="description" rows="4"
+          <textarea name="description" rows="3"
             class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="详细描述交付预期、风格约束、应用场景" required></textarea>
+        </div>
+        <!-- 附件上传区域 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">附件（可选）</label>
+          <div id="publish-dropzone"
+            class="relative border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-xl p-4 text-center hover:border-primary/50 transition-colors cursor-pointer bg-gray-50/50 dark:bg-gray-800/50">
+            <input type="file" id="publish-files" name="files" multiple accept="image/*,.pdf,.doc,.docx,.txt"
+              class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            <div class="pointer-events-none">
+              <span
+                class="material-icons-round text-3xl text-gray-300 dark:text-gray-600 mb-2 block">cloud_upload</span>
+              <p class="text-xs text-gray-500 dark:text-gray-400">点击或拖放图片/文档</p>
+              <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">支持 JPG、PNG、PDF、Word 等格式</p>
+            </div>
+          </div>
+          <!-- 已选文件列表 -->
+          <div id="publish-file-list" class="mt-2 space-y-1 hidden"></div>
         </div>
         <div class="text-xs text-subtext-light dark:text-subtext-dark">
           <span class="font-medium">示例：</span>logo设计、ai修图、文案修改、出点主意

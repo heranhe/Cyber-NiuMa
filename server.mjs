@@ -2796,10 +2796,8 @@ async function handleApi(req, res, urlObj) {
     if (!description) {
       return badRequest(res, '任务描述不能为空');
     }
-    if (!laborTypeInput) {
-      return badRequest(res, '劳务类型不能为空');
-    }
-    const typeInfo = resolveLaborType(laborTypeInput);
+    // 劳务类型改为可选，默认为"通用"
+    const typeInfo = resolveLaborType(laborTypeInput || 'general');
 
     const tasks = await loadTasks();
     const publisherId = session.worker?.id || session.user?.id || session.user?.userId || '';
