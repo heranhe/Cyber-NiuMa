@@ -352,8 +352,14 @@ function renderTasks() {
       state.meWorker?.secondUserId
     ].filter(Boolean);
 
+    // 调试日志
+    console.log('[我的派发] 当前用户IDs:', myIds);
+    console.log('[我的派发] state.me:', state.me);
+    console.log('[我的派发] 所有任务:', tasks.map(t => ({ title: t.title, publisherId: t.publisherId })));
+
     if (myIds.length > 0) {
       tasks = tasks.filter((t) => myIds.includes(t.publisherId));
+      console.log('[我的派发] 过滤后任务数:', tasks.length);
     } else {
       tasks = []
     }
