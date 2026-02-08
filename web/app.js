@@ -502,7 +502,7 @@ async function saveAbility(event) {
       showToast('能力已添加');
     }
     closeAbilityModalFn();
-    renderAbilities();
+    renderWorkerProfile();
   } catch (err) {
     showToast(err.message || '保存失败');
   }
@@ -519,7 +519,7 @@ async function deleteAbility() {
     state.abilities = state.abilities.filter((a) => a.id !== id);
     showToast('能力已删除');
     closeAbilityModalFn();
-    renderAbilities();
+    renderWorkerProfile();
   } catch (err) {
     showToast(err.message || '删除失败');
   }
