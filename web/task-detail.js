@@ -162,12 +162,6 @@ function renderTaskInfo() {
     document.querySelector('#task-description').textContent = task.description || '暂无描述';
 
     // 标签
-    const typeTag = document.querySelector('#task-type-tag');
-    if (typeTag && task.laborType) {
-        typeTag.querySelector('span:last-child') || typeTag.appendChild(document.createElement('span'));
-        typeTag.innerHTML = `<span class="material-icons-round text-sm mr-1 align-middle">category</span>${escapeHtml(task.laborType)}`;
-    }
-
     const budgetTag = document.querySelector('#task-budget-tag');
     if (budgetTag && task.budget) {
         budgetTag.classList.remove('hidden');
@@ -626,8 +620,103 @@ async function handleEditTask() {
     showToast('编辑功能开发中');
 }
 
+// ===== 自定义确认弹窗 =====
+function showConfirmModal(options = {}) {
+    const modal = document.querySelector('#confirm-modal');
+    const overlay = document.querySelector('#confirm-overlay');
+    const dialog = document.querySelector('#confirm-dialog');
+    const iconContainer = document.querySelector('#confirm-icon');
+    const titleEl = document.querySelector('#confirm-title');
+    const messageEl = document.querySelector('#confirm-message');
+    const cancelBtn = document.querySelector('#confirm-cancel-btn');
+    const okBtn = document.querySelector('#confirm-ok-btn');
+
+    if (!modal) return Promise.resolve(false);
+
+    // 配置弹窗内容
+    const {
+        title = '确认操作？',
+        message = '此操作无法撤销',
+        icon = 'warning',
+        iconColor = 'red',
+        cancelText = '取消',
+        confirmText = '确认',
+        confirmColor = 'red'
+    } = options;
+
+    // 更新内容
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    cancelBtn.textContent = cancelText;
+    okBtn.innerHTML = `<span class="material-icons-round text-lg">check</span>${confirmText}`;
+
+    // 更新图标颜色
+    iconContainer.className = `w-16 h-16 mx-auto mb-4 rounded-full bg-${iconColor}-100 dark:bg-${iconColor}-900/30 flex items-center justify-center`;
+    iconContainer.innerHTML = `<span class="material-icons-round text-3xl text-${iconColor}-500">${icon}</span>`;
+
+    // 更新确认按钮颜色
+    okBtn.className = `flex-1 px-4 py-3 bg-${confirmColor}-500 text-white rounded-xl font-bold hover:bg-${confirmColor}-600 transition-colors flex items-center justify-center gap-2`;
+
+    return new Promise((resolve) => {
+        // 显示弹窗
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        // 动画效果
+        requestAnimationFrame(() => {
+            overlay.classList.add('opacity-100');
+            dialog.classList.remove('scale-95', 'opacity-0');
+            dialog.classList.add('scale-100', 'opacity-100');
+        });
+
+        // 关闭弹窗函数
+        const closeModal = (result) => {
+            dialog.classList.remove('scale-100', 'opacity-100');
+            dialog.classList.add('scale-95', 'opacity-0');
+            overlay.classList.remove('opacity-100');
+
+            setTimeout(() => {
+                modal.classList.remove('flex');
+                modal.classList.add('hidden');
+                resolve(result);
+            }, 200);
+
+            // 清理事件监听
+            cancelBtn.removeEventListener('click', handleCancel);
+            okBtn.removeEventListener('click', handleOk);
+            overlay.removeEventListener('click', handleOverlayClick);
+            document.removeEventListener('keydown', handleKeydown);
+        };
+
+        // 事件处理
+        const handleCancel = () => closeModal(false);
+        const handleOk = () => closeModal(true);
+        const handleOverlayClick = () => closeModal(false);
+        const handleKeydown = (e) => {
+            if (e.key === 'Escape') closeModal(false);
+            if (e.key === 'Enter') closeModal(true);
+        };
+
+        // 绑定事件
+        cancelBtn.addEventListener('click', handleCancel);
+        okBtn.addEventListener('click', handleOk);
+        overlay.addEventListener('click', handleOverlayClick);
+        document.addEventListener('keydown', handleKeydown);
+    });
+}
+
 async function handleCancelTask() {
-    if (!confirm('确定要取消此任务吗？')) return;
+    const confirmed = await showConfirmModal({
+        title: '确认取消任务？',
+        message: '取消后任务将被关闭，此操作无法撤销。',
+        icon: 'warning',
+        iconColor: 'red',
+        cancelText: '再想想',
+        confirmText: '确认取消',
+        confirmColor: 'red'
+    });
+
+    if (!confirmed) return;
 
     try {
         await api(`/api/tasks/${state.task.id}/cancel`, { method: 'POST' });

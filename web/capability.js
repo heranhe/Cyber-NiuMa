@@ -5,7 +5,9 @@ const state = {
   selectedId: '',
   current: null,
   search: '',
-  modelOptions: []
+  modelOptions: [],
+  providers: [],
+  editingProvider: null
 };
 
 const el = {
@@ -23,7 +25,6 @@ const el = {
   formTitle: document.querySelector('#form-title'),
   avatarEmoji: document.querySelector('#avatar-emoji'),
 
-  fieldEnabled: document.querySelector('#field-enabled'),
   fieldName: document.querySelector('#field-name'),
   fieldIcon: document.querySelector('#field-icon'),
   fieldDescription: document.querySelector('#field-description'),
@@ -41,6 +42,23 @@ const el = {
   deleteBtn: document.querySelector('#delete-btn'),
   resetBtn: document.querySelector('#reset-btn'),
   saveBtn: document.querySelector('#save-btn'),
+
+  // 供应商相关元素
+  providerManageBtn: document.querySelector('#provider-manage-btn'),
+  providerModal: document.querySelector('#provider-modal'),
+  providerModalBackdrop: document.querySelector('#provider-modal-backdrop'),
+  providerModalClose: document.querySelector('#provider-modal-close'),
+  providerList: document.querySelector('#provider-list'),
+  providerFormPanel: document.querySelector('#provider-form-panel'),
+  providerFormTitle: document.querySelector('#provider-form-title'),
+  addProviderBtn: document.querySelector('#add-provider-btn'),
+  addProviderQuickBtn: document.querySelector('#add-provider-quick-btn'),
+  providerName: document.querySelector('#provider-name'),
+  providerEndpoint: document.querySelector('#provider-endpoint'),
+  providerApiKey: document.querySelector('#provider-apikey'),
+  providerSaveBtn: document.querySelector('#provider-save-btn'),
+  providerCancelBtn: document.querySelector('#provider-cancel-btn'),
+  fieldProviderSelect: document.querySelector('#field-provider-select'),
 
   toast: document.querySelector('#toast')
 };
@@ -97,7 +115,7 @@ function normalizeAbility(raw = {}) {
     icon: String(source.icon || '🤖').trim() || '🤖',
     description: String(source.description || '').trim(),
     prompt: String(source.prompt || '').trim(),
-    enabled: source.enabled !== false,
+
     useCustomApi: !!source.useCustomApi,
     customApi: {
       endpoint: String(customApi.endpoint || source.apiEndpoint || source.endpoint || '').trim(),
@@ -116,7 +134,7 @@ function newAbilityDraft() {
     icon: '🤖',
     description: '',
     prompt: '',
-    enabled: true,
+
     useCustomApi: false,
     customApi: {
       endpoint: '',
@@ -188,7 +206,7 @@ function renderAbilityList() {
     const mode = ability.useCustomApi
       ? `API · ${escapeHtml(ability.customApi?.model || '未选模型')}`
       : 'SecondMe';
-    const statusClass = ability.enabled ? 'bg-green-500' : 'bg-gray-300';
+
 
     return `
       <button type="button" data-ability-id="${escapeHtml(ability.id)}"
@@ -198,7 +216,6 @@ function renderAbilityList() {
           <div class="min-w-0 flex-1">
             <div class="flex items-center justify-between gap-2">
               <h3 class="text-sm font-bold text-gray-900 truncate">${escapeHtml(ability.name || '未命名能力')}</h3>
-              <span class="inline-block w-2 h-2 rounded-full ${statusClass}"></span>
             </div>
             <p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${escapeHtml(ability.description || '暂无简介')}</p>
             <p class="text-[11px] text-amber-700 mt-1.5 font-medium">${mode}</p>
@@ -242,7 +259,7 @@ function renderForm() {
     el.avatarEmoji.textContent = ability.icon || '🤖';
   }
 
-  if (el.fieldEnabled) el.fieldEnabled.checked = !!ability.enabled;
+
   if (el.fieldName) el.fieldName.value = ability.name || '';
   if (el.fieldIcon) el.fieldIcon.value = ability.icon || '';
   if (el.fieldDescription) el.fieldDescription.value = ability.description || '';
@@ -271,7 +288,7 @@ function renderForm() {
 
 function updateCurrentFromForm() {
   const ability = getCurrentAbility();
-  ability.enabled = !!el.fieldEnabled?.checked;
+
   ability.name = String(el.fieldName?.value || '').trim();
   ability.icon = String(el.fieldIcon?.value || '').trim() || '🤖';
   ability.description = String(el.fieldDescription?.value || '').trim();
@@ -365,7 +382,7 @@ function abilityPayload(ability) {
     icon: ability.icon,
     description: ability.description,
     prompt: ability.prompt,
-    enabled: ability.enabled,
+
     useCustomApi: ability.useCustomApi,
     customApi: {
       endpoint: ability.customApi.endpoint,
@@ -612,8 +629,250 @@ function bindEvents() {
   });
 }
 
+// ===== 供应商管理功能 =====
+
+const PROVIDER_STORAGE_KEY = 'cyber_niuma_providers';
+
+function loadProviders() {
+  try {
+    const raw = localStorage.getItem(PROVIDER_STORAGE_KEY);
+    state.providers = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.error('[capability] loadProviders failed:', e);
+    state.providers = [];
+  }
+  renderProviderSelect();
+}
+
+function saveProviders() {
+  try {
+    localStorage.setItem(PROVIDER_STORAGE_KEY, JSON.stringify(state.providers));
+  } catch (e) {
+    console.error('[capability] saveProviders failed:', e);
+  }
+}
+
+function renderProviderSelect() {
+  if (!el.fieldProviderSelect) return;
+
+  const currentValue = el.fieldProviderSelect.value;
+  el.fieldProviderSelect.innerHTML = '<option value="">-- 手动填写 --</option>' +
+    state.providers.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+
+  // 恢复之前的选中值（如果仍存在）
+  if (state.providers.some(p => p.id === currentValue)) {
+    el.fieldProviderSelect.value = currentValue;
+  }
+}
+
+function renderProviderList() {
+  if (!el.providerList) return;
+
+  if (!state.providers.length) {
+    el.providerList.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">暂无供应商，点击「添加」创建</p>';
+    return;
+  }
+
+  el.providerList.innerHTML = state.providers.map(p => `
+    <div class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-primary/50 transition-colors" data-provider-id="${escapeHtml(p.id)}">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center text-lg">🔗</div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-bold text-gray-900 truncate">${escapeHtml(p.name)}</p>
+        <p class="text-xs text-gray-500 truncate">${escapeHtml(p.endpoint)}</p>
+      </div>
+      <div class="flex items-center gap-1">
+        <button type="button" class="provider-edit-btn p-1.5 rounded-lg hover:bg-gray-100" title="编辑">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-500">
+            <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
+            <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
+          </svg>
+        </button>
+        <button type="button" class="provider-delete-btn p-1.5 rounded-lg hover:bg-red-50" title="删除">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-red-500">
+            <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.519.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openProviderModal() {
+  if (el.providerModal) {
+    el.providerModal.classList.remove('hidden');
+    renderProviderList();
+    hideProviderForm();
+  }
+}
+
+function closeProviderModal() {
+  if (el.providerModal) {
+    el.providerModal.classList.add('hidden');
+    hideProviderForm();
+  }
+}
+
+function showProviderForm(provider = null) {
+  state.editingProvider = provider ? clone(provider) : null;
+
+  if (el.providerFormPanel) {
+    el.providerFormPanel.classList.remove('hidden');
+  }
+  if (el.providerFormTitle) {
+    el.providerFormTitle.textContent = provider ? '编辑供应商' : '新建供应商';
+  }
+  if (el.providerName) {
+    el.providerName.value = provider?.name || '';
+  }
+  if (el.providerEndpoint) {
+    el.providerEndpoint.value = provider?.endpoint || '';
+  }
+  if (el.providerApiKey) {
+    el.providerApiKey.value = provider?.apiKey || '';
+  }
+}
+
+function hideProviderForm() {
+  state.editingProvider = null;
+  if (el.providerFormPanel) {
+    el.providerFormPanel.classList.add('hidden');
+  }
+  if (el.providerName) el.providerName.value = '';
+  if (el.providerEndpoint) el.providerEndpoint.value = '';
+  if (el.providerApiKey) el.providerApiKey.value = '';
+}
+
+function onProviderSave() {
+  const name = el.providerName?.value?.trim() || '';
+  const endpoint = el.providerEndpoint?.value?.trim() || '';
+  const apiKey = el.providerApiKey?.value?.trim() || '';
+
+  if (!name) {
+    showToast('请输入供应商名称');
+    return;
+  }
+  if (!endpoint) {
+    showToast('请输入 API Endpoint');
+    return;
+  }
+
+  try {
+    const parsed = new URL(endpoint);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('endpoint 协议仅支持 http/https');
+    }
+  } catch {
+    showToast('API Endpoint 不是合法 URL');
+    return;
+  }
+
+  if (state.editingProvider) {
+    // 编辑模式
+    const idx = state.providers.findIndex(p => p.id === state.editingProvider.id);
+    if (idx >= 0) {
+      state.providers[idx] = { ...state.providers[idx], name, endpoint, apiKey };
+    }
+  } else {
+    // 新建模式
+    const newProvider = {
+      id: 'provider_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      name,
+      endpoint,
+      apiKey,
+      models: []
+    };
+    state.providers.push(newProvider);
+  }
+
+  saveProviders();
+  renderProviderList();
+  renderProviderSelect();
+  hideProviderForm();
+  showToast(state.editingProvider ? '供应商已更新' : '供应商已添加');
+}
+
+function onProviderDelete(providerId) {
+  const provider = state.providers.find(p => p.id === providerId);
+  if (!provider) return;
+
+  if (!window.confirm(`确认删除供应商「${provider.name}」？`)) {
+    return;
+  }
+
+  state.providers = state.providers.filter(p => p.id !== providerId);
+  saveProviders();
+  renderProviderList();
+  renderProviderSelect();
+
+  // 如果正在编辑该供应商，关闭表单
+  if (state.editingProvider?.id === providerId) {
+    hideProviderForm();
+  }
+
+  showToast('供应商已删除');
+}
+
+function onProviderSelect() {
+  const selectedId = el.fieldProviderSelect?.value || '';
+  if (!selectedId) return;
+
+  const provider = state.providers.find(p => p.id === selectedId);
+  if (!provider) return;
+
+  // 自动填充
+  if (el.fieldApiEndpoint) {
+    el.fieldApiEndpoint.value = provider.endpoint;
+  }
+  if (el.fieldApiKey) {
+    el.fieldApiKey.value = provider.apiKey;
+  }
+
+  // 更新当前能力的 customApi
+  updateCurrentFromForm();
+  showToast(`已应用供应商「${provider.name}」的配置`);
+}
+
+function bindProviderEvents() {
+  // 打开供应商管理弹窗
+  el.providerManageBtn?.addEventListener('click', openProviderModal);
+  el.addProviderQuickBtn?.addEventListener('click', () => {
+    openProviderModal();
+    setTimeout(() => showProviderForm(), 100);
+  });
+
+  // 关闭弹窗
+  el.providerModalClose?.addEventListener('click', closeProviderModal);
+  el.providerModalBackdrop?.addEventListener('click', closeProviderModal);
+
+  // 添加供应商按钮
+  el.addProviderBtn?.addEventListener('click', () => showProviderForm());
+
+  // 保存/取消
+  el.providerSaveBtn?.addEventListener('click', onProviderSave);
+  el.providerCancelBtn?.addEventListener('click', hideProviderForm);
+
+  // 供应商列表点击（编辑/删除）
+  el.providerList?.addEventListener('click', (e) => {
+    const card = e.target.closest('[data-provider-id]');
+    if (!card) return;
+    const providerId = card.dataset.providerId;
+
+    if (e.target.closest('.provider-edit-btn')) {
+      const provider = state.providers.find(p => p.id === providerId);
+      if (provider) showProviderForm(provider);
+    } else if (e.target.closest('.provider-delete-btn')) {
+      onProviderDelete(providerId);
+    }
+  });
+
+  // 供应商选择下拉框
+  el.fieldProviderSelect?.addEventListener('change', onProviderSelect);
+}
+
 async function bootstrap() {
   bindEvents();
+  bindProviderEvents();
+  loadProviders();
   try {
     await loadProfile();
     await loadAbilities();

@@ -8,7 +8,8 @@
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
+    rel="stylesheet" />
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -57,36 +58,66 @@
       box-shadow: 0 8px 18px rgba(217, 119, 6, 0.12);
     }
 
-    .switch {
-      appearance: none;
-      width: 2.8rem;
-      height: 1.55rem;
-      border-radius: 9999px;
-      background: #D1D5DB;
+    /* iOS 风格滑动开关 - 使用高优先级选择器覆盖 Tailwind forms */
+    input[type="checkbox"].switch {
+      /* 完全重置 checkbox 的默认外观 */
+      appearance: none !important;
+      -webkit-appearance: none !important;
+      -moz-appearance: none !important;
+
+      /* 移除 Tailwind forms 插件的样式 */
+      border: none !important;
+      box-shadow: none !important;
+      color: transparent !important;
+      padding: 0 !important;
+
+      /* iOS 风格滑动开关样式 */
+      width: 2.8rem !important;
+      height: 1.55rem !important;
+      border-radius: 9999px !important;
+      background-color: #D1D5DB !important;
+      background-image: none !important;
+      background-size: 0 !important;
+      background-position: 0 0 !important;
       position: relative;
       transition: all .2s ease;
       cursor: pointer;
     }
 
-    .switch::after {
-      content: '';
+    input[type="checkbox"].switch::before {
+      display: none !important;
+    }
+
+    input[type="checkbox"].switch::after {
+      content: '' !important;
+      display: block !important;
       position: absolute;
       width: 1.2rem;
       height: 1.2rem;
       border-radius: 9999px;
       top: 0.175rem;
       left: 0.175rem;
-      background: white;
+      background-color: white !important;
+      background-image: none !important;
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
       transition: transform .2s ease;
     }
 
-    .switch:checked {
-      background: #16A34A;
+    input[type="checkbox"].switch:checked {
+      background-color: #16A34A !important;
+      background-image: none !important;
+      border-color: #16A34A !important;
     }
 
-    .switch:checked::after {
+    input[type="checkbox"].switch:checked::after {
       transform: translateX(1.25rem);
+    }
+
+    /* 移除焦点时的边框样式 */
+    input[type="checkbox"].switch:focus {
+      outline: none !important;
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1) !important;
+      --tw-ring-shadow: none !important;
     }
 
     .toast {
@@ -129,7 +160,8 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <span id="user-chip" class="hidden text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 font-medium"></span>
+          <span id="user-chip"
+            class="hidden text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 font-medium"></span>
           <button id="login-btn"
             class="px-4 py-2 text-xs md:text-sm font-bold bg-primary text-white rounded-lg hover:bg-amber-700 transition-colors">
             登录 SecondMe
@@ -149,7 +181,8 @@
             <div class="p-4 border-b border-border-light space-y-3">
               <div class="flex items-center justify-between">
                 <h2 class="text-sm font-black tracking-wide uppercase">我的 AI 能力</h2>
-                <span id="ability-count" class="text-[11px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600">0</span>
+                <span id="ability-count"
+                  class="text-[11px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600">0</span>
               </div>
               <button id="add-ability-btn"
                 class="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-black text-white text-sm font-bold hover:opacity-90 transition-opacity">
@@ -173,28 +206,41 @@
             </div>
 
             <div id="ability-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3 space-y-2"></div>
+
+            <!-- 供应商管理入口 -->
+            <div class="p-3 border-t border-border-light">
+              <button id="provider-manage-btn" type="button"
+                class="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                  <path fill-rule="evenodd"
+                    d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 0 0-2.282.819l-.922 1.597a1.875 1.875 0 0 0 .432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 0 0 0 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 0 0-.432 2.385l.922 1.597a1.875 1.875 0 0 0 2.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 0 0 2.28-.819l.923-1.597a1.875 1.875 0 0 0-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 0 0 0-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 0 0-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 0 0-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 0 0-1.85-1.567h-1.843ZM12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z"
+                    clip-rule="evenodd" />
+                </svg>
+                API 供应商管理
+              </button>
+            </div>
           </aside>
 
           <section class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col min-h-0">
-            <div id="auth-banner" class="hidden mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div id="auth-banner"
+              class="hidden mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               当前未登录，能力配置无法保存。请先登录 SecondMe。
             </div>
 
             <form id="ability-form" class="flex-1 min-h-0 overflow-y-auto no-scrollbar" autocomplete="off">
-              <div class="h-28 md:h-32 bg-gradient-to-r from-orange-400 via-orange-400 to-pink-500 px-6 md:px-8 pt-5 flex items-start justify-between">
+              <div
+                class="h-28 md:h-32 bg-gradient-to-r from-orange-400 via-orange-400 to-pink-500 px-6 md:px-8 pt-5 flex items-start justify-between">
                 <div>
                   <p class="text-white/90 text-xs font-bold uppercase tracking-wider">能力详情配置</p>
                   <h1 id="form-title" class="text-white text-lg md:text-2xl font-black mt-1">新建能力</h1>
                 </div>
-                <label class="inline-flex items-center gap-2 rounded-full bg-white/20 border border-white/30 px-3 py-1.5">
-                  <span class="text-white text-[11px] font-bold">启用状态</span>
-                  <input id="field-enabled" type="checkbox" class="switch" checked />
-                </label>
               </div>
 
               <div class="px-5 md:px-8 pb-8 -mt-6 space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-[92px_minmax(0,1fr)] gap-4 items-center bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-                  <div class="w-[92px] h-[92px] rounded-2xl bg-gradient-to-br from-orange-100 to-pink-100 flex items-center justify-center text-4xl"
+                <div
+                  class="grid grid-cols-1 md:grid-cols-[92px_minmax(0,1fr)] gap-4 items-center bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+                  <div
+                    class="w-[92px] h-[92px] rounded-2xl bg-gradient-to-br from-orange-100 to-pink-100 flex items-center justify-center text-4xl"
                     id="avatar-emoji">🤖</div>
                   <div class="space-y-2 min-w-0">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -205,7 +251,8 @@
                           placeholder="例如：视觉美化大师" required />
                       </div>
                       <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">图标 Emoji</label>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">图标
+                          Emoji</label>
                         <input id="field-icon" type="text"
                           class="w-full rounded-xl border-gray-200 bg-gray-50 py-2.5 px-3 text-sm focus:ring-primary focus:border-primary"
                           placeholder="🎨" maxlength="2" />
@@ -222,8 +269,8 @@
 
                 <div>
                   <label class="flex items-center gap-2 text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
-                      class="w-4 h-4 text-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                      stroke="currentColor" class="w-4 h-4 text-primary">
                       <path stroke-linecap="round" stroke-linejoin="round"
                         d="M6.75 7.5h10.5m-10.5 4.5h10.5m-10.5 4.5h10.5M3 4.5h18v15H3v-15Z" />
                     </svg>
@@ -236,7 +283,8 @@
 
                 <div class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 md:p-5 space-y-4">
                   <div class="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+                      class="w-5 h-5 text-primary">
                       <path fill-rule="evenodd"
                         d="M2.25 6A3.75 3.75 0 0 1 6 2.25h12A3.75 3.75 0 0 1 21.75 6v12A3.75 3.75 0 0 1 18 21.75H6A3.75 3.75 0 0 1 2.25 18V6Zm4.5.75a.75.75 0 0 0 0 1.5h5.25a.75.75 0 0 0 0-1.5H6.75Zm0 4.5a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5H6.75Zm0 4.5a.75.75 0 0 0 0 1.5h7.5a.75.75 0 0 0 0-1.5h-7.5Z"
                         clip-rule="evenodd" />
@@ -244,7 +292,8 @@
                     <h3 class="text-xs font-black tracking-wider uppercase">自定义 API 配置</h3>
                   </div>
 
-                  <div class="rounded-xl border border-gray-200 bg-white p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div
+                    class="rounded-xl border border-gray-200 bg-white p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div>
                       <p class="text-sm font-bold text-gray-900">使用自定义 API</p>
                       <p id="api-mode-hint" class="text-xs text-gray-600 mt-0.5">
@@ -255,6 +304,20 @@
                   </div>
 
                   <div id="custom-api-panel" class="space-y-3">
+                    <!-- 供应商选择 -->
+                    <div>
+                      <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">选择供应商</label>
+                      <div class="flex gap-2">
+                        <select id="field-provider-select"
+                          class="flex-1 rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary">
+                          <option value="">-- 手动填写 --</option>
+                        </select>
+                        <button id="add-provider-quick-btn" type="button"
+                          class="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:border-primary hover:text-primary transition-colors whitespace-nowrap">
+                          + 新建
+                        </button>
+                      </div>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">API Endpoint</label>
@@ -306,6 +369,66 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- 供应商管理弹窗 -->
+  <div id="provider-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" id="provider-modal-backdrop"></div>
+    <div
+      class="absolute inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl md:max-h-[80vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h2 class="text-lg font-black">API 供应商管理</h2>
+        <button id="provider-modal-close" type="button" class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-gray-500">
+            <path fill-rule="evenodd"
+              d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z"
+              clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto p-5">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- 供应商列表 -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-gray-700">已保存的供应商</h3>
+              <button id="add-provider-btn" type="button" class="text-xs font-bold text-primary hover:underline">+
+                添加</button>
+            </div>
+            <div id="provider-list" class="space-y-2 max-h-[300px] overflow-y-auto">
+              <p class="text-sm text-gray-400 text-center py-6">暂无供应商，点击「添加」创建</p>
+            </div>
+          </div>
+          <!-- 供应商编辑表单 -->
+          <div id="provider-form-panel" class="hidden">
+            <h3 class="text-sm font-bold text-gray-700 mb-3" id="provider-form-title">新建供应商</h3>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">供应商名称</label>
+                <input id="provider-name" type="text" placeholder="例如：OpenAI、阿里云通义"
+                  class="w-full rounded-lg border-gray-200 bg-gray-50 py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">API Endpoint</label>
+                <input id="provider-endpoint" type="url" placeholder="https://api.example.com/v1"
+                  class="w-full rounded-lg border-gray-200 bg-gray-50 py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">API Key</label>
+                <input id="provider-apikey" type="password" placeholder="sk-..."
+                  class="w-full rounded-lg border-gray-200 bg-gray-50 py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
+              </div>
+              <div class="flex items-center gap-2 pt-2">
+                <button id="provider-save-btn" type="button"
+                  class="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-black hover:bg-gray-800 transition-colors">保存供应商</button>
+                <button id="provider-cancel-btn" type="button"
+                  class="px-4 py-2.5 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors">取消</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="toast" class="toast"></div>
