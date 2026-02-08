@@ -473,6 +473,8 @@ function safeTaskSummary(task) {
     updates: task.updates,
     delivery: task.delivery,
     sync: task.sync || null,
+    publisherId: task.publisherId,  // 添加发布者ID用于"我的派发"过滤
+    assigneeId: task.assigneeId,    // 添加接单者ID
     createdAt: task.createdAt,
     updatedAt: task.updatedAt
   };
@@ -916,6 +918,7 @@ async function saveDeliveryHistory(delivery) {
         id: delivery.id,
         task_id: delivery.taskId,
         worker_id: delivery.workerId,
+        worker_name: delivery.workerName || null,
         ability_id: delivery.abilityId || null,
         ability_name: delivery.abilityName || null,
         content: delivery.content,
@@ -3126,6 +3129,7 @@ async function handleApi(req, res, urlObj) {
       id: uid('delivery'),
       taskId: task.id,
       workerId,
+      workerName: worker?.name || session.user?.name || 'AI 分身',
       abilityId: selectedAbility?.id || null,
       abilityName: selectedAbility?.name || null,
       content: delivery.content || '',

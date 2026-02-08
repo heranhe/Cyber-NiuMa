@@ -189,128 +189,138 @@ function renderTaskInfo() {
     document.title = `${task.title} · 赛博牛马`;
 }
 
-function renderActionPanel() {
-    const panel = document.querySelector('#action-panel');
-    if (!panel) return;
+function renderActionButtons() {
+    const container = document.querySelector('#action-buttons');
+    if (!container) return;
 
     const permissions = getPermissions();
     const task = state.task;
-    let html = '';
+    let buttons = [];
 
-    // 派活人视角的管理选项
-    if (permissions.isPublisher) {
-        html += `
-      <div class="mb-6">
-        <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <span class="material-icons-round text-primary text-base">verified_user</span>
-          任务管理
-          <span class="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">派活人</span>
-        </h3>
-        ${permissions.canEdit ? `<button id="edit-task-btn" class="w-full py-2.5 mb-2 bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-600 rounded-lg text-sm font-bold text-gray-700 dark:text-gray-200 hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-2">
-          <span class="material-icons-round text-base">edit</span>
-          编辑任务
-        </button>` : ''}
-        ${permissions.canCancel ? `<button id="cancel-task-btn" class="w-full py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-all flex items-center justify-center gap-2">
-          <span class="material-icons-round text-base">close</span>
-          取消任务
-        </button>` : ''}
-      </div>
-    `;
-    }
-
-    // 接单者视角（如果已接单）
-    if (permissions.isWorker) {
-        html += `
-      <div class="mb-6">
-        <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <span class="material-icons-round text-orange-500 text-base">work</span>
-          我的接单
-          <span class="text-[10px] bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full">接单者</span>
-        </h3>
-        ${permissions.canDeliver ? `<button id="deliver-btn" class="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg text-sm font-bold hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-200 dark:shadow-none flex items-center justify-center gap-2">
-          <span class="material-icons-round text-base">rocket_launch</span>
-          提交 AI 交付
-        </button>` : ''}
-        ${permissions.canRedeliver ? `<button id="redeliver-btn" class="w-full py-3 bg-primary text-white rounded-lg text-sm font-bold hover:bg-amber-700 transition-all shadow-lg flex items-center justify-center gap-2">
-          <span class="material-icons-round text-base">refresh</span>
-          重新交付
-        </button>` : ''}
-      </div>
-    `;
-    }
-
-    // 接单按钮（未接单时显示给所有登录用户）
+    // 接单按钮
     if (permissions.canTakeOrder) {
-        html += `
-      <div class="mb-6">
-        <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">加入任务</h3>
-        <button id="take-order-btn" class="w-full py-3 bg-primary text-white rounded-lg text-sm font-bold hover:bg-amber-700 transition-all shadow-lg shadow-orange-200 dark:shadow-none flex items-center justify-center gap-2">
-          <span class="material-icons-round text-base">front_hand</span>
-          我要接单
-        </button>
-      </div>
-    `;
+        buttons.push(`
+          <button id="take-order-btn" class="px-4 py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-amber-700 transition-all shadow-sm flex items-center gap-2">
+            <span class="material-icons-round text-base">front_hand</span>
+            我要接单
+          </button>
+        `);
     }
 
-    // 未登录提示
+    // 交付按钮（接单者）
+    if (permissions.canDeliver) {
+        buttons.push(`
+          <button id="deliver-btn" class="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg text-sm font-bold hover:from-green-600 hover:to-emerald-700 transition-all shadow-sm flex items-center gap-2">
+            <span class="material-icons-round text-base">rocket_launch</span>
+            提交 AI 交付
+          </button>
+        `);
+    }
+
+    // 重新交付按钮
+    if (permissions.canRedeliver) {
+        buttons.push(`
+          <button id="redeliver-btn" class="px-4 py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-amber-700 transition-all shadow-sm flex items-center gap-2">
+            <span class="material-icons-round text-base">refresh</span>
+            重新交付
+          </button>
+        `);
+    }
+
+    // 编辑按钮（派活人）
+    if (permissions.canEdit) {
+        buttons.push(`
+          <button id="edit-task-btn" class="px-4 py-2.5 bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-600 rounded-lg text-sm font-bold text-gray-700 dark:text-gray-200 hover:border-primary hover:text-primary transition-all flex items-center gap-2">
+            <span class="material-icons-round text-base">edit</span>
+            编辑
+          </button>
+        `);
+    }
+
+    // 取消按钮（派活人）
+    if (permissions.canCancel) {
+        buttons.push(`
+          <button id="cancel-task-btn" class="px-4 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm font-bold text-red-600 dark:text-red-400 hover:bg-red-100 transition-all flex items-center gap-2">
+            <span class="material-icons-round text-base">close</span>
+            取消
+          </button>
+        `);
+    }
+
+    // 未登录时显示登录按钮
     if (!permissions.isLoggedIn) {
-        html += `
-      <div class="text-center py-4">
-        <span class="material-icons-round text-4xl text-gray-300 dark:text-gray-600 mb-3 block">lock</span>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">登录后可接单或参与讨论</p>
-        <button class="login-btn w-full py-3 bg-primary text-white rounded-lg text-sm font-bold hover:bg-amber-700 transition-all">
-          使用 SecondMe 登录
-        </button>
-      </div>
-    `;
+        buttons.push(`
+          <button class="login-btn px-4 py-2.5 bg-primary text-white rounded-lg text-sm font-bold hover:bg-amber-700 transition-all flex items-center gap-2">
+            <span class="material-icons-round text-base">login</span>
+            登录接单
+          </button>
+        `);
     }
 
-    // 已交付状态提示
-    if (task.status === 'DELIVERED' && !permissions.isPublisher && !permissions.isWorker) {
-        html += `
-      <div class="text-center py-4">
-        <span class="material-icons-round text-4xl text-green-400 mb-3 block">verified</span>
-        <p class="text-sm text-gray-500 dark:text-gray-400">此任务已完成交付</p>
-      </div>
-    `;
-    }
-
-    // 进行中状态提示（非接单者）
-    if (task.status === 'IN_PROGRESS' && !permissions.isWorker && !permissions.isPublisher) {
-        html += `
-      <div class="text-center py-4">
-        <span class="material-icons-round text-4xl text-yellow-400 mb-3 block animate-pulse">hourglass_top</span>
-        <p class="text-sm text-gray-500 dark:text-gray-400">任务进行中，等待交付...</p>
-      </div>
-    `;
-    }
-
-    panel.innerHTML = html || '<div class="text-center py-4 text-gray-400">暂无可用操作</div>';
+    container.innerHTML = buttons.join('');
 
     // 绑定事件
     bindActionEvents();
 }
 
 function renderWorkerInfo() {
-    const card = document.querySelector('#worker-info-card');
+    const inlineCard = document.querySelector('#worker-info-inline');
     const task = state.task;
 
-    if (!card || !task.assigneeId) {
-        if (card) card.classList.add('hidden');
+    if (!inlineCard || !task.assigneeId) {
+        if (inlineCard) inlineCard.classList.add('hidden');
         return;
     }
 
-    card.classList.remove('hidden');
+    inlineCard.classList.remove('hidden');
 
     const workerName = task.assigneeName || 'AI 分身';
-    document.querySelector('#worker-name').textContent = workerName;
-    document.querySelector('#worker-ability').textContent = task.assigneeAbility ? `使用能力: ${task.assigneeAbility}` : '';
-    document.querySelector('#take-time').textContent = `接单时间：${formatTime(task.takenAt)}`;
 
-    const avatarEl = document.querySelector('#worker-avatar');
-    if (avatarEl) {
-        avatarEl.textContent = workerName.charAt(0).toUpperCase();
+    // 更新内联接单者信息
+    const nameEl = document.querySelector('#worker-name-inline');
+    if (nameEl) nameEl.textContent = workerName;
+
+    const avatarEl = document.querySelector('#worker-avatar-small');
+    if (avatarEl) avatarEl.textContent = workerName.charAt(0).toUpperCase();
+}
+
+// 检测内容中的图片URL
+function extractImagesFromContent(content) {
+    if (!content) return { text: content, images: [] };
+
+    // 匹配常见图片URL格式
+    const imageRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|svg)(?:\?[^\s]*)?)/gi;
+    const images = [];
+    let match;
+
+    while ((match = imageRegex.exec(content)) !== null) {
+        images.push(match[1]);
     }
+
+    // 移除图片URL，保留剩余文本
+    const text = content.replace(imageRegex, '').trim();
+
+    return { text, images };
+}
+
+// 检测内容是否需要折叠（超过4行或超过300字符）
+function shouldCollapse(content) {
+    if (!content) return false;
+    const lineCount = (content.match(/\n/g) || []).length + 1;
+    return lineCount > 4 || content.length > 300;
+}
+
+// 截取预览内容（前4行或前300字符）
+function getPreviewContent(content) {
+    if (!content) return '';
+    const lines = content.split('\n');
+    if (lines.length > 4) {
+        return lines.slice(0, 4).join('\n') + '...';
+    }
+    if (content.length > 300) {
+        return content.slice(0, 300) + '...';
+    }
+    return content;
 }
 
 function renderDeliveries() {
@@ -321,35 +331,66 @@ function renderDeliveries() {
     if (!list) return;
 
     const deliveries = state.deliveries || [];
-    countEl.textContent = deliveries.length;
+    if (countEl) countEl.textContent = deliveries.length;
 
     if (deliveries.length === 0) {
         list.innerHTML = `
-      <div class="text-center py-8 text-gray-400 dark:text-gray-500">
-        <span class="material-icons-round text-4xl mb-2 block">inbox</span>
-        <p>暂无交付记录</p>
+      <div class="text-center py-12 text-gray-400 dark:text-gray-500">
+        <span class="material-icons-round text-5xl mb-3 block">inbox</span>
+        <p class="text-sm">暂无交付记录</p>
       </div>
     `;
         return;
     }
 
-    list.innerHTML = deliveries.map(delivery => {
+    list.innerHTML = deliveries.map((delivery, index) => {
         const canViewContent = permissions.canViewDeliveryContent;
+        const { text, images } = extractImagesFromContent(delivery.content || '');
+        const needsCollapse = shouldCollapse(text);
+        const previewText = needsCollapse ? getPreviewContent(text) : text;
+        const deliveryId = `delivery-${index}`;
+
+        // 获取头像显示，支持URL头像
+        const workerName = delivery.workerName || 'AI 分身';
+        const avatarChar = workerName.charAt(0).toUpperCase();
+        const hasAvatarUrl = delivery.workerAvatar && delivery.workerAvatar.startsWith('http');
+
         return `
-      <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
-        <div class="flex items-center gap-3 mb-3">
-          <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-orange-400 to-pink-400 flex items-center justify-center text-white font-bold text-sm">
-            ${escapeHtml((delivery.workerName || 'AI').charAt(0).toUpperCase())}
-          </div>
+      <div class="bg-gradient-to-br from-gray-50 to-white dark:from-gray-800/50 dark:to-surface-dark rounded-xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
+        <div class="flex items-center gap-3 mb-4">
+          ${hasAvatarUrl
+                ? `<img src="${escapeHtml(delivery.workerAvatar)}" alt="${escapeHtml(workerName)}" class="w-12 h-12 rounded-full object-cover border-2 border-orange-200 dark:border-orange-800 shadow-md" />`
+                : `<div class="w-12 h-12 rounded-full bg-gradient-to-tr from-orange-400 to-pink-400 flex items-center justify-center text-white font-bold text-lg shadow-md">${escapeHtml(avatarChar)}</div>`
+            }
           <div class="flex-1">
-            <p class="font-bold text-gray-900 dark:text-white text-sm">${escapeHtml(delivery.workerName || 'AI 分身')}</p>
+            <p class="font-bold text-gray-900 dark:text-white">${escapeHtml(workerName)}</p>
             <p class="text-xs text-gray-400">${formatTime(delivery.createdAt)}</p>
           </div>
-          ${delivery.abilityName ? `<span class="text-xs bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-2 py-1 rounded-full">${escapeHtml(delivery.abilityName)}</span>` : ''}
+          ${delivery.abilityName ? `<span class="text-xs bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-3 py-1 rounded-full font-medium">${escapeHtml(delivery.abilityName)}</span>` : ''}
         </div>
         ${canViewContent ? `
           <div class="bg-white dark:bg-surface-dark rounded-lg p-4 border border-gray-100 dark:border-gray-600">
-            <pre class="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">${escapeHtml(delivery.content)}</pre>
+            ${images.length > 0 ? `
+              <div class="mb-3 flex flex-wrap gap-2">
+                ${images.map(imgUrl => `
+                  <a href="${escapeHtml(imgUrl)}" target="_blank" rel="noopener noreferrer" class="block">
+                    <img src="${escapeHtml(imgUrl)}" alt="交付图片" class="max-h-32 rounded-lg border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity object-cover" loading="lazy" />
+                  </a>
+                `).join('')}
+              </div>
+            ` : ''}
+            ${text ? `
+              <div id="${deliveryId}-content">
+                <pre id="${deliveryId}-preview" class="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 leading-relaxed ${needsCollapse ? '' : 'hidden'}">${escapeHtml(previewText)}</pre>
+                <pre id="${deliveryId}-full" class="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 leading-relaxed ${needsCollapse ? 'hidden' : ''}">${escapeHtml(text)}</pre>
+              </div>
+              ${needsCollapse ? `
+                <button onclick="toggleDeliveryContent('${deliveryId}')" id="${deliveryId}-toggle" class="mt-2 text-xs text-primary hover:text-amber-700 font-medium flex items-center gap-1 transition-colors">
+                  <span class="material-icons-round text-sm">expand_more</span>
+                  <span class="toggle-text">展开全部</span>
+                </button>
+              ` : ''}
+            ` : ''}
           </div>
         ` : `
           <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 text-center">
@@ -360,6 +401,31 @@ function renderDeliveries() {
       </div>
     `;
     }).join('');
+}
+
+// 交付内容展开/收起切换
+window.toggleDeliveryContent = function (deliveryId) {
+    const preview = document.querySelector(`#${deliveryId}-preview`);
+    const full = document.querySelector(`#${deliveryId}-full`);
+    const toggle = document.querySelector(`#${deliveryId}-toggle`);
+
+    if (!preview || !full || !toggle) return;
+
+    const isExpanded = full.classList.contains('hidden');
+
+    if (isExpanded) {
+        // 展开
+        preview.classList.add('hidden');
+        full.classList.remove('hidden');
+        toggle.querySelector('.toggle-text').textContent = '收起';
+        toggle.querySelector('.material-icons-round').textContent = 'expand_less';
+    } else {
+        // 收起
+        preview.classList.remove('hidden');
+        full.classList.add('hidden');
+        toggle.querySelector('.toggle-text').textContent = '展开全部';
+        toggle.querySelector('.material-icons-round').textContent = 'expand_more';
+    }
 }
 
 function renderDiscussions() {
@@ -430,26 +496,42 @@ function renderLoginState() {
     }
 }
 
-// ===== Tab 切换 =====
-function setupTabs() {
-    const tabs = document.querySelectorAll('.tab-btn');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const targetId = `tab-${tab.dataset.tab}`;
+// ===== AI 自动回复 =====
+async function handleAIAutoReply() {
+    const btn = document.querySelector('#ai-auto-reply-btn');
+    if (!btn) return;
 
-            // 更新 tab 样式
-            tabs.forEach(t => {
-                t.classList.remove('active', 'border-primary', 'text-primary');
-                t.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
-            });
-            tab.classList.add('active', 'border-primary', 'text-primary');
-            tab.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">sync</span> AI 思考中...';
 
-            // 切换内容
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-            document.querySelector(`#${targetId}`)?.classList.remove('hidden');
+    try {
+        // 调用 SecondMe API 生成自动回复
+        const res = await api(`/api/tasks/${state.task.id}/ai-reply`, {
+            method: 'POST',
+            body: { taskId: state.task.id }
         });
-    });
+
+        // 将 AI 回复填入输入框或直接发送
+        const input = document.querySelector('#discussion-input');
+        if (input && res.reply) {
+            input.value = res.reply;
+            showToast('AI 已生成回复，请确认后发送');
+        } else if (res.reply) {
+            // 直接发送
+            await api(`/api/tasks/${state.task.id}/comments`, {
+                method: 'POST',
+                body: { content: res.reply, isAI: true }
+            });
+            showToast('AI 回复已发送');
+            await loadDiscussions();
+        }
+    } catch (err) {
+        showToast(err.message || 'AI 回复失败');
+    } finally {
+        btn.innerHTML = original;
+        btn.disabled = false;
+    }
 }
 
 // ===== 事件绑定 =====
@@ -483,8 +565,8 @@ function bindGlobalEvents() {
     // 发送讨论
     document.querySelector('#submit-discussion-btn')?.addEventListener('click', handleSubmitDiscussion);
 
-    // Tab 切换
-    setupTabs();
+    // AI 自动回复
+    document.querySelector('#ai-auto-reply-btn')?.addEventListener('click', handleAIAutoReply);
 }
 
 // ===== 事件处理 =====
@@ -601,7 +683,7 @@ async function loadTask() {
 
         // 渲染页面
         renderTaskInfo();
-        renderActionPanel();
+        renderActionButtons();
         renderWorkerInfo();
         renderDeliveries();
         renderDiscussions();
@@ -663,8 +745,8 @@ async function init() {
     await loadSessionInfo();
     await loadTask();
 
-    // 重新渲染操作面板（因为登录状态可能影响权限）
-    renderActionPanel();
+    // 重新渲染操作按钮（因为登录状态可能影响权限）
+    renderActionButtons();
 }
 
 // 页面加载完成后初始化
