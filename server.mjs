@@ -22,7 +22,6 @@ const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'ai-labor-market') : path.join(__
 const DATA_FILE = path.join(DATA_DIR, 'tasks.json');
 const PROFILE_FILE = path.join(DATA_DIR, 'profiles.json');
 const ABILITIES_FILE = path.join(DATA_DIR, 'abilities.json');
-const SUPPLIERS_FILE = path.join(DATA_DIR, 'suppliers.json');
 const SECONDME_BASE_URL = process.env.SECONDME_BASE_URL || 'https://app.mindos.com/gate/lab';
 const SECONDME_APP_ID = process.env.SECONDME_APP_ID || 'general';
 const OAUTH_AUTHORIZE_URL = process.env.SECONDME_OAUTH_AUTHORIZE_URL || 'https://go.second.me/oauth/';
@@ -903,147 +902,6 @@ async function saveAbilities(data) {
   await fs.writeFile(ABILITIES_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
-// ===== 供应商/预设 CRUD =====
-// Supabase 使用 kv_store 表存储 JSON 数据（键值存储模式）
-const SUPPLIERS_KEY = 'suppliers';
-
-async function loadSuppliers() {
-  // Supabase 环境使用数据库存储
-  if (IS_VERCEL && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('kv_store')
-        .select('value')
-        .eq('key', SUPPLIERS_KEY)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
-        console.error('Supabase loadSuppliers error:', error);
-        return {};
-      }
-
-      return data?.value || {};
-    } catch (err) {
-      console.error('Supabase loadSuppliers exception:', err);
-      return {};
-    }
-  }
-
-  // 本地环境使用文件存储
-  await ensureDataFiles();
-  const raw = await fs.readFile(SUPPLIERS_FILE, 'utf8');
-  try {
-    const parsed = JSON.parse(raw);
-    return typeof parsed === 'object' && parsed !== null ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-async function saveSuppliers(data) {
-  // Supabase 环境使用数据库存储
-  if (IS_VERCEL && supabase) {
-    try {
-      const { error } = await supabase
-        .from('kv_store')
-        .upsert({ key: SUPPLIERS_KEY, value: data, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-
-      if (error) {
-        console.error('Supabase saveSuppliers error:', error);
-        throw new AppError('保存供应商失败，请稍后重试', 500);
-      }
-      return;
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      console.error('Supabase saveSuppliers exception:', err);
-      throw new AppError('保存供应商失败，请稍后重试', 500);
-    }
-  }
-
-  // 本地环境使用文件存储
-  await ensureDataFiles();
-  await fs.writeFile(SUPPLIERS_FILE, JSON.stringify(data, null, 2), 'utf8');
-}
-
-function normalizeStoredSupplier(payload = {}) {
-  const source = payload && typeof payload === 'object' ? payload : {};
-  return {
-    id: String(source.id || '').trim() || uid('supplier'),
-    name: String(source.name || '').trim(),
-    website: String(source.website || '').trim(),
-    apiEndpoint: String(source.apiEndpoint || source.endpoint || '').trim(),
-    apiKey: String(source.apiKey || '').trim(),
-    model: String(source.model || '').trim(),
-    createdAt: source.createdAt || null,
-    updatedAt: source.updatedAt || null
-  };
-}
-
-async function getUserSuppliers(userId) {
-  const all = await loadSuppliers();
-  const list = Array.isArray(all[userId]) ? all[userId] : [];
-  // 按更新时间倒序
-  return list
-    .map((item) => normalizeStoredSupplier(item))
-    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-}
-
-async function addUserSupplier(userId, supplier) {
-  const all = await loadSuppliers();
-  if (!Array.isArray(all[userId])) {
-    all[userId] = [];
-  }
-  const createdAt = nowIso();
-  const newSupplier = normalizeStoredSupplier({
-    ...supplier,
-    id: uid('supplier'),
-    createdAt,
-    updatedAt: createdAt
-  });
-  all[userId].push(newSupplier);
-  await saveSuppliers(all);
-  return newSupplier;
-}
-
-async function updateUserSupplier(userId, supplierId, patch) {
-  const all = await loadSuppliers();
-  if (!Array.isArray(all[userId])) {
-    return null;
-  }
-  const idx = all[userId].findIndex((item) => item.id === supplierId);
-  if (idx < 0) {
-    return null;
-  }
-  const current = normalizeStoredSupplier(all[userId][idx]);
-  const updated = normalizeStoredSupplier({
-    ...current,
-    name: hasOwn(patch, 'name') ? String(patch.name || '').trim() : current.name,
-    website: hasOwn(patch, 'website') ? String(patch.website || '').trim() : current.website,
-    apiEndpoint: hasOwn(patch, 'apiEndpoint') ? String(patch.apiEndpoint || '').trim() : current.apiEndpoint,
-    apiKey: hasOwn(patch, 'apiKey') ? String(patch.apiKey || '').trim() : current.apiKey,
-    model: hasOwn(patch, 'model') ? String(patch.model || '').trim() : current.model,
-    createdAt: current.createdAt || nowIso(),
-    updatedAt: nowIso()
-  });
-  all[userId][idx] = updated;
-  await saveSuppliers(all);
-  return updated;
-}
-
-async function deleteUserSupplier(userId, supplierId) {
-  const all = await loadSuppliers();
-  if (!Array.isArray(all[userId])) {
-    return false;
-  }
-  const idx = all[userId].findIndex((item) => item.id === supplierId);
-  if (idx < 0) {
-    return false;
-  }
-  all[userId].splice(idx, 1);
-  await saveSuppliers(all);
-  return true;
-}
-
 // ===== 交付历史 CRUD =====
 // Supabase 使用 deliveries 表存储交付历史
 
@@ -1490,6 +1348,30 @@ function summarizeUpdates(task, workerLookup = new Map()) {
       return `${idx + 1}. ${workerName}: ${item.message}`;
     })
     .join('\n');
+}
+
+function normalizeAiDiscussionReply(raw) {
+  let text = String(raw || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^(回复|建议|答复)[:：]\s*/i, '')
+    .trim();
+
+  if (!text) {
+    return '同问，等答案。';
+  }
+
+  const sentenceParts = text.match(/[^。！？!?]+[。！？!?]?/g) || [];
+  let shortReply = sentenceParts.slice(0, 2).join('').trim();
+  if (!shortReply) {
+    shortReply = text;
+  }
+
+  if (shortReply.length > 42) {
+    shortReply = `${shortReply.slice(0, 42).trim()}…`;
+  }
+
+  return shortReply || '同问，等答案。';
 }
 
 function ensureTaskSyncState(task) {
@@ -2238,7 +2120,7 @@ async function handleApi(req, res, urlObj) {
     });
   }
 
-  if (method === 'POST' && pathname === '/api/custom-models/fetch') { // moved down to keep together
+  if (method === 'POST' && pathname === '/api/custom-models/fetch') {
     let body;
     try {
       body = await readBody(req);
@@ -2265,97 +2147,6 @@ async function handleApi(req, res, urlObj) {
       code: 0,
       message: '模型列表拉取成功',
       data: result
-    });
-  }
-
-  // ===== 供应商/预设 API =====
-  if (method === 'GET' && pathname === '/api/me/suppliers') {
-    const session = await getCurrentSessionWorker({ createIfMissing: false });
-    if (!session?.user?.userId) {
-      return json(res, 401, { code: 401, message: '请先登录' });
-    }
-    const suppliers = await getUserSuppliers(session.user.userId);
-    return json(res, 200, {
-      code: 0,
-      message: 'success',
-      data: suppliers
-    });
-  }
-
-  if (method === 'POST' && pathname === '/api/me/suppliers') {
-    let body;
-    try {
-      body = await readBody(req);
-    } catch (error) {
-      if (String(error.message) === 'INVALID_JSON') {
-        return badRequest(res, '请求体不是合法 JSON');
-      }
-      throw error;
-    }
-
-    const session = await getCurrentSessionWorker({ createIfMissing: true });
-    if (!session?.user?.userId) {
-      return json(res, 401, { code: 401, message: '请先登录' });
-    }
-
-    if (!body.name?.trim()) {
-      return badRequest(res, '供应商名称不能为空');
-    }
-
-    const supplier = await addUserSupplier(session.user.userId, body);
-    return json(res, 200, {
-      code: 0,
-      message: '供应商已添加',
-      data: supplier
-    });
-  }
-
-  const supplierUpdateMatch = pathname.match(/^\/api\/me\/suppliers\/([^/]+)$/);
-  if (method === 'PUT' && supplierUpdateMatch) {
-    const supplierId = decodeURIComponent(supplierUpdateMatch[1]);
-    let body;
-    try {
-      body = await readBody(req);
-    } catch (error) {
-      if (String(error.message) === 'INVALID_JSON') {
-        return badRequest(res, '请求体不是合法 JSON');
-      }
-      throw error;
-    }
-
-    const session = await getCurrentSessionWorker({ createIfMissing: false });
-    if (!session?.user?.userId) {
-      return json(res, 401, { code: 401, message: '请先登录' });
-    }
-
-    const updated = await updateUserSupplier(session.user.userId, supplierId, body);
-    if (!updated) {
-      return notFound(res);
-    }
-
-    return json(res, 200, {
-      code: 0,
-      message: '供应商已更新',
-      data: updated
-    });
-  }
-
-  if (method === 'DELETE' && supplierUpdateMatch) {
-    const supplierId = decodeURIComponent(supplierUpdateMatch[1]);
-
-    const session = await getCurrentSessionWorker({ createIfMissing: false });
-    if (!session?.user?.userId) {
-      return json(res, 401, { code: 401, message: '请先登录' });
-    }
-
-    const deleted = await deleteUserSupplier(session.user.userId, supplierId);
-    if (!deleted) {
-      return notFound(res);
-    }
-
-    return json(res, 200, {
-      code: 0,
-      message: '供应商已删除'
     });
   }
 
@@ -2988,11 +2779,12 @@ async function handleApi(req, res, urlObj) {
     const hint = String(body?.content || body?.hint || '').trim();
 
     const prompt = [
-      '请基于任务上下文与讨论记录，生成一条适合直接发送在讨论区的中文回复。',
-      '要求：',
-      '1) 口吻专业、友好、简洁',
-      '2) 字数控制在 30~120 字',
-      '3) 优先推进任务落地（澄清需求/给出下一步）',
+      '请基于任务上下文与讨论记录，生成一条可直接发送在讨论区的简短中文回复。',
+      '硬性要求：',
+      '1) 只输出 1~2 句，不要分点，不要解释',
+      '2) 总长度不超过 40 字',
+      '3) 可以是：正面回答、简短唠嗑、同问、等答案、先补充信息',
+      '4) 若信息不足，优先输出“同问，等答案。”或“先补充下关键要求哈”',
       '',
       buildTaskContextText(task, workerLookup),
       `协作摘要:\n${summarizeUpdates(task, workerLookup)}`,
@@ -3005,12 +2797,12 @@ async function handleApi(req, res, urlObj) {
       payload: {
         message: prompt,
         appId: SECONDME_APP_ID,
-        systemPrompt: '你是任务讨论助手，请只输出可直接发送的回复正文，不要附加解释。',
+        systemPrompt: '你是任务讨论区助手。请仅输出短消息正文，最多两句、40字内，不要输出任何解释、标题或Markdown。',
         sessionId: task.sync?.aiReplySessionId || task.sync?.secondMeSessionId || undefined
       }
     });
 
-    const reply = String(streamResult?.content || '').trim();
+    const reply = normalizeAiDiscussionReply(streamResult?.content || '');
     if (!reply) {
       throw new AppError('SecondMe 返回内容为空', 502);
     }
