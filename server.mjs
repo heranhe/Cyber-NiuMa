@@ -22,6 +22,7 @@ const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'ai-labor-market') : path.join(__
 const DATA_FILE = path.join(DATA_DIR, 'tasks.json');
 const PROFILE_FILE = path.join(DATA_DIR, 'profiles.json');
 const ABILITIES_FILE = path.join(DATA_DIR, 'abilities.json');
+const SUPPLIERS_FILE = path.join(DATA_DIR, 'suppliers.json');
 const SECONDME_BASE_URL = process.env.SECONDME_BASE_URL || 'https://app.mindos.com/gate/lab';
 const SECONDME_APP_ID = process.env.SECONDME_APP_ID || 'general';
 const OAUTH_AUTHORIZE_URL = process.env.SECONDME_OAUTH_AUTHORIZE_URL || 'https://go.second.me/oauth/';
@@ -900,6 +901,147 @@ async function saveAbilities(data) {
   // 本地环境使用文件存储
   await ensureDataFiles();
   await fs.writeFile(ABILITIES_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+// ===== 供应商/预设 CRUD =====
+// Supabase 使用 kv_store 表存储 JSON 数据（键值存储模式）
+const SUPPLIERS_KEY = 'suppliers';
+
+async function loadSuppliers() {
+  // Supabase 环境使用数据库存储
+  if (IS_VERCEL && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('kv_store')
+        .select('value')
+        .eq('key', SUPPLIERS_KEY)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+        console.error('Supabase loadSuppliers error:', error);
+        return {};
+      }
+
+      return data?.value || {};
+    } catch (err) {
+      console.error('Supabase loadSuppliers exception:', err);
+      return {};
+    }
+  }
+
+  // 本地环境使用文件存储
+  await ensureDataFiles();
+  const raw = await fs.readFile(SUPPLIERS_FILE, 'utf8');
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveSuppliers(data) {
+  // Supabase 环境使用数据库存储
+  if (IS_VERCEL && supabase) {
+    try {
+      const { error } = await supabase
+        .from('kv_store')
+        .upsert({ key: SUPPLIERS_KEY, value: data, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+
+      if (error) {
+        console.error('Supabase saveSuppliers error:', error);
+        throw new AppError('保存供应商失败，请稍后重试', 500);
+      }
+      return;
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      console.error('Supabase saveSuppliers exception:', err);
+      throw new AppError('保存供应商失败，请稍后重试', 500);
+    }
+  }
+
+  // 本地环境使用文件存储
+  await ensureDataFiles();
+  await fs.writeFile(SUPPLIERS_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function normalizeStoredSupplier(payload = {}) {
+  const source = payload && typeof payload === 'object' ? payload : {};
+  return {
+    id: String(source.id || '').trim() || uid('supplier'),
+    name: String(source.name || '').trim(),
+    website: String(source.website || '').trim(),
+    apiEndpoint: String(source.apiEndpoint || source.endpoint || '').trim(),
+    apiKey: String(source.apiKey || '').trim(),
+    model: String(source.model || '').trim(),
+    createdAt: source.createdAt || null,
+    updatedAt: source.updatedAt || null
+  };
+}
+
+async function getUserSuppliers(userId) {
+  const all = await loadSuppliers();
+  const list = Array.isArray(all[userId]) ? all[userId] : [];
+  // 按更新时间倒序
+  return list
+    .map((item) => normalizeStoredSupplier(item))
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+}
+
+async function addUserSupplier(userId, supplier) {
+  const all = await loadSuppliers();
+  if (!Array.isArray(all[userId])) {
+    all[userId] = [];
+  }
+  const createdAt = nowIso();
+  const newSupplier = normalizeStoredSupplier({
+    ...supplier,
+    id: uid('supplier'),
+    createdAt,
+    updatedAt: createdAt
+  });
+  all[userId].push(newSupplier);
+  await saveSuppliers(all);
+  return newSupplier;
+}
+
+async function updateUserSupplier(userId, supplierId, patch) {
+  const all = await loadSuppliers();
+  if (!Array.isArray(all[userId])) {
+    return null;
+  }
+  const idx = all[userId].findIndex((item) => item.id === supplierId);
+  if (idx < 0) {
+    return null;
+  }
+  const current = normalizeStoredSupplier(all[userId][idx]);
+  const updated = normalizeStoredSupplier({
+    ...current,
+    name: hasOwn(patch, 'name') ? String(patch.name || '').trim() : current.name,
+    website: hasOwn(patch, 'website') ? String(patch.website || '').trim() : current.website,
+    apiEndpoint: hasOwn(patch, 'apiEndpoint') ? String(patch.apiEndpoint || '').trim() : current.apiEndpoint,
+    apiKey: hasOwn(patch, 'apiKey') ? String(patch.apiKey || '').trim() : current.apiKey,
+    model: hasOwn(patch, 'model') ? String(patch.model || '').trim() : current.model,
+    createdAt: current.createdAt || nowIso(),
+    updatedAt: nowIso()
+  });
+  all[userId][idx] = updated;
+  await saveSuppliers(all);
+  return updated;
+}
+
+async function deleteUserSupplier(userId, supplierId) {
+  const all = await loadSuppliers();
+  if (!Array.isArray(all[userId])) {
+    return false;
+  }
+  const idx = all[userId].findIndex((item) => item.id === supplierId);
+  if (idx < 0) {
+    return false;
+  }
+  all[userId].splice(idx, 1);
+  await saveSuppliers(all);
+  return true;
 }
 
 // ===== 交付历史 CRUD =====
@@ -2096,7 +2238,7 @@ async function handleApi(req, res, urlObj) {
     });
   }
 
-  if (method === 'POST' && pathname === '/api/custom-models/fetch') {
+  if (method === 'POST' && pathname === '/api/custom-models/fetch') { // moved down to keep together
     let body;
     try {
       body = await readBody(req);
@@ -2123,6 +2265,97 @@ async function handleApi(req, res, urlObj) {
       code: 0,
       message: '模型列表拉取成功',
       data: result
+    });
+  }
+
+  // ===== 供应商/预设 API =====
+  if (method === 'GET' && pathname === '/api/me/suppliers') {
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+    const suppliers = await getUserSuppliers(session.user.userId);
+    return json(res, 200, {
+      code: 0,
+      message: 'success',
+      data: suppliers
+    });
+  }
+
+  if (method === 'POST' && pathname === '/api/me/suppliers') {
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    if (!body.name?.trim()) {
+      return badRequest(res, '供应商名称不能为空');
+    }
+
+    const supplier = await addUserSupplier(session.user.userId, body);
+    return json(res, 200, {
+      code: 0,
+      message: '供应商已添加',
+      data: supplier
+    });
+  }
+
+  const supplierUpdateMatch = pathname.match(/^\/api\/me\/suppliers\/([^/]+)$/);
+  if (method === 'PUT' && supplierUpdateMatch) {
+    const supplierId = decodeURIComponent(supplierUpdateMatch[1]);
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    const updated = await updateUserSupplier(session.user.userId, supplierId, body);
+    if (!updated) {
+      return notFound(res);
+    }
+
+    return json(res, 200, {
+      code: 0,
+      message: '供应商已更新',
+      data: updated
+    });
+  }
+
+  if (method === 'DELETE' && supplierUpdateMatch) {
+    const supplierId = decodeURIComponent(supplierUpdateMatch[1]);
+
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    const deleted = await deleteUserSupplier(session.user.userId, supplierId);
+    if (!deleted) {
+      return notFound(res);
+    }
+
+    return json(res, 200, {
+      code: 0,
+      message: '供应商已删除'
     });
   }
 
@@ -2667,16 +2900,33 @@ async function handleApi(req, res, urlObj) {
           .select('*')
           .eq('task_id', taskId)
           .order('created_at', { ascending: false });
-        deliveries = (data || []).map(d => ({
-          id: d.id,
-          workerId: d.worker_id,
-          workerName: d.worker_name || 'AI 分身',
-          abilityId: d.ability_id,
-          abilityName: d.ability_name,
-          content: d.content,
-          status: d.status,
-          createdAt: d.created_at
-        }));
+
+        // 映射交付记录,并填充缺失的 worker_name
+        deliveries = (data || []).map(d => {
+          let workerName = d.worker_name || 'AI 分身';
+          let workerAvatar = null;
+
+          // 如果 worker_name 为空,尝试从 workers 中查找
+          if (!d.worker_name && d.worker_id) {
+            const worker = workers.find(w => w.id === d.worker_id || w.secondUserId === d.worker_id);
+            if (worker) {
+              workerName = worker.name || 'AI 分身';
+              workerAvatar = worker.avatar;
+            }
+          }
+
+          return {
+            id: d.id,
+            workerId: d.worker_id,
+            workerName,
+            workerAvatar,
+            abilityId: d.ability_id,
+            abilityName: d.ability_name,
+            content: d.content,
+            status: d.status,
+            createdAt: d.created_at
+          };
+        });
       } catch (err) {
         console.error('获取交付记录失败:', err);
       }
@@ -2699,6 +2949,87 @@ async function handleApi(req, res, urlObj) {
       },
       deliveries,
       comments
+    });
+  }
+
+  // 任务讨论区：AI 自动回复
+  const aiReplyMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/ai-reply$/);
+  if (method === 'POST' && aiReplyMatch) {
+    const taskId = decodeURIComponent(aiReplyMatch[1]);
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+
+    if (!session?.user) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const tasks = await loadTasks();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) {
+      return notFound(res);
+    }
+
+    const workerLookup = workersMap(await loadProfiles());
+    const latestComments = Array.isArray(task.comments) ? task.comments.slice(-8) : [];
+    const commentsText = latestComments.length
+      ? latestComments
+        .map((item, index) => `${index + 1}. ${item.userName || '匿名用户'}: ${item.content || ''}`)
+        .join('\n')
+      : '暂无讨论内容';
+    const hint = String(body?.content || body?.hint || '').trim();
+
+    const prompt = [
+      '请基于任务上下文与讨论记录，生成一条适合直接发送在讨论区的中文回复。',
+      '要求：',
+      '1) 口吻专业、友好、简洁',
+      '2) 字数控制在 30~120 字',
+      '3) 优先推进任务落地（澄清需求/给出下一步）',
+      '',
+      buildTaskContextText(task, workerLookup),
+      `协作摘要:\n${summarizeUpdates(task, workerLookup)}`,
+      `近期讨论:\n${commentsText}`,
+      hint ? `补充要求: ${hint}` : ''
+    ].filter(Boolean).join('\n');
+
+    const streamResult = await callSecondMeChatStream({
+      appId: SECONDME_APP_ID,
+      payload: {
+        message: prompt,
+        appId: SECONDME_APP_ID,
+        systemPrompt: '你是任务讨论助手，请只输出可直接发送的回复正文，不要附加解释。',
+        sessionId: task.sync?.aiReplySessionId || task.sync?.secondMeSessionId || undefined
+      }
+    });
+
+    const reply = String(streamResult?.content || '').trim();
+    if (!reply) {
+      throw new AppError('SecondMe 返回内容为空', 502);
+    }
+
+    if (streamResult.sessionId) {
+      ensureTaskSyncState(task);
+      task.sync.aiReplySessionId = streamResult.sessionId;
+      task.updatedAt = nowIso();
+      await saveTasks(tasks);
+    }
+
+    return json(res, 200, {
+      code: 0,
+      message: 'AI 回复生成成功',
+      reply,
+      data: {
+        reply,
+        sessionId: streamResult.sessionId || null
+      }
     });
   }
 
