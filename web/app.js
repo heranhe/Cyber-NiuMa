@@ -23,15 +23,12 @@ const metricWorkers = document.querySelector('#metric-workers');
 const metricOrders = document.querySelector('#metric-orders');
 const metricDelivered = document.querySelector('#metric-delivered');
 
-// 劳务体元素
-const myWorkerCard = document.querySelector('#my-worker-card');
+// 技能元素
+const skillsList = document.querySelector('#skills-list');
+const skillsActions = document.querySelector('#skills-actions');
 const workerProfileHint = document.querySelector('#worker-profile-hint');
-const workerNameDisplay = document.querySelector('#worker-name-display');
-
 const workerCount = document.querySelector('#worker-count');
-const abilitiesList = document.querySelector('#abilities-list');
 const addAbilityBtn = document.querySelector('#add-ability-btn');
-const editWorkerBtn = document.querySelector('#edit-worker-btn');
 const autoMatchBtn = document.querySelector('#auto-match-btn');
 
 // 能力弹窗元素
@@ -362,31 +359,40 @@ function renderTasks() {
   taskList.innerHTML = filtered.map(renderTaskCard).join('');
 }
 
-function renderAbilities() {
-  if (!abilitiesList) return;
+function renderSkillsList() {
+  if (!skillsList) return;
 
-  abilitiesList.innerHTML = state.abilities.map((ability) => `
-    <button class="ability-tag group/tag relative px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-[10px] rounded border border-orange-200 dark:border-orange-800 hover:bg-orange-200 dark:hover:bg-orange-800/50 transition-colors" data-ability-id="${ability.id}">
-      ${ability.icon || '🔧'} ${escapeHtml(ability.name)}
-      <span class="tooltip">${escapeHtml(ability.description || ability.name)}</span>
-    </button>
-  `).join('');
-}
-
-function renderWorkerProfile() {
-  if (!state.meWorker) {
-    if (myWorkerCard) myWorkerCard.hidden = true;
+  if (state.abilities.length === 0) {
+    skillsList.hidden = true;
+    if (skillsActions) skillsActions.hidden = true;
     if (workerProfileHint) workerProfileHint.hidden = false;
     return;
   }
 
-  if (myWorkerCard) myWorkerCard.hidden = false;
+  skillsList.hidden = false;
+  if (skillsActions) skillsActions.hidden = false;
   if (workerProfileHint) workerProfileHint.hidden = true;
 
-  if (workerNameDisplay) workerNameDisplay.textContent = state.meWorker.name || '我的劳务体';
-  if (workerCount) workerCount.textContent = '1个';
+  skillsList.innerHTML = state.abilities.map((ability) => `
+    <div class="group flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-primary transition-colors cursor-pointer" data-ability-id="${ability.id}">
+      <div class="flex items-center gap-3">
+        <span class="text-lg">${ability.icon || '🔧'}</span>
+        <div>
+          <h4 class="font-bold text-sm text-gray-900 dark:text-white">${escapeHtml(ability.name)}</h4>
+          ${ability.description ? `<p class="text-xs text-subtext-light dark:text-subtext-dark mt-0.5">${escapeHtml(ability.description)}</p>` : ''}
+        </div>
+      </div>
+      <button class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary transition-opacity" data-action="edit" data-ability-id="${ability.id}">
+        <span class="material-icons-round text-sm">edit</span>
+      </button>
+    </div>
+  `).join('');
 
-  renderAbilities();
+  if (workerCount) workerCount.textContent = `${state.abilities.length}个`;
+}
+
+function renderWorkerProfile() {
+  renderSkillsList();
 }
 
 function setIntegrationView(sessionInfo) {
@@ -738,11 +744,11 @@ if (cancelAbilityBtn) cancelAbilityBtn.addEventListener('click', closeAbilityMod
 if (abilityForm) abilityForm.addEventListener('submit', saveAbility);
 if (deleteAbilityBtn) deleteAbilityBtn.addEventListener('click', deleteAbility);
 
-if (abilitiesList) {
-  abilitiesList.addEventListener('click', (e) => {
-    const tag = e.target.closest('.ability-tag');
-    if (tag) {
-      const id = tag.dataset.abilityId;
+if (skillsList) {
+  skillsList.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('[data-action="edit"]');
+    if (editBtn) {
+      const id = editBtn.dataset.abilityId;
       const ability = state.abilities.find((a) => a.id === id);
       if (ability) openAbilityModal(ability);
     }
