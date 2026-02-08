@@ -360,7 +360,8 @@ function renderSkillsList() {
   if (state.abilities.length === 0) {
     skillsList.hidden = true;
     if (skillsActions) skillsActions.hidden = true;
-    if (workerProfileHint) workerProfileHint.hidden = false;
+    // 只有未登录时才显示提示，登录后由 AI 分身容器显示
+    if (workerProfileHint) workerProfileHint.hidden = !!state.me;
     return;
   }
 
@@ -393,38 +394,44 @@ function renderAIAvatar() {
   const aiName = document.querySelector('#ai-name');
   const capabilityTags = document.querySelector('#capability-tags');
 
+  // 未登录时隐藏容器
   if (!avatarContainer || !state.me) {
     if (avatarContainer) avatarContainer.classList.add('hidden');
     return;
   }
 
-  // 如果用户已登录且有能力，显示 AI 分身容器
-  if (state.abilities.length > 0) {
-    avatarContainer.classList.remove('hidden');
+  // 用户已登录，显示 AI 分身容器
+  avatarContainer.classList.remove('hidden');
 
-    // 设置用户头像
-    const avatar = state.me.avatar || state.me.profileImageUrl || '';
-    if (userAvatar) {
-      userAvatar.src = avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(state.me.displayName || '游客')}&background=random`;
-    }
+  // 设置用户头像
+  const avatar = state.me.avatar || state.me.profileImageUrl || '';
+  if (userAvatar) {
+    userAvatar.src = avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(state.me.name || state.me.displayName || '游客')}&background=random`;
+  }
 
-    // 设置 AI 分身名称
-    const username = state.me.displayName || state.me.username || '游客';
-    if (aiName) {
-      aiName.textContent = `${username}的AI分身`;
-    }
+  // 设置 AI 分身名称
+  const username = state.me.name || state.me.displayName || state.me.username || '游客';
+  if (aiName) {
+    aiName.textContent = `${username}的AI分身`;
+  }
 
-    // 渲染技能标签（胶囊样式）
-    if (capabilityTags) {
+  // 渲染技能标签（胶囊样式）
+  if (capabilityTags) {
+    if (state.abilities.length > 0) {
       capabilityTags.innerHTML = state.abilities.map((ability) => `
         <span class="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-black dark:text-white rounded-full text-sm font-medium transition-all hover:bg-gray-200 dark:hover:bg-gray-700">
           <span>${ability.icon || '🔧'}</span>
           <span>${escapeHtml(ability.name)}</span>
         </span>
       `).join('');
+    } else {
+      // 无能力时显示提示
+      capabilityTags.innerHTML = `
+        <span class="text-sm text-gray-400 dark:text-gray-500 italic">
+          暂无配置的技能，点击"管理"添加
+        </span>
+      `;
     }
-  } else {
-    avatarContainer.classList.add('hidden');
   }
 }
 
