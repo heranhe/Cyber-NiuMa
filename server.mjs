@@ -451,6 +451,7 @@ function uid(prefix) {
 }
 
 function safeTaskSummary(task) {
+  ensureTaskAbilityBindings(task);
   return {
     id: task.id,
     title: task.title,
@@ -462,6 +463,7 @@ function safeTaskSummary(task) {
     deadline: task.deadline,
     status: task.status,
     participants: task.participants,
+    abilityBindings: task.abilityBindings,
     updates: task.updates,
     delivery: task.delivery,
     sync: task.sync || null,
@@ -600,6 +602,98 @@ function normalizeProfilePatch(payload = {}) {
   return patch;
 }
 
+function hasOwn(payload, key) {
+  return Object.prototype.hasOwnProperty.call(payload || {}, key);
+}
+
+function toBoolean(value, fallback = false) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on', 'enable', 'enabled'].includes(normalized)) {
+      return true;
+    }
+    if (['0', 'false', 'no', 'off', 'disable', 'disabled'].includes(normalized)) {
+      return false;
+    }
+  }
+  return fallback;
+}
+
+function normalizeCustomApiConfig(payload = {}, fallback = {}) {
+  const source = payload && typeof payload === 'object' ? payload : {};
+  const previous = fallback && typeof fallback === 'object' ? fallback : {};
+
+  return {
+    endpoint: String(source.endpoint ?? source.baseUrl ?? previous.endpoint ?? '').trim(),
+    apiKey: String(source.apiKey ?? source.key ?? previous.apiKey ?? '').trim(),
+    model: String(source.model ?? previous.model ?? '').trim()
+  };
+}
+
+function normalizeStoredAbility(payload = {}) {
+  const source = payload && typeof payload === 'object' ? payload : {};
+  return {
+    id: String(source.id || '').trim() || uid('ability'),
+    name: String(source.name || '').trim(),
+    icon: String(source.icon || '🔧').trim() || '🔧',
+    description: String(source.description || '').trim(),
+    prompt: String(source.prompt || '').trim(),
+    enabled: toBoolean(source.enabled, true),
+    useCustomApi: toBoolean(source.useCustomApi, false),
+    customApi: normalizeCustomApiConfig(
+      {
+        endpoint: source?.customApi?.endpoint ?? source.endpoint ?? source.apiEndpoint,
+        apiKey: source?.customApi?.apiKey ?? source.apiKey,
+        model: source?.customApi?.model ?? source.model
+      },
+      source?.customApi
+    ),
+    createdAt: source.createdAt || null,
+    updatedAt: source.updatedAt || null
+  };
+}
+
+function ensureTaskAbilityBindings(task) {
+  if (!task || typeof task !== 'object') {
+    return;
+  }
+  if (!task.abilityBindings || typeof task.abilityBindings !== 'object' || Array.isArray(task.abilityBindings)) {
+    task.abilityBindings = {};
+  }
+}
+
+function setTaskWorkerAbility(task, workerId, abilityId) {
+  const wid = String(workerId || '').trim();
+  if (!wid) {
+    return;
+  }
+  ensureTaskAbilityBindings(task);
+  const aid = String(abilityId || '').trim();
+  if (aid) {
+    task.abilityBindings[wid] = aid;
+  } else {
+    delete task.abilityBindings[wid];
+  }
+}
+
+function getTaskWorkerAbilityId(task, workerId) {
+  const wid = String(workerId || '').trim();
+  if (!wid) {
+    return '';
+  }
+  if (!task || typeof task !== 'object') {
+    return '';
+  }
+  const map = task.abilityBindings && typeof task.abilityBindings === 'object' ? task.abilityBindings : {};
+  return String(map[wid] || '').trim();
+}
+
 function workersMap(workers = []) {
   return new Map(workers.map((worker) => [worker.id, worker]));
 }
@@ -621,6 +715,7 @@ function seedTasks() {
       deadline: '48小时',
       status: 'OPEN',
       participants: [],
+      abilityBindings: {},
       updates: [],
       delivery: null,
       createdAt: nowIso(),
@@ -637,6 +732,7 @@ function seedTasks() {
       deadline: '72小时',
       status: 'OPEN',
       participants: [],
+      abilityBindings: {},
       updates: [],
       delivery: null,
       createdAt: nowIso(),
@@ -715,7 +811,8 @@ async function saveAbilities(data) {
 
 async function getUserAbilities(userId) {
   const all = await loadAbilities();
-  return Array.isArray(all[userId]) ? all[userId] : [];
+  const list = Array.isArray(all[userId]) ? all[userId] : [];
+  return list.map((item) => normalizeStoredAbility(item));
 }
 
 async function addUserAbility(userId, ability) {
@@ -723,14 +820,13 @@ async function addUserAbility(userId, ability) {
   if (!Array.isArray(all[userId])) {
     all[userId] = [];
   }
-  const newAbility = {
+  const createdAt = nowIso();
+  const newAbility = normalizeStoredAbility({
+    ...ability,
     id: uid('ability'),
-    name: String(ability.name || '').trim(),
-    icon: String(ability.icon || '🔧').trim(),
-    description: String(ability.description || '').trim(),
-    prompt: String(ability.prompt || '').trim(),
-    createdAt: nowIso()
-  };
+    createdAt,
+    updatedAt: createdAt
+  });
   all[userId].push(newAbility);
   await saveAbilities(all);
   return newAbility;
@@ -745,14 +841,36 @@ async function updateUserAbility(userId, abilityId, patch) {
   if (idx < 0) {
     return null;
   }
-  const updated = {
-    ...all[userId][idx],
-    name: patch.name !== undefined ? String(patch.name || '').trim() : all[userId][idx].name,
-    icon: patch.icon !== undefined ? String(patch.icon || '🔧').trim() : all[userId][idx].icon,
-    description: patch.description !== undefined ? String(patch.description || '').trim() : all[userId][idx].description,
-    prompt: patch.prompt !== undefined ? String(patch.prompt || '').trim() : all[userId][idx].prompt,
+  const current = normalizeStoredAbility(all[userId][idx]);
+  const sourceCustomApi = patch?.customApi && typeof patch.customApi === 'object' ? patch.customApi : {};
+  const shouldPatchCustomApi =
+    Boolean(patch?.customApi && typeof patch.customApi === 'object') ||
+    hasOwn(patch, 'apiEndpoint') ||
+    hasOwn(patch, 'endpoint') ||
+    hasOwn(patch, 'apiKey') ||
+    hasOwn(patch, 'model');
+  const mergedCustomApi = shouldPatchCustomApi
+    ? normalizeCustomApiConfig(
+        {
+          endpoint: sourceCustomApi.endpoint ?? patch.apiEndpoint ?? patch.endpoint,
+          apiKey: sourceCustomApi.apiKey ?? patch.apiKey,
+          model: sourceCustomApi.model ?? patch.model
+        },
+        current.customApi
+      )
+    : current.customApi;
+  const updated = normalizeStoredAbility({
+    ...current,
+    name: hasOwn(patch, 'name') ? String(patch.name || '').trim() : current.name,
+    icon: hasOwn(patch, 'icon') ? String(patch.icon || '🔧').trim() : current.icon,
+    description: hasOwn(patch, 'description') ? String(patch.description || '').trim() : current.description,
+    prompt: hasOwn(patch, 'prompt') ? String(patch.prompt || '').trim() : current.prompt,
+    enabled: hasOwn(patch, 'enabled') ? toBoolean(patch.enabled, true) : current.enabled,
+    useCustomApi: hasOwn(patch, 'useCustomApi') ? toBoolean(patch.useCustomApi, false) : current.useCustomApi,
+    customApi: mergedCustomApi,
+    createdAt: current.createdAt || nowIso(),
     updatedAt: nowIso()
-  };
+  });
   all[userId][idx] = updated;
   await saveAbilities(all);
   return updated;
@@ -1213,6 +1331,240 @@ function parseSseEvents(raw, maxEvents = 120) {
   return events;
 }
 
+function ensureHttpUrl(rawUrl, fieldName = 'url') {
+  const value = String(rawUrl || '').trim();
+  if (!value) {
+    throw new AppError(`${fieldName} 不能为空`, 400);
+  }
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new AppError(`${fieldName} 不是合法 URL`, 400, { value });
+  }
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new AppError(`${fieldName} 仅支持 http/https`, 400, { protocol: url.protocol });
+  }
+  return url;
+}
+
+function normalizeCustomApiBaseUrl(endpoint) {
+  const url = ensureHttpUrl(endpoint, 'API Endpoint');
+  let pathname = String(url.pathname || '/').trim();
+  pathname = pathname.replace(/\/+$/, '');
+  if (!pathname) {
+    pathname = '/v1';
+  }
+  if (pathname.endsWith('/chat/completions')) {
+    pathname = pathname.slice(0, -'/chat/completions'.length) || '/v1';
+  }
+  if (pathname.endsWith('/models')) {
+    pathname = pathname.slice(0, -'/models'.length) || '/v1';
+  }
+  url.pathname = pathname;
+  url.search = '';
+  url.hash = '';
+  return url;
+}
+
+function joinUrlPath(basePath, appendPath) {
+  const left = String(basePath || '').replace(/\/+$/, '');
+  const right = String(appendPath || '').replace(/^\/+/, '');
+  if (!left) {
+    return `/${right}`;
+  }
+  return `${left}/${right}`;
+}
+
+function buildCustomApiUrl(endpoint, appendPath) {
+  const base = normalizeCustomApiBaseUrl(endpoint);
+  base.pathname = joinUrlPath(base.pathname, appendPath);
+  return base.toString();
+}
+
+function pickModelId(item) {
+  if (!item) {
+    return '';
+  }
+  if (typeof item === 'string') {
+    return item.trim();
+  }
+  if (typeof item === 'object') {
+    const id = String(item.id ?? item.model ?? item.name ?? '').trim();
+    return id;
+  }
+  return '';
+}
+
+function collectModelIds(payload = {}) {
+  const buckets = [];
+  if (Array.isArray(payload)) {
+    buckets.push(payload);
+  }
+  if (Array.isArray(payload?.data)) {
+    buckets.push(payload.data);
+  }
+  if (Array.isArray(payload?.models)) {
+    buckets.push(payload.models);
+  }
+  if (Array.isArray(payload?.result)) {
+    buckets.push(payload.result);
+  }
+  if (Array.isArray(payload?.items)) {
+    buckets.push(payload.items);
+  }
+
+  const values = [];
+  for (const bucket of buckets) {
+    for (const item of bucket) {
+      const id = pickModelId(item);
+      if (id) {
+        values.push(id);
+      }
+    }
+  }
+  return Array.from(new Set(values));
+}
+
+function extractChatChoiceContent(payload = {}) {
+  const messageContent = payload?.choices?.[0]?.message?.content;
+  if (typeof messageContent === 'string') {
+    return messageContent.trim();
+  }
+  if (Array.isArray(messageContent)) {
+    return messageContent
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item;
+        }
+        if (item && typeof item === 'object') {
+          return String(item.text ?? item.content ?? '').trim();
+        }
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+
+  const outputText = payload?.output_text;
+  if (typeof outputText === 'string') {
+    return outputText.trim();
+  }
+
+  const dataContent = payload?.data?.content;
+  if (typeof dataContent === 'string') {
+    return dataContent.trim();
+  }
+
+  return '';
+}
+
+async function fetchCustomApiModels({ endpoint, apiKey = '' }) {
+  const modelsUrl = buildCustomApiUrl(endpoint, '/models');
+  const headers = {};
+  const token = String(apiKey || '').trim();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(modelsUrl, {
+    method: 'GET',
+    headers
+  });
+
+  const text = await response.text();
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    throw new AppError(`模型列表拉取失败 (${response.status})`, 502, {
+      endpoint: modelsUrl,
+      body: shortText(text, 600)
+    });
+  }
+
+  const models = collectModelIds(payload);
+  if (!models.length) {
+    throw new AppError('未解析到模型列表，请确认接口兼容 /models 返回结构', 502, {
+      endpoint: modelsUrl,
+      body: shortText(text, 600)
+    });
+  }
+
+  return {
+    endpoint: modelsUrl,
+    models
+  };
+}
+
+async function callCustomApiChatCompletions({
+  endpoint,
+  apiKey,
+  model,
+  systemPrompt,
+  userPrompt
+}) {
+  const url = buildCustomApiUrl(endpoint, '/chat/completions');
+  const token = String(apiKey || '').trim();
+  if (!token) {
+    throw new AppError('API Key 不能为空', 400);
+  }
+  const modelName = String(model || '').trim();
+  if (!modelName) {
+    throw new AppError('模型不能为空', 400);
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      model: modelName,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.7
+    })
+  });
+
+  const text = await response.text();
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    throw new AppError(`自定义 API 调用失败 (${response.status})`, 502, {
+      endpoint: url,
+      body: shortText(text, 800)
+    });
+  }
+
+  const content = extractChatChoiceContent(payload);
+  if (!content) {
+    throw new AppError('自定义 API 返回内容为空', 502, {
+      endpoint: url,
+      body: shortText(text, 800)
+    });
+  }
+
+  return {
+    endpoint: url,
+    model: modelName,
+    content
+  };
+}
+
 async function callSecondMeChatStream({
   payload,
   authToken = '',
@@ -1316,7 +1668,60 @@ async function secondMeDelivery(task, customBrief, workerLookup) {
   };
 }
 
-async function generateDelivery(task, customBrief, workerLookup) {
+async function customApiDelivery(task, customBrief, workerLookup, ability = null) {
+  const config = ability?.customApi || {};
+  const endpoint = String(config.endpoint || '').trim();
+  const apiKey = String(config.apiKey || '').trim();
+  const model = String(config.model || '').trim();
+
+  if (!endpoint || !apiKey || !model) {
+    throw new AppError('当前能力已开启自定义 API，但 endpoint / apiKey / model 配置不完整', 400, {
+      abilityId: ability?.id || null,
+      abilityName: ability?.name || null
+    });
+  }
+
+  const prompt = [
+    '你是一个AI劳务市场里的资深交付AI。',
+    '请基于以下任务，输出可直接给图像模型或设计模型使用的“最终交付提示词与交付说明”。',
+    '输出格式要求：',
+    '1) 任务解读（简短）',
+    '2) 交付提示词（主体）',
+    '3) 约束与参数建议（列表）',
+    '4) 交付验收标准（列表）',
+    '',
+    buildTaskContextText(task, workerLookup),
+    `协作摘要:\n${summarizeUpdates(task, workerLookup)}`,
+    customBrief ? `补充要求: ${customBrief}` : ''
+  ].filter(Boolean).join('\n');
+
+  const systemPrompt = [
+    deliverySystemPrompt(task),
+    ability?.prompt ? `能力系统提示词:\n${ability.prompt}` : ''
+  ].filter(Boolean).join('\n\n');
+
+  const result = await callCustomApiChatCompletions({
+    endpoint,
+    apiKey,
+    model,
+    systemPrompt,
+    userPrompt: prompt
+  });
+
+  return {
+    mode: 'text-prompt',
+    engine: 'custom-api-chat-completions',
+    content: result.content,
+    model: result.model,
+    abilityId: ability?.id || null
+  };
+}
+
+async function generateDelivery(task, customBrief, workerLookup, { ability = null } = {}) {
+  const preferCustomApi = Boolean(ability && ability.enabled !== false && ability.useCustomApi);
+  if (preferCustomApi) {
+    return customApiDelivery(task, customBrief, workerLookup, ability);
+  }
   return secondMeDelivery(task, customBrief, workerLookup);
 }
 
@@ -2040,6 +2445,7 @@ async function handleApi(req, res, urlObj) {
       deadline,
       status: 'OPEN',
       participants: [],
+      abilityBindings: {},
       updates: [],
       delivery: null,
       sync: {
