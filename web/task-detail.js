@@ -2,6 +2,7 @@
 const state = {
     task: null,
     me: null,
+    meWorker: null,
     secondMeConnected: false,
     abilities: [],
     deliveries: [],
@@ -65,15 +66,31 @@ async function api(path, options = {}) {
 
 // ===== 权限判断 =====
 // 角色是针对具体任务判定的，同一用户可以同时是派活人和接单者
+function getCurrentActorIds() {
+    return new Set(
+        [
+            state.me?.id,
+            state.me?.userId,
+            state.me?.user_id,
+            state.me?.secondUserId,
+            state.meWorker?.id,
+            state.meWorker?.secondUserId
+        ]
+            .map((id) => String(id || '').trim())
+            .filter(Boolean)
+    );
+}
+
 function getPermissions() {
     const task = state.task;
     const me = state.me;
+    const myIds = getCurrentActorIds();
 
     if (!task) return {};
 
     const isLoggedIn = !!me;
-    const isPublisher = isLoggedIn && task.publisherId === me.id;  // 是该任务的派活人
-    const isWorker = isLoggedIn && task.assigneeId === me.id;      // 是该任务的接单者
+    const isPublisher = isLoggedIn && myIds.has(String(task.publisherId || '').trim());  // 是该任务的派活人
+    const isWorker = isLoggedIn && myIds.has(String(task.assigneeId || '').trim());      // 是该任务的接单者
 
     return {
         // 角色标识（可同时拥有多个）
@@ -708,17 +725,20 @@ async function loadDiscussions() {
 
 async function loadSessionInfo() {
     try {
-        const res = await api('/api/oauth/meta');
-        // 从 OAuth meta 接口解析会话信息
-        state.secondMeConnected = !!res?.data?.sessionInfo;
-        state.me = res?.data?.sessionInfo || null;
+        const res = await api('/api/secondme/profile');
+        const profile = res?.data || {};
+        state.secondMeConnected = !!profile.connected;
+        state.me = profile?.profile?.data || null;
+        state.meWorker = profile?.worker || null;
         state.abilities = [];
 
         // 如果已登录，加载劳务体能力
         if (state.me) {
             try {
                 const workerRes = await api('/api/me/labor-body');
-                state.abilities = workerRes?.worker?.abilities || [];
+                const payload = workerRes?.data || {};
+                state.meWorker = payload.worker || state.meWorker;
+                state.abilities = payload.abilities || [];
             } catch {
                 // 忽略错误
             }
@@ -728,6 +748,7 @@ async function loadSessionInfo() {
     } catch {
         state.secondMeConnected = false;
         state.me = null;
+        state.meWorker = null;
     }
 }
 
