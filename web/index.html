@@ -192,10 +192,20 @@
           <div
             class="bg-white dark:bg-surface-dark rounded-2xl p-6 shadow-lg border border-gray-100 dark:border-border-dark">
             <div class="flex justify-between items-center mb-6">
-              <h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <span class="material-icons-round text-primary">psychology</span>
-                我的技能
-              </h2>
+              <div id="header-avatar-name" class="flex items-center gap-3">
+                <h2 id="default-title" class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span class="material-icons-round text-primary">psychology</span>
+                  我的技能
+                </h2>
+                <!-- 登录后动态显示头像和名称 -->
+                <div id="ai-identity" class="flex items-center gap-3 hidden">
+                  <img id="user-avatar" src="" alt="用户头像"
+                    class="w-10 h-10 rounded-full object-cover border-2 border-gray-100 dark:border-gray-700" />
+                  <h3 id="ai-name" class="font-bold text-gray-900 dark:text-white truncate max-w-[150px]">
+                    小布的AI分身
+                  </h3>
+                </div>
+              </div>
               <div class="flex items-center gap-3">
                 <span id="worker-count" class="text-xs text-subtext-light dark:text-subtext-dark">0个</span>
                 <a href="/capability.html" id="manage-skills-btn"
@@ -206,20 +216,8 @@
               </div>
             </div>
 
-            <!-- AI 分身信息容器 -->
-            <div id="ai-avatar-container" class="mb-6 hidden">
-              <!-- 用户头像和名称 -->
-              <div class="flex items-center gap-3 mb-4">
-                <img id="user-avatar" src="" alt="用户头像"
-                  class="w-12 h-12 rounded-full object-cover border-2 border-gray-200 dark:border-gray-700" />
-                <div>
-                  <h3 id="ai-name" class="font-bold text-gray-900 dark:text-white">
-                    周杰伦的AI分身
-                  </h3>
-                </div>
-              </div>
-
-              <!-- 技能标签区域 -->
+            <!-- AI 技能区域（第二行） -->
+            <div id="ai-skills-row" class="mb-6 hidden">
               <div class="space-y-2">
                 <p class="text-sm text-gray-600 dark:text-gray-400">AI分身的技能：</p>
                 <div id="capability-tags" class="flex flex-wrap gap-2">

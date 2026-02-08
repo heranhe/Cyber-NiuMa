@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.mjs",
     "dev": "node server.mjs",
-    "check": "node --check server.mjs && node --check web/app.js"
+    "check": "node --check server.mjs && node --check web/app.js && node --check web/capability.js"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0"

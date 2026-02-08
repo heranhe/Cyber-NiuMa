@@ -1908,6 +1908,36 @@ async function handleApi(req, res, urlObj) {
     });
   }
 
+  if (method === 'POST' && pathname === '/api/custom-models/fetch') {
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    const endpoint = String(body.endpoint || body.apiEndpoint || '').trim();
+    const apiKey = String(body.apiKey || '').trim();
+    if (!endpoint) {
+      return badRequest(res, 'endpoint 不能为空');
+    }
+
+    const result = await fetchCustomApiModels({ endpoint, apiKey });
+    return json(res, 200, {
+      code: 0,
+      message: '模型列表拉取成功',
+      data: result
+    });
+  }
+
   if (method === 'GET' && pathname === '/api/oauth/meta') {
     const ctx = getRequestAuthContext();
     return json(res, 200, {
@@ -2488,6 +2518,15 @@ async function handleApi(req, res, urlObj) {
       return badRequest(res, `${worker.name} 不支持该劳务类型`);
     }
 
+    ensureTaskAbilityBindings(task);
+    const userAbilities = await getUserAbilities(session.user.userId);
+    let abilityAssigned = false;
+    if (!getTaskWorkerAbilityId(task, workerId) && userAbilities.length > 0) {
+      setTaskWorkerAbility(task, workerId, userAbilities[0].id);
+      abilityAssigned = true;
+      task.updatedAt = nowIso();
+    }
+
     if (!task.participants.includes(workerId)) {
       task.participants.push(workerId);
       task.status = 'IN_PROGRESS';
@@ -2495,11 +2534,94 @@ async function handleApi(req, res, urlObj) {
       const workerLookup = workersMap(await loadProfiles());
       await syncTaskJoined(task, worker, workerLookup);
       await saveTasks(tasks);
+      abilityAssigned = false;
+    } else if (abilityAssigned) {
+      await saveTasks(tasks);
     }
 
     return json(res, 200, {
       code: 0,
       message: 'AI 参与成功',
+      data: safeTaskSummary(task)
+    });
+  }
+
+  const takeMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/take$/);
+  if (method === 'POST' && takeMatch) {
+    const taskId = decodeURIComponent(takeMatch[1]);
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const requestedAbilityId = String(body.abilityId || '').trim();
+    const note = String(body.note || '').trim();
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    const worker = session.worker;
+    const workerId = String(worker?.id || '').trim();
+    if (!workerId || !worker) {
+      return badRequest(res, '当前会话缺少劳务体，请先完善资料');
+    }
+
+    const tasks = await loadTasks();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) {
+      return notFound(res);
+    }
+
+    if (task.laborType && !task.laborType.startsWith('custom:') && !worker.specialties.includes(task.laborType)) {
+      return badRequest(res, `${worker.name} 不支持该劳务类型`);
+    }
+
+    const userAbilities = await getUserAbilities(session.user.userId);
+    let selectedAbilityId = requestedAbilityId;
+    if (selectedAbilityId && !userAbilities.some((item) => item.id === selectedAbilityId)) {
+      return badRequest(res, '所选能力不存在或不属于当前账号');
+    }
+    if (!selectedAbilityId && userAbilities.length > 0) {
+      selectedAbilityId = userAbilities[0].id;
+    }
+
+    ensureTaskAbilityBindings(task);
+    if (selectedAbilityId) {
+      setTaskWorkerAbility(task, workerId, selectedAbilityId);
+    }
+
+    const workerLookup = workersMap(await loadProfiles());
+    let shouldSave = false;
+    if (!task.participants.includes(workerId)) {
+      task.participants.push(workerId);
+      task.status = 'IN_PROGRESS';
+      task.updatedAt = nowIso();
+      await syncTaskJoined(task, worker, workerLookup);
+      shouldSave = true;
+    }
+
+    if (note) {
+      task.updates.push({
+        id: uid('upd'),
+        workerId,
+        message: note,
+        at: nowIso()
+      });
+      task.updatedAt = nowIso();
+      await syncTaskUpdate(task, worker, note, workerLookup);
+      shouldSave = true;
+    }
+
+    if (shouldSave || selectedAbilityId) {
+      task.updatedAt = nowIso();
+      await saveTasks(tasks);
+    }
+
+    return json(res, 200, {
+      code: 0,
+      message: '接单成功',
       data: safeTaskSummary(task)
     });
   }
@@ -2589,8 +2711,17 @@ async function handleApi(req, res, urlObj) {
       return badRequest(res, '仅任务发布者或参与者可生成交付');
     }
 
+    ensureTaskAbilityBindings(task);
     const workerLookup = workersMap(await loadProfiles());
-    const delivery = await generateDelivery(task, brief, workerLookup);
+    const userAbilities = await getUserAbilities(session.user.userId);
+    const selectedAbilityId = getTaskWorkerAbilityId(task, workerId);
+    const selectedAbility =
+      userAbilities.find((item) => item.id === selectedAbilityId) ||
+      userAbilities[0] ||
+      null;
+    const delivery = await generateDelivery(task, brief, workerLookup, {
+      ability: selectedAbility
+    });
 
     task.delivery = {
       ...delivery,

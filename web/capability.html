@@ -2,374 +2,314 @@
 <html lang="zh-CN">
 
 <head>
-    <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>AI Capability Management - Cyber NiuMa</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&amp;display=swap"
-        rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap"
-        rel="stylesheet" />
-    <script>
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        primary: "#D97706", // Amber 600
-                        "background-light": "#FDFBF7",
-                        "background-dark": "#1F1F1F",
-                        "surface-light": "#FFFFFF",
-                        "surface-dark": "#2D2D2D",
-                        "border-light": "#E5E7EB",
-                        "border-dark": "#404040",
-                        "text-light": "#1F2937",
-                        "text-dark": "#F3F4F6",
-                        "subtext-light": "#6B7280",
-                        "subtext-dark": "#9CA3AF",
-                    },
-                    fontFamily: {
-                        display: ['"Noto Sans SC"', 'sans-serif'],
-                        sans: ['"Noto Sans SC"', 'sans-serif'],
-                    },
-                    borderRadius: {
-                        DEFAULT: "0.75rem",
-                    },
-                    backgroundImage: {
-                        'grid-pattern': "linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px)",
-                        'grid-pattern-dark': "linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)",
-                    }
-                },
-            },
-        };
-    </script>
-    <style>
-        .grid-bg {
-            background-size: 40px 40px;
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 能力管理 - Cyber NiuMa</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#D97706',
+            'background-light': '#FDFBF7',
+            'background-dark': '#1F1F1F',
+            'surface-light': '#FFFFFF',
+            'surface-dark': '#2D2D2D',
+            'border-light': '#E5E7EB',
+            'border-dark': '#404040',
+            'text-light': '#1F2937',
+            'text-dark': '#F3F4F6',
+            'subtext-light': '#6B7280',
+            'subtext-dark': '#9CA3AF'
+          },
+          fontFamily: {
+            sans: ['"Noto Sans SC"', 'ui-sans-serif', 'system-ui']
+          },
+          backgroundImage: {
+            'grid-pattern': "linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px)"
+          }
         }
+      }
+    };
+  </script>
+  <style>
+    .grid-bg {
+      background-size: 40px 40px;
+    }
 
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
 
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
 
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
+    .ability-card.is-active {
+      border-color: #D97706;
+      background: #FFF7ED;
+      box-shadow: 0 8px 18px rgba(217, 119, 6, 0.12);
+    }
 
-        .active-card {
-            border-color: #D97706 !important;
-            background-color: rgba(253, 251, 247, 1);
-        }
-    </style>
+    .switch {
+      appearance: none;
+      width: 2.8rem;
+      height: 1.55rem;
+      border-radius: 9999px;
+      background: #D1D5DB;
+      position: relative;
+      transition: all .2s ease;
+      cursor: pointer;
+    }
+
+    .switch::after {
+      content: '';
+      position: absolute;
+      width: 1.2rem;
+      height: 1.2rem;
+      border-radius: 9999px;
+      top: 0.175rem;
+      left: 0.175rem;
+      background: white;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      transition: transform .2s ease;
+    }
+
+    .switch:checked {
+      background: #16A34A;
+    }
+
+    .switch:checked::after {
+      transform: translateX(1.25rem);
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translate(-50%, 120%);
+      padding: 10px 20px;
+      border-radius: 10px;
+      background: #111827;
+      color: #fff;
+      font-size: 13px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+      opacity: 0;
+      transition: all .25s ease;
+      z-index: 999;
+    }
+
+    .toast.show {
+      transform: translate(-50%, 0);
+      opacity: 1;
+    }
+  </style>
 </head>
 
-<body
-    class="bg-background-light dark:bg-background-dark text-text-light dark:text-text-dark font-sans h-screen flex flex-col transition-colors duration-200 overflow-hidden">
-    <!-- 网格背景 -->
-    <div class="fixed inset-0 pointer-events-none z-0 bg-grid-pattern dark:bg-grid-pattern-dark grid-bg opacity-60">
-    </div>
+<body class="bg-background-light text-text-light font-sans h-screen overflow-hidden">
+  <div class="fixed inset-0 pointer-events-none z-0 bg-grid-pattern grid-bg opacity-60"></div>
 
-    <!-- 顶部导航 -->
-    <nav
-        class="relative z-30 w-full px-6 py-3 flex items-center justify-between border-b border-border-light/50 dark:border-border-dark/50 backdrop-blur-md bg-background-light/80 dark:bg-background-dark/80 shrink-0">
-        <div class="flex items-center gap-3">
-            <a href="/" class="flex items-center gap-3">
-                <div
-                    class="flex items-center justify-center w-8 h-8 bg-indigo-100 dark:bg-indigo-900 rounded-lg shadow-sm text-xl">
-                    👾</div>
-                <span class="text-lg font-black tracking-tight text-gray-900 dark:text-white">Cyber NiuMa</span>
-            </a>
+  <div class="relative z-10 h-screen flex flex-col">
+    <nav class="px-4 md:px-6 py-3 border-b border-border-light bg-background-light/90 backdrop-blur-md shrink-0">
+      <div class="max-w-[1600px] mx-auto flex items-center justify-between gap-3">
+        <a href="/" class="flex items-center gap-3 min-w-0">
+          <img src="/logo.png?v=1770455352" alt="logo" class="w-9 h-9 rounded-lg shadow-sm" />
+          <span class="text-xl font-black tracking-tight text-gray-900 truncate">Cyber NiuMa</span>
+        </a>
+
+        <div class="hidden md:flex items-center gap-6 text-sm">
+          <a class="font-bold text-primary border-b-2 border-primary pb-1" href="/capability.html">AI 能力管理</a>
+          <a class="font-medium text-subtext-light hover:text-primary transition-colors" href="/">任务广场</a>
         </div>
-        <div class="hidden md:flex items-center gap-6">
-            <a class="text-sm font-bold text-primary border-b-2 border-primary pb-1" href="#">AI 能力管理</a>
-            <a class="text-sm font-medium text-subtext-light hover:text-primary transition-colors" href="/">任务广场</a>
-            <a class="text-sm font-medium text-subtext-light hover:text-primary transition-colors" href="#">数据统计</a>
+
+        <div class="flex items-center gap-2">
+          <span id="user-chip" class="hidden text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 font-medium"></span>
+          <button id="login-btn"
+            class="px-4 py-2 text-xs md:text-sm font-bold bg-primary text-white rounded-lg hover:bg-amber-700 transition-colors">
+            登录 SecondMe
+          </button>
+          <button id="logout-btn"
+            class="hidden px-3 py-2 text-xs md:text-sm font-bold bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            退出
+          </button>
         </div>
-        <div class="flex items-center gap-4">
-            <button
-                class="px-3 py-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 hover:text-primary transition-colors flex items-center gap-1">
-                <span class="material-symbols-outlined text-lg">logout</span> 退出
-            </button>
-        </div>
+      </div>
     </nav>
 
-    <!-- 主内容区域 -->
-    <main class="relative z-10 flex-grow flex overflow-hidden">
-        <!-- 左侧边栏 - AI 能力列表 -->
-        <aside
-            class="w-[380px] border-r border-border-light/50 dark:border-border-dark/50 flex flex-col bg-white/40 dark:bg-black/10 backdrop-blur-sm">
-            <div class="p-4 border-b border-border-light/50 dark:border-border-dark/50 space-y-4">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-sm font-black text-gray-800 dark:text-white uppercase tracking-wider">我的 AI 能力
-                    </h2>
-                    <span
-                        class="bg-gray-100 dark:bg-gray-800 text-subtext-light px-2 py-0.5 rounded text-[10px] font-bold">3/10</span>
-                </div>
-                <button
-                    class="w-full bg-black dark:bg-white dark:text-black text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform shadow-md">
-                    <span class="material-symbols-outlined text-lg">add_circle</span>
-                    添加新能力 (Add New)
-                </button>
-                <div class="relative">
-                    <span
-                        class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
-                    <input
-                        class="w-full bg-gray-50 dark:bg-gray-800 border-none rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary/50"
-                        placeholder="搜索能力..." type="text" />
-                </div>
+    <main class="flex-1 overflow-hidden">
+      <div class="max-w-[1600px] mx-auto h-full p-3 md:p-5">
+        <div class="h-full grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-4">
+          <aside class="bg-white/70 backdrop-blur-sm border border-gray-100 rounded-3xl flex flex-col min-h-0">
+            <div class="p-4 border-b border-border-light space-y-3">
+              <div class="flex items-center justify-between">
+                <h2 class="text-sm font-black tracking-wide uppercase">我的 AI 能力</h2>
+                <span id="ability-count" class="text-[11px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600">0</span>
+              </div>
+              <button id="add-ability-btn"
+                class="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-black text-white text-sm font-bold hover:opacity-90 transition-opacity">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                  <path fill-rule="evenodd"
+                    d="M12 2.25a.75.75 0 0 1 .75.75v8.25H21a.75.75 0 0 1 0 1.5h-8.25V21a.75.75 0 0 1-1.5 0v-8.25H3a.75.75 0 0 1 0-1.5h8.25V3a.75.75 0 0 1 .75-.75Z"
+                    clip-rule="evenodd" />
+                </svg>
+                添加能力
+              </button>
+              <div class="relative">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+                  class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <path fill-rule="evenodd"
+                    d="M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.245 4.245a.75.75 0 1 1-1.06 1.06l-4.245-4.245A7.5 7.5 0 1 1 10.5 3Zm-6 7.5a6 6 0 1 0 12 0 6 6 0 0 0-12 0Z"
+                    clip-rule="evenodd" />
+                </svg>
+                <input id="search-input" type="text" placeholder="搜索能力..."
+                  class="w-full rounded-xl border border-gray-200 bg-gray-50 text-sm py-2.5 pl-9 pr-3 focus:border-primary focus:ring-primary" />
+              </div>
             </div>
 
-            <!-- 能力列表 -->
-            <div class="flex-grow overflow-y-auto no-scrollbar p-4 space-y-3">
-                <!-- 能力卡片 1 - 选中状态 -->
-                <div
-                    class="p-4 bg-white dark:bg-surface-dark rounded-2xl border-2 border-primary shadow-sm cursor-pointer hover:shadow-md transition-all">
-                    <div class="flex items-start gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600">
-                            <span class="material-symbols-outlined">brush</span>
-                        </div>
-                        <div class="flex-grow">
-                            <div class="flex items-center justify-between">
-                                <h3 class="font-bold text-sm">视觉美化大师</h3>
-                                <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                            </div>
-                            <p class="text-xs text-subtext-light mt-0.5 line-clamp-1">专业处理人像光影，保留质感的韩系精修</p>
-                            <div class="flex gap-1.5 mt-2">
-                                <span
-                                    class="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-subtext-light">UI设计</span>
-                                <span
-                                    class="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-subtext-light">影楼P图</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div id="ability-list" class="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3 space-y-2"></div>
+          </aside>
 
-                <!-- 能力卡片 2 -->
-                <div
-                    class="p-4 bg-white/60 dark:bg-surface-dark/60 rounded-2xl border border-border-light dark:border-border-dark cursor-pointer hover:bg-white transition-all">
-                    <div class="flex items-start gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
-                            <span class="material-symbols-outlined">edit_note</span>
-                        </div>
-                        <div class="flex-grow">
-                            <div class="flex items-center justify-between">
-                                <h3 class="font-bold text-sm">创意文案助手</h3>
-                                <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                            </div>
-                            <p class="text-xs text-subtext-light mt-0.5 line-clamp-1">擅长小红书风格、公众号推文编写</p>
-                            <div class="flex gap-1.5 mt-2">
-                                <span
-                                    class="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-subtext-light">文案策划</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 能力卡片 3 -->
-                <div
-                    class="p-4 bg-white/60 dark:bg-surface-dark/60 rounded-2xl border border-border-light dark:border-border-dark cursor-pointer hover:bg-white transition-all">
-                    <div class="flex items-start gap-3">
-                        <div
-                            class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600">
-                            <span class="material-symbols-outlined">code</span>
-                        </div>
-                        <div class="flex-grow">
-                            <div class="flex items-center justify-between">
-                                <h3 class="font-bold text-sm">极速代码专家</h3>
-                                <div class="w-2 h-2 rounded-full bg-gray-300"></div>
-                            </div>
-                            <p class="text-xs text-subtext-light mt-0.5 line-clamp-1">解决复杂的前端交互逻辑与API对接</p>
-                            <div class="flex gap-1.5 mt-2">
-                                <span
-                                    class="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-subtext-light">Web开发</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+          <section class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col min-h-0">
+            <div id="auth-banner" class="hidden mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              当前未登录，能力配置无法保存。请先登录 SecondMe。
             </div>
-        </aside>
 
-        <!-- 右侧主区域 - 能力详情 -->
-        <section class="flex-grow flex flex-col overflow-y-auto no-scrollbar relative">
-            <div class="p-8 max-w-4xl mx-auto w-full">
-                <!-- 能力配置卡片 -->
-                <div
-                    class="bg-white dark:bg-surface-dark rounded-[2rem] shadow-xl border border-gray-100 dark:border-border-dark overflow-hidden relative mb-8">
-                    <!-- 渐变头部 -->
-                    <div
-                        class="h-32 bg-gradient-to-r from-orange-400 to-pink-500 opacity-90 relative overflow-hidden flex items-end justify-between px-8 pb-4">
-                        <div class="absolute inset-0 bg-grid-pattern opacity-20"></div>
-                        <div class="z-10 flex items-center gap-4">
-                            <h2 class="text-white font-black text-xl tracking-tight">配置能力详情</h2>
-                        </div>
-                        <div
-                            class="z-10 flex items-center gap-3 bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/30">
-                            <span class="text-[10px] font-bold text-white uppercase">状态 (Status)</span>
-                            <button class="w-10 h-5 bg-white rounded-full relative transition-colors">
-                                <div class="absolute right-0.5 top-0.5 w-4 h-4 bg-primary rounded-full shadow-sm">
-                                </div>
-                            </button>
-                        </div>
+            <form id="ability-form" class="flex-1 min-h-0 overflow-y-auto no-scrollbar" autocomplete="off">
+              <div class="h-28 md:h-32 bg-gradient-to-r from-orange-400 via-orange-400 to-pink-500 px-6 md:px-8 pt-5 flex items-start justify-between">
+                <div>
+                  <p class="text-white/90 text-xs font-bold uppercase tracking-wider">能力详情配置</p>
+                  <h1 id="form-title" class="text-white text-lg md:text-2xl font-black mt-1">新建能力</h1>
+                </div>
+                <label class="inline-flex items-center gap-2 rounded-full bg-white/20 border border-white/30 px-3 py-1.5">
+                  <span class="text-white text-[11px] font-bold">启用状态</span>
+                  <input id="field-enabled" type="checkbox" class="switch" checked />
+                </label>
+              </div>
+
+              <div class="px-5 md:px-8 pb-8 -mt-6 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-[92px_minmax(0,1fr)] gap-4 items-center bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+                  <div class="w-[92px] h-[92px] rounded-2xl bg-gradient-to-br from-orange-100 to-pink-100 flex items-center justify-center text-4xl"
+                    id="avatar-emoji">🤖</div>
+                  <div class="space-y-2 min-w-0">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">AI 名称</label>
+                        <input id="field-name" type="text"
+                          class="w-full rounded-xl border-gray-200 bg-gray-50 py-2.5 px-3 text-sm font-bold focus:ring-primary focus:border-primary"
+                          placeholder="例如：视觉美化大师" required />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">图标 Emoji</label>
+                        <input id="field-icon" type="text"
+                          class="w-full rounded-xl border-gray-200 bg-gray-50 py-2.5 px-3 text-sm focus:ring-primary focus:border-primary"
+                          placeholder="🎨" maxlength="2" />
+                      </div>
                     </div>
-
-                    <!-- 表单内容 -->
-                    <div class="px-8 pb-8 -mt-10 relative">
-                        <form class="space-y-8" onsubmit="event.preventDefault();">
-                            <!-- 头像和基本信息 -->
-                            <div class="flex items-center gap-6 mb-10">
-                                <div class="relative group cursor-pointer shrink-0">
-                                    <div
-                                        class="w-24 h-24 rounded-2xl bg-white dark:bg-surface-dark p-1 shadow-lg ring-4 ring-white dark:ring-surface-dark overflow-hidden relative border border-gray-100">
-                                        <img alt="AI Icon"
-                                            class="w-full h-full object-cover rounded-xl group-hover:opacity-75 transition-opacity"
-                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0P0SSvUZo6srifGj-ww_RRElGYWAXJ4FcFZSm5rHCkYcbHOFjc6QNSnijKKnucytou0qIFY3D0nPf2dW-WMcudn6BVQzyGPU4M_sZixbEwQJpmLYjrlmVOTl0QYbittZmVV0OR0UAJ3BLngKHt7cUu0XUNQ-9N9WqoweRVBhJ_OFFlcm42V_AJHlZ_MFFfLmhPOl87dGa--mRbI1AIPSU-kwigylSHeCaD6DM0WFi02T8bKgbcGgFtgi1eghhfyXvyS8Oib1Y7pbU" />
-                                        <div
-                                            class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 rounded-xl">
-                                            <span
-                                                class="material-symbols-outlined text-white text-2xl">photo_camera</span>
-                                        </div>
-                                    </div>
-                                    <div
-                                        class="absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 bg-primary text-white p-1.5 rounded-full shadow-md border-2 border-white dark:border-surface-dark flex items-center justify-center hover:bg-amber-700 transition-colors">
-                                        <span class="material-symbols-outlined text-xs font-bold">edit</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <h3 class="font-bold text-lg">视觉美化大师</h3>
-                                    <p class="text-sm text-subtext-light">最后更新于: 2024-05-20</p>
-                                </div>
-                            </div>
-
-                            <!-- 名称和简介 -->
-                            <div class="grid grid-cols-2 gap-6">
-                                <div class="space-y-2">
-                                    <label
-                                        class="block text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">AI
-                                        名称 (Name)</label>
-                                    <input
-                                        class="block w-full rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white py-2.5 px-4 font-bold focus:ring-primary focus:border-primary"
-                                        type="text" value="视觉美化大师" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label
-                                        class="block text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">短介绍
-                                        (Short Intro)</label>
-                                    <input
-                                        class="block w-full rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white py-2.5 px-4 focus:ring-primary focus:border-primary"
-                                        type="text" value="专业处理人像光影，保留质感的韩系精修" />
-                                </div>
-                            </div>
-
-                            <!-- 系统提示词 -->
-                            <div class="space-y-3">
-                                <div class="flex items-center justify-between">
-                                    <label
-                                        class="block text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                                        <span class="material-symbols-outlined text-primary text-sm">terminal</span>
-                                        系统提示词 (System Prompt)
-                                    </label>
-                                    <span
-                                        class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-100">
-                                        <span class="material-symbols-outlined text-[12px]">lock</span> PRIVATE
-                                    </span>
-                                </div>
-                                <textarea
-                                    class="block w-full rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 font-mono text-sm p-4 resize-none focus:ring-primary focus:border-primary"
-                                    rows="4">Role: Professional Retoucher
-Style: Korean Wedding Photography (Clean, Bright, Soft contrast)
-Tasks: 1. Skin smoothing while retaining texture. 2. Adjust lighting...</textarea>
-                            </div>
-
-                            <!-- API 配置 -->
-                            <div
-                                class="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 space-y-4">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <span class="material-symbols-outlined text-primary">api</span>
-                                    <h3
-                                        class="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                                        自定义 API 配置 (Custom API)</h3>
-                                </div>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div class="space-y-1">
-                                        <label class="text-[10px] font-bold text-subtext-light uppercase">API
-                                            Endpoint</label>
-                                        <input
-                                            class="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs py-2 px-3"
-                                            placeholder="https://..." value="https://api.cyber-model.com/v1" />
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="text-[10px] font-bold text-subtext-light uppercase">API
-                                            Key</label>
-                                        <input
-                                            class="w-full rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs py-2 px-3"
-                                            type="password" value="••••••••••••••••" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 操作按钮 -->
-                            <div class="flex items-center justify-end gap-3 pt-4">
-                                <button
-                                    class="px-5 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-colors">重置</button>
-                                <button
-                                    class="px-8 py-2 rounded-xl text-sm font-bold text-white bg-black hover:bg-gray-800 shadow-lg flex items-center gap-2">
-                                    <span class="material-symbols-outlined text-lg">save</span> 保存更改
-                                </button>
-                            </div>
-                        </form>
+                    <div>
+                      <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">短介绍</label>
+                      <input id="field-description" type="text"
+                        class="w-full rounded-xl border-gray-200 bg-gray-50 py-2.5 px-3 text-sm focus:ring-primary focus:border-primary"
+                        placeholder="一句话说明这个能力擅长做什么" />
                     </div>
+                  </div>
                 </div>
 
-                <!-- 测试控制台 -->
-                <div class="bg-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-gray-800">
-                    <div class="px-5 py-3 border-b border-gray-800 flex items-center justify-between bg-black/40">
-                        <div class="flex items-center gap-2">
-                            <div class="flex gap-1.5">
-                                <div class="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
-                                <div class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></div>
-                                <div class="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
-                            </div>
-                            <span class="ml-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Test Run
-                                Console</span>
-                        </div>
-                        <button
-                            class="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-[10px] font-bold rounded-full hover:bg-amber-700 transition-colors">
-                            <span class="material-symbols-outlined text-[14px]">play_arrow</span> RUN TEST
-                        </button>
-                    </div>
-                    <div class="p-6 font-mono text-xs flex flex-col gap-4">
-                        <div class="flex gap-3">
-                            <span class="text-green-500 font-bold">USER:</span>
-                            <span class="text-gray-300">请帮我处理这张照片，主要想要更通透的肤色。</span>
-                        </div>
-                        <div class="flex gap-3">
-                            <span class="text-amber-500 font-bold">SYSTEM:</span>
-                            <span class="text-gray-400 animate-pulse">Processing using 'Korean Wedding Style'
-                                instructions...</span>
-                        </div>
-                        <div
-                            class="pt-2 border-t border-gray-800 flex items-center justify-between text-[10px] text-gray-500">
-                            <span>Status: Idle</span>
-                            <span>Latency: -- ms</span>
-                        </div>
-                    </div>
+                <div>
+                  <label class="flex items-center gap-2 text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                      class="w-4 h-4 text-primary">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M6.75 7.5h10.5m-10.5 4.5h10.5m-10.5 4.5h10.5M3 4.5h18v15H3v-15Z" />
+                    </svg>
+                    系统提示词 (System Prompt)
+                  </label>
+                  <textarea id="field-prompt" rows="6"
+                    class="w-full rounded-2xl border border-gray-200 bg-gray-50 font-mono text-sm p-4 focus:ring-primary focus:border-primary"
+                    placeholder="例如：你是一位专业修图师...\n输出包含：任务解读、最终提示词、参数建议、验收标准"></textarea>
                 </div>
 
-                <!-- 页脚 -->
-                <footer class="mt-12 text-center pb-8">
-                    <p
-                        class="text-[10px] text-subtext-light dark:text-subtext-dark opacity-60 uppercase tracking-widest">
-                        Cyber NiuMa Platform © 2024. All AI rights reserved.
-                    </p>
-                </footer>
-            </div>
-        </section>
+                <div class="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 md:p-5 space-y-4">
+                  <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-primary">
+                      <path fill-rule="evenodd"
+                        d="M2.25 6A3.75 3.75 0 0 1 6 2.25h12A3.75 3.75 0 0 1 21.75 6v12A3.75 3.75 0 0 1 18 21.75H6A3.75 3.75 0 0 1 2.25 18V6Zm4.5.75a.75.75 0 0 0 0 1.5h5.25a.75.75 0 0 0 0-1.5H6.75Zm0 4.5a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5H6.75Zm0 4.5a.75.75 0 0 0 0 1.5h7.5a.75.75 0 0 0 0-1.5h-7.5Z"
+                        clip-rule="evenodd" />
+                    </svg>
+                    <h3 class="text-xs font-black tracking-wider uppercase">自定义 API 配置</h3>
+                  </div>
+
+                  <div class="rounded-xl border border-gray-200 bg-white p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <p class="text-sm font-bold text-gray-900">使用自定义 API</p>
+                      <p id="api-mode-hint" class="text-xs text-gray-600 mt-0.5">
+                        关闭时使用 SecondMe AI 接口；开启后将使用下方自定义 API 与模型。
+                      </p>
+                    </div>
+                    <input id="field-use-custom-api" type="checkbox" class="switch" />
+                  </div>
+
+                  <div id="custom-api-panel" class="space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">API Endpoint</label>
+                        <input id="field-api-endpoint" type="url" placeholder="https://api.example.com/v1"
+                          class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
+                      </div>
+                      <div>
+                        <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">API Key</label>
+                        <input id="field-api-key" type="password" placeholder="sk-..."
+                          class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+                      <div>
+                        <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">模型</label>
+                        <select id="field-api-model"
+                          class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary"></select>
+                      </div>
+                      <button id="fetch-models-btn" type="button"
+                        class="h-10 px-4 rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:border-primary hover:text-primary transition-colors">
+                        Fetch 模型
+                      </button>
+                    </div>
+
+                    <p id="fetch-status" class="text-xs text-gray-500">点击 “Fetch 模型” 获取当前 API 可用模型。</p>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                  <button id="delete-btn" type="button"
+                    class="px-4 py-2 rounded-xl text-sm font-bold text-red-600 hover:bg-red-50 transition-colors hidden">
+                    删除能力
+                  </button>
+                  <div class="ml-auto flex items-center gap-2">
+                    <button id="reset-btn" type="button"
+                      class="px-5 py-2 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors">
+                      重置
+                    </button>
+                    <button id="save-btn" type="submit"
+                      class="px-7 py-2 rounded-xl text-sm font-bold text-white bg-black hover:bg-gray-800 transition-colors">
+                      保存更改
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>
+      </div>
     </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="/capability.js"></script>
 </body>
 
 </html>
