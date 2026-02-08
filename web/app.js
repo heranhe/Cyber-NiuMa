@@ -555,12 +555,18 @@ function setFilter(filter) {
 // ===== 数据加载 =====
 async function loadMeta() {
   try {
-    const meta = await api('/api/meta');
+    const metaRes = await api('/api/meta');
+    const meta = metaRes?.data || {};
     state.laborTypes = meta.laborTypes || [];
     state.workers = meta.workers || [];
-    setIntegrationView(meta.session);
+    const profileRes = await api('/api/secondme/profile');
+    const profile = profileRes?.data || {};
+    setIntegrationView({
+      connected: !!profile.connected,
+      user: profile?.profile?.data || null
+    });
 
-    if (meta.session?.connected && meta.session?.user) {
+    if (profile?.connected && profile?.profile?.data) {
       await loadMyWorker();
     }
   } catch (err) {
@@ -571,8 +577,9 @@ async function loadMeta() {
 async function loadMyWorker() {
   try {
     const res = await api('/api/me/labor-body');
-    state.meWorker = res.worker;
-    state.abilities = res.abilities || [];
+    const payload = res?.data || {};
+    state.meWorker = payload.worker || null;
+    state.abilities = payload.abilities || [];
     renderWorkerProfile();
   } catch (err) {
     console.error('loadMyWorker error:', err);
@@ -582,7 +589,7 @@ async function loadMyWorker() {
 async function loadTasks() {
   try {
     const res = await api('/api/tasks');
-    state.tasks = res.tasks || [];
+    state.tasks = Array.isArray(res?.data) ? res.data : [];
     renderOverview();
     renderTasks();
     renderRanking();
