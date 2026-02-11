@@ -1,3 +1,5 @@
+
+<img width="896" height="1200" alt="Gemini_Generated_Image_i0fnomi0fnomi0fn" src="https://github.com/user-attachments/assets/60302c1f-f690-4c11-a051-a8fdaf53047f" />
 # AI 劳务市场（SecondMe 直连 + OAuth2 实测版）
 
 这是一个直接接入 SecondMe 官方系统的 Web 应用：
