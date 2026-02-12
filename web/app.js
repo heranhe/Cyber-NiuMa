@@ -3,6 +3,7 @@ const state = {
   laborTypes: [],
   workers: [],
   tasks: [],
+  totalUsers: 0, // 至少登录过一次的用户数
   filter: 'ALL',  // 'ALL' | 'OPEN' | 'IN_PROGRESS' | 'DELIVERED' | 'MY_PUBLISHED'
   mainTab: 'task-hall',  // 'task-hall' | 'skill-hall'
   skillCategoryFilter: 'all',  // 'all' | 'visual' | 'writing' | 'image' | 'design' | 'other'
@@ -163,11 +164,11 @@ function statusClass(status) {
 
 // ===== 渲染函数 =====
 function renderOverview() {
-  const workers = state.workers.length;
+  const users = state.totalUsers || state.workers.length;
   const orders = state.tasks.reduce((sum, t) => sum + (t.assigneeId ? 1 : 0), 0);
   const delivered = state.tasks.filter((t) => t.status === 'DELIVERED').length;
 
-  if (metricWorkers) metricWorkers.textContent = workers;
+  if (metricWorkers) metricWorkers.textContent = users;
   if (metricOrders) metricOrders.textContent = orders;
   if (metricDelivered) metricDelivered.textContent = delivered;
 }
@@ -218,7 +219,7 @@ function renderTaskCard(task) {
   const commentCount = task.comments?.length || 0;
 
   return `
-    <article class="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-orange-100 dark:border-orange-900/30 hover:border-orange-400 dark:hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/10 transition-all cursor-pointer group overflow-hidden" data-task-id="${task.id}">
+    <article class="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-gray-100 dark:border-border-dark hover:border-primary/30 hover:shadow-md transition-all cursor-pointer group overflow-hidden" data-task-id="${task.id}">
       <div class="grid grid-cols-12 min-h-[16rem]">
         <!-- 左侧：任务信息 -->
         <div class="col-span-7 p-6 flex flex-col">
@@ -959,6 +960,7 @@ async function loadMeta() {
     const meta = metaRes?.data || {};
     state.laborTypes = meta.laborTypes || [];
     state.workers = meta.workers || [];
+    state.totalUsers = meta.totalUsers || 0;
     const profileRes = await api('/api/secondme/profile');
     const profile = profileRes?.data || {};
     setIntegrationView({
@@ -1211,21 +1213,21 @@ function renderSkillCategories(skills) {
 // 渲染单个技能卡片
 function renderSkillCard(skill) {
   return `
-    <div class="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-blue-100 dark:border-indigo-900/30 hover:border-blue-400 dark:hover:border-indigo-500 hover:shadow-lg hover:shadow-blue-500/10 transition-all cursor-pointer group flex flex-col gap-3 p-4" data-skill-id="${skill.id}">
-      <div class="flex items-start gap-3">
-        <div class="text-3xl flex-shrink-0 bg-blue-50 dark:bg-indigo-900/20 p-2 rounded-xl border border-blue-50 dark:border-indigo-800/50">${skill.icon || '🔧'}</div>
-        <div class="flex-1 min-w-0">
-          <div class="font-bold text-gray-900 dark:text-white text-base mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">${escapeHtml(skill.name)}</div>
-          <div class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 min-h-[2.5em]">${escapeHtml(skill.description || '暂无描述')}</div>
+    <div class="skill-card" data-skill-id="${skill.id}">
+      <div class="skill-card-header">
+        <div class="skill-card-icon">${skill.icon || '🔧'}</div>
+        <div class="skill-card-info">
+          <div class="skill-card-name">${escapeHtml(skill.name)}</div>
+          <div class="skill-card-description">${escapeHtml(skill.description || '暂无描述')}</div>
         </div>
       </div>
-      <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 mt-auto pt-3 border-t border-gray-50 dark:border-gray-800">
-        <div class="flex items-center gap-1">
-          <span class="material-icons-round text-yellow-400 text-sm">star</span>
+      <div class="skill-card-footer">
+        <div class="skill-card-stat">
+          <span class="material-icons-round" style="font-size: 14px;">star</span>
           <span>${skill.rating || '新技能'}</span>
         </div>
-        <div class="flex items-center gap-1">
-          <span class="material-icons-round text-blue-400 text-sm">check_circle</span>
+        <div class="skill-card-stat">
+          <span class="material-icons-round" style="font-size: 14px;">check_circle</span>
           <span>${skill.completedOrders || 0} 单完成</span>
         </div>
       </div>

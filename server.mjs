@@ -1953,12 +1953,21 @@ async function handleApi(req, res, urlObj) {
 
   if (method === 'GET' && pathname === '/api/meta') {
     const workers = await loadProfiles();
+    // 统计至少登录过一次的不同用户数
+    const uniqueUserIds = new Set();
+    workers.forEach(w => {
+      if (w.secondUserId) uniqueUserIds.add(w.secondUserId);
+      else if (w.id) uniqueUserIds.add(w.id);
+    });
+    const totalUsers = uniqueUserIds.size;
+
     return json(res, 200, {
       code: 0,
       message: 'success',
       data: {
         laborTypes: LABOR_TYPES,
         workers,
+        totalUsers,
         integration: {
           mode: 'direct-secondme',
           secondMeConfigured: Boolean(resolveSecondMeToken()),
@@ -2626,6 +2635,7 @@ async function handleApi(req, res, urlObj) {
 
   if (method === 'GET' && pathname === '/api/tasks') {
     const tasks = await loadTasks();
+    const workers = await loadProfiles();
     const statusFilter = searchParams.get('status');
 
     let list = tasks;
@@ -2636,7 +2646,22 @@ async function handleApi(req, res, urlObj) {
     list = list
       .slice()
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .map(safeTaskSummary);
+      .map((task) => {
+        const summary = safeTaskSummary(task);
+        // 从 profiles 中查找发布者信息，展示真实头像和名称
+        if (task.publisherId) {
+          const publisher = workers.find(w => w.id === task.publisherId || w.secondUserId === task.publisherId);
+          if (publisher) {
+            summary.publisherName = publisher.name;
+            summary.publisherAvatar = publisher.avatar;
+          }
+        }
+        // 如果 publisherName 仍然为空，使用任务中保存的 requesterAi
+        if (!summary.publisherName) {
+          summary.publisherName = task.publisherName || task.requesterAi || '';
+        }
+        return summary;
+      });
 
     return json(res, 200, {
       code: 0,
