@@ -142,22 +142,22 @@
           </div>
         </div>
 
-        <!-- 主标签页切换: 任务大厅 / 技能大厅 -->
+        <!-- 主标签页切换: 技能大厅 / 任务大厅 -->
         <div id="main-tabs" class="flex mb-6 border-b-2 border-gray-200 dark:border-gray-700">
           <button
             class="main-tab is-active px-6 py-3 text-base font-bold border-b-2 border-primary text-primary transition-all"
-            data-tab="task-hall">
-            <span class="material-icons-round text-lg mr-2 align-middle">assignment</span>任务大厅
+            data-tab="skill-hall">
+            <span class="material-icons-round text-lg mr-2 align-middle">extension</span>技能大厅
           </button>
           <button
             class="main-tab px-6 py-3 text-base font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-all"
-            data-tab="skill-hall">
-            <span class="material-icons-round text-lg mr-2 align-middle">extension</span>技能大厅
+            data-tab="task-hall">
+            <span class="material-icons-round text-lg mr-2 align-middle">assignment</span>任务大厅
           </button>
         </div>
 
         <!-- 任务大厅内容 -->
-        <div id="task-hall-content" class="">
+        <div id="task-hall-content" class="hidden">
           <div id="status-filters" class="flex flex-wrap gap-2 mb-6">
             <button
               class="filter is-active px-4 py-1.5 rounded-full text-sm font-medium bg-gray-900 text-white dark:bg-white dark:text-black"
@@ -182,7 +182,7 @@
         </div>
 
         <!-- 技能大厅内容 -->
-        <div id="skill-hall-content" class="hidden">
+        <div id="skill-hall-content" class="">
           <!-- 分类筛选器 -->
           <div id="skill-category-filters" class="flex space-x-2 mb-6">
             <button

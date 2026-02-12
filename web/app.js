@@ -5,7 +5,7 @@ const state = {
   tasks: [],
   totalUsers: 0, // 至少登录过一次的用户数
   filter: 'ALL',  // 'ALL' | 'OPEN' | 'IN_PROGRESS' | 'DELIVERED' | 'MY_PUBLISHED'
-  mainTab: 'task-hall',  // 'task-hall' | 'skill-hall'
+  mainTab: 'skill-hall',  // 'task-hall' | 'skill-hall'，默认显示技能大厅
   skillCategoryFilter: 'all',  // 'all' | 'visual' | 'writing' | 'image' | 'design' | 'other'
   integration: null,
   secondMeConnected: false,
@@ -1019,6 +1019,8 @@ async function refreshEverything() {
 // ===== 初始化 =====
 function bootstrap() {
   refreshEverything();
+  // 默认加载技能大厅数据
+  loadSkillHall();
 }
 
 // 事件绑定
@@ -1178,69 +1180,103 @@ function categorizeSkill(skill) {
   return 'other';
 }
 
-// 渲染技能分类列表
+// 渲染技能列表（扁平网格，不分类）
 function renderSkillCategories(skills) {
   const container = document.querySelector('#skill-categories');
   if (!container) return;
 
-  // 按分类组织技能
-  const categorized = {};
-  skills.forEach(skill => {
-    const category = categorizeSkill(skill);
-    if (!categorized[category]) {
-      categorized[category] = [];
-    }
-    categorized[category].push(skill);
-  });
+  // 根据当前筛选器过滤技能
+  let filteredSkills = skills;
+  if (state.skillCategoryFilter !== 'all') {
+    filteredSkills = skills.filter(skill => categorizeSkill(skill) === state.skillCategoryFilter);
+  }
 
-  // 根据当前筛选器决定显示哪些分类
-  const categoriesToShow = state.skillCategoryFilter === 'all'
-    ? SKILL_CATEGORIES
-    : SKILL_CATEGORIES.filter(cat => cat.id === state.skillCategoryFilter);
+  if (filteredSkills.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-12">
+        <span class="material-icons-round text-4xl text-gray-300 dark:text-gray-600 mb-3 block">extension_off</span>
+        <p class="text-gray-400 dark:text-gray-500">当前分类暂无技能</p>
+      </div>
+    `;
+    return;
+  }
 
-  // 渲染每个分类
-  container.innerHTML = categoriesToShow
-    .filter(cat => categorized[cat.id] && categorized[cat.id].length > 0)
-    .map(category => {
-      const categorySkills = categorized[category.id];
-      return `
-        <div class="skill-category-section">
-          <div class="skill-category-header">
-            <h3 class="skill-category-title">
-              <span>${category.icon}</span>
-              <span>${category.name.replace(category.icon, '').trim()}</span>
-            </h3>
-            <span class="skill-category-count">${categorySkills.length} 个技能</span>
-          </div>
-          <div class="skill-category-grid">
-            ${categorySkills.map(renderSkillCard).join('')}
-          </div>
-        </div>
-      `;
-    })
-    .join('');
+  // 直接渲染为网格卡片
+  container.innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      ${filteredSkills.map(renderSkillCard).join('')}
+    </div>
+  `;
 }
 
-// 渲染单个技能卡片
+// 渲染单个技能卡片（新版卡片样式）
 function renderSkillCard(skill) {
+  // 确定技能类别标签
+  const category = categorizeSkill(skill);
+  const categoryInfo = SKILL_CATEGORIES.find(c => c.id === category) || SKILL_CATEGORIES[4];
+  const categoryName = categoryInfo.name.replace(categoryInfo.icon, '').trim();
+
+  // 操作按钮样式
+  const actionBtnText = skill.completedOrders > 0 ? '查看案例' : '立即雇佣';
+  const actionBtnIcon = skill.completedOrders > 0 ? 'visibility' : 'phone_in_talk';
+
+  // 技能标签
+  const tags = [];
+  if (skill.name) tags.push(skill.name);
+  if (skill.description) {
+    // 从描述中提取关键词作为标签
+    const keywords = skill.description.split(/[,，、\s]+/).filter(k => k.length <= 8 && k.length > 0).slice(0, 3);
+    tags.push(...keywords);
+  }
+  // 去重并限制数量
+  const uniqueTags = [...new Set(tags)].slice(0, 3);
+
   return `
-    <div class="skill-card" data-skill-id="${skill.id}">
-      <div class="skill-card-header">
-        <div class="skill-card-icon">${skill.icon || '🔧'}</div>
-        <div class="skill-card-info">
-          <div class="skill-card-name">${escapeHtml(skill.name)}</div>
-          <div class="skill-card-description">${escapeHtml(skill.description || '暂无描述')}</div>
-        </div>
+    <div class="skill-card-new bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark p-5 flex flex-col hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer" data-skill-id="${skill.id}">
+      <!-- 标题 + 等级标签 -->
+      <div class="flex items-start justify-between mb-3">
+        <h3 class="text-base font-bold text-gray-900 dark:text-white leading-snug flex-1 mr-2 line-clamp-1">
+          ${skill.icon || '🔧'} ${escapeHtml(skill.name)}
+        </h3>
+        <span class="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap
+          ${category === 'visual' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
+      category === 'writing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+        category === 'image' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+          category === 'design' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' :
+            'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}">
+          ${categoryName}
+        </span>
       </div>
-      <div class="skill-card-footer">
-        <div class="skill-card-stat">
-          <span class="material-icons-round" style="font-size: 14px;">star</span>
-          <span>${skill.rating || '新技能'}</span>
-        </div>
-        <div class="skill-card-stat">
-          <span class="material-icons-round" style="font-size: 14px;">check_circle</span>
-          <span>${skill.completedOrders || 0} 单完成</span>
-        </div>
+
+      <!-- 技能描述 -->
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-3 leading-relaxed flex-grow min-h-[3.5rem]">
+        ${escapeHtml(skill.description || '这个 AI 分身很懒，还没写简介…')}
+      </p>
+
+      <!-- 技能标签 -->
+      <div class="flex flex-wrap gap-1.5 mb-4">
+        ${uniqueTags.map(tag => `
+          <span class="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-medium rounded-md">
+            ${escapeHtml(tag)}
+          </span>
+        `).join('')}
+      </div>
+
+      <!-- 底部操作 -->
+      <div class="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+        <button class="flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-primary transition-colors px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+          <span class="material-icons-round text-[14px]">chat_bubble_outline</span>
+          咨询
+        </button>
+        <button class="flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-primary transition-colors px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+          <span class="material-icons-round text-[14px]">info_outline</span>
+          详情
+        </button>
+        <div class="flex-1"></div>
+        <button class="flex items-center gap-1 px-4 py-2 bg-[#E89343] hover:bg-[#D97706] text-white text-xs font-bold rounded-xl shadow-sm transition-colors">
+          <span class="material-icons-round text-[14px]">${actionBtnIcon}</span>
+          ${actionBtnText}
+        </button>
       </div>
     </div>
   `;
