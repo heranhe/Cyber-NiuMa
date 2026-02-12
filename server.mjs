@@ -816,7 +816,30 @@ async function saveTasks(tasks) {
   await fs.writeFile(DATA_FILE, JSON.stringify(tasks, null, 2), 'utf8');
 }
 
+const PROFILES_KEY = 'profiles';
+
 async function loadProfiles() {
+  // Vercel 环境使用 Supabase 存储
+  if (IS_VERCEL && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('kv_store')
+        .select('value')
+        .eq('key', PROFILES_KEY)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('[loadProfiles] Supabase error:', error);
+      }
+      const list = data?.value || [];
+      return Array.isArray(list) ? list.map(profileToWorker) : [];
+    } catch (err) {
+      console.error('[loadProfiles] Error:', err);
+      return [];
+    }
+  }
+
+  // 本地开发使用 JSON 文件
   await ensureDataFiles();
   const raw = await fs.readFile(PROFILE_FILE, 'utf8');
   const parsed = JSON.parse(raw);
@@ -825,7 +848,6 @@ async function loadProfiles() {
 }
 
 async function saveProfiles(workers) {
-  await ensureDataFiles();
   const normalized = (Array.isArray(workers) ? workers : []).map((worker) => ({
     secondUserId: String(worker.secondUserId || '').trim(),
     workerId: String(worker.id || worker.workerId || '').trim(),
@@ -837,6 +859,25 @@ async function saveProfiles(workers) {
     createdAt: worker.createdAt || nowIso(),
     updatedAt: worker.updatedAt || nowIso()
   }));
+
+  // Vercel 环境使用 Supabase 存储
+  if (IS_VERCEL && supabase) {
+    try {
+      const { error } = await supabase
+        .from('kv_store')
+        .upsert({ key: PROFILES_KEY, value: normalized }, { onConflict: 'key' });
+
+      if (error) {
+        console.error('[saveProfiles] Supabase error:', error);
+      }
+    } catch (err) {
+      console.error('[saveProfiles] Error:', err);
+    }
+    return;
+  }
+
+  // 本地开发使用 JSON 文件
+  await ensureDataFiles();
   await fs.writeFile(PROFILE_FILE, JSON.stringify(normalized, null, 2), 'utf8');
 }
 
