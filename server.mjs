@@ -1149,8 +1149,8 @@ async function upsertWorkerProfile(secondUser = {}, patch = {}) {
       base.persona ||
       String(secondUser.selfIntroduction || secondUser.bio || '我会按需求交付高质量内容。').trim(),
     avatar: normalizedPatch.avatar || String(secondUser.avatar || '').trim() || base.avatar || '',
-    // 积分系统字段
-    earnedPoints: base.earnedPoints || 0,
+    // 积分系统字段（新用户注册默认赠送100积分）
+    earnedPoints: base.earnedPoints || 100,
     completedOrders: base.completedOrders || 0,
     createdAt: base.createdAt || now,
     updatedAt: now
