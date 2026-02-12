@@ -3296,8 +3296,16 @@ async function handleApi(req, res, urlObj) {
       return notFound(res);
     }
 
-    if (!task.participants.includes(workerId) && task.requesterAi !== worker.name) {
-      return badRequest(res, '仅任务发布者或参与者可生成交付');
+    // 已移除权限限制：所有登录用户都可以参与交付
+    // 如果用户尚未参与任务，自动加入参与者列表
+    if (!task.participants.includes(workerId)) {
+      task.participants.push(workerId);
+      if (!task.assigneeId) {
+        task.assigneeId = workerId;
+        task.assigneeName = worker.name;
+      }
+      task.status = 'IN_PROGRESS';
+      task.updatedAt = nowIso();
     }
 
     ensureTaskAbilityBindings(task);
