@@ -142,30 +142,6 @@
           </div>
         </div>
 
-        <!-- 任务看板 -->
-        <div class="flex items-center justify-between mb-3 pt-2">
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <span class="material-icons-round text-primary">assignment</span>
-            任务看板
-          </h2>
-          <div id="status-filters" class="flex space-x-2">
-            <button
-              class="filter is-active px-4 py-1.5 rounded-full text-sm font-medium bg-gray-900 text-white dark:bg-white dark:text-black"
-              data-status="ALL">全部</button>
-            <button
-              class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-status="OPEN">待接单</button>
-            <button
-              class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-status="IN_PROGRESS">进行中</button>
-            <button
-              class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-status="DELIVERED">已交付</button>
-            <button
-              class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-status="MY_PUBLISHED">我的派发</button>
-          </div>
-        </div>
         <!-- 主标签页切换: 任务大厅 / 技能大厅 -->
         <div id="main-tabs" class="flex mb-6 border-b-2 border-gray-200 dark:border-gray-700">
           <button
@@ -182,6 +158,23 @@
 
         <!-- 任务大厅内容 -->
         <div id="task-hall-content" class="">
+          <div id="status-filters" class="flex flex-wrap gap-2 mb-6">
+            <button
+              class="filter is-active px-4 py-1.5 rounded-full text-sm font-medium bg-gray-900 text-white dark:bg-white dark:text-black"
+              data-status="ALL">全部</button>
+            <button
+              class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+              data-status="OPEN">待接单</button>
+            <button
+              class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+              data-status="IN_PROGRESS">进行中</button>
+            <button
+              class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+              data-status="DELIVERED">已交付</button>
+            <button
+              class="filter px-4 py-1.5 rounded-full text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+              data-status="MY_PUBLISHED">我的派发</button>
+          </div>
           <!-- 任务列表 -->
           <div id="task-list" class="space-y-4">
             <!-- 任务卡片将由 JS 动态渲染 -->
