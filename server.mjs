@@ -1994,11 +1994,22 @@ async function handleApi(req, res, urlObj) {
 
   if (method === 'GET' && pathname === '/api/meta') {
     const workers = await loadProfiles();
-    // 统计至少登录过一次的不同用户数
+    const tasks = await loadTasks();
+
+    // 科学统计：合并所有数据源中的不同用户 ID
     const uniqueUserIds = new Set();
+    // 来源1：已注册的 profiles
     workers.forEach(w => {
       if (w.secondUserId) uniqueUserIds.add(w.secondUserId);
       else if (w.id) uniqueUserIds.add(w.id);
+    });
+    // 来源2：任务发布者
+    tasks.forEach(t => {
+      if (t.publisherId) uniqueUserIds.add(t.publisherId);
+    });
+    // 来源3：任务接单者
+    tasks.forEach(t => {
+      if (t.assigneeId) uniqueUserIds.add(t.assigneeId);
     });
     const totalUsers = uniqueUserIds.size;
 
