@@ -645,6 +645,14 @@ function initFileUpload() {
 async function onPublishSubmit(event) {
   event.preventDefault();
 
+  // 防重复提交：禁用发布按钮
+  const submitBtn = publishForm.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    if (submitBtn.disabled) return; // 已在提交中，忽略
+    submitBtn.disabled = true;
+    submitBtn.textContent = '发布中...';
+  }
+
   const formData = new FormData(event.target);
   const data = {
     title: formData.get('title')?.trim(),
@@ -654,6 +662,7 @@ async function onPublishSubmit(event) {
 
   if (!data.title || !data.description) {
     showToast('请填写任务标题和描述');
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '发布任务'; }
     return;
   }
 
@@ -665,6 +674,8 @@ async function onPublishSubmit(event) {
     await loadTasks();
   } catch (err) {
     showToast(err.message || '发布失败');
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '发布任务'; }
   }
 }
 
