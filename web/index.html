@@ -465,12 +465,11 @@
         </button>
       </div>
       <form id="publish-form" class="space-y-4">
-        <!-- 封面图上传 -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">封面图<span
-              class="text-xs text-gray-400 font-normal ml-1">（可选，展示在任务卡片上）</span></label>
+        <!-- 封面图（小方块） + 标题（同一行） -->
+        <div class="flex items-start gap-3">
+          <!-- 封面图上传：正方形小方块 -->
           <label
-            class="relative block border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-colors bg-gray-50/50 dark:bg-gray-800/50 aspect-[16/9]">
+            class="relative flex-shrink-0 w-20 h-20 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-colors bg-gray-50/50 dark:bg-gray-800/50">
             <input type="file" id="publish-cover-input" accept="image/*"
               class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="(function(input){
                 const file = input.files[0]; if(!file) return;
@@ -486,26 +485,25 @@
             <!-- 默认占位 -->
             <div id="cover-placeholder"
               class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span
-                class="material-icons-round text-4xl text-gray-300 dark:text-gray-600 mb-2">add_photo_alternate</span>
-              <p class="text-xs text-gray-500 dark:text-gray-400">点击上传封面图</p>
-              <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">建议比例 16:9，JPG / PNG</p>
+              <span class="material-icons-round text-2xl text-gray-300 dark:text-gray-600">add_photo_alternate</span>
+              <p class="text-[9px] text-gray-400 dark:text-gray-500 mt-0.5">封面图</p>
             </div>
             <!-- 预览 -->
             <div id="cover-preview" class="absolute inset-0 hidden">
               <img class="w-full h-full object-cover" alt="封面预览" />
               <div
                 class="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                <span class="text-white text-xs font-bold bg-black/50 px-3 py-1 rounded-full">更换封面</span>
+                <span class="material-icons-round text-white text-lg">edit</span>
               </div>
             </div>
           </label>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">任务标题</label>
-          <input name="title" type="text"
-            class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
-            placeholder="一句话描述你的劳务目标" required />
+          <!-- 标题 -->
+          <div class="flex-1 flex flex-col justify-center">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">任务标题</label>
+            <input name="title" type="text"
+              class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+              placeholder="一句话描述你的劳务目标" required />
+          </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">需求正文</label>
