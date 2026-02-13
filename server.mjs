@@ -28,7 +28,9 @@ const SECONDME_APP_ID = process.env.SECONDME_APP_ID || 'general';
 const OAUTH_AUTHORIZE_URL = process.env.SECONDME_OAUTH_AUTHORIZE_URL || 'https://go.second.me/oauth/';
 const OAUTH_CLIENT_ID = process.env.SECONDME_CLIENT_ID || process.env.OAUTH_CLIENT_ID || '';
 const OAUTH_CLIENT_SECRET = process.env.SECONDME_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || '';
-const OAUTH_REDIRECT_URI = process.env.SECONDME_REDIRECT_URI || process.env.OAUTH_REDIRECT_URI || '';
+const OAUTH_REDIRECT_URI_RAW = process.env.SECONDME_REDIRECT_URI || process.env.OAUTH_REDIRECT_URI || '';
+const OAUTH_REDIRECT_URIS = OAUTH_REDIRECT_URI_RAW.split(',').map(u => u.trim()).filter(Boolean);
+const OAUTH_REDIRECT_URI = OAUTH_REDIRECT_URIS[0] || '';
 const OAUTH_ACCESS_TOKEN = process.env.SECONDME_ACCESS_TOKEN || process.env.OAUTH_ACCESS_TOKEN || '';
 const OAUTH_REFRESH_TOKEN = process.env.SECONDME_REFRESH_TOKEN || process.env.OAUTH_REFRESH_TOKEN || '';
 const OAUTH_SCOPE_ENV = process.env.SECONDME_OAUTH_SCOPE || process.env.OAUTH_SCOPE || '';
@@ -407,7 +409,7 @@ function oauthClientConfigured() {
 }
 
 function redirectUriConfigured() {
-  return Boolean(OAUTH_REDIRECT_URI);
+  return OAUTH_REDIRECT_URIS.length > 0;
 }
 
 function oauthConfigSnapshot() {
@@ -415,8 +417,8 @@ function oauthConfigSnapshot() {
     authorizeUrl: OAUTH_AUTHORIZE_URL,
     clientIdConfigured: Boolean(OAUTH_CLIENT_ID),
     clientSecretConfigured: Boolean(OAUTH_CLIENT_SECRET),
-    redirectUriConfigured: Boolean(OAUTH_REDIRECT_URI),
-    redirectUri: OAUTH_REDIRECT_URI || null,
+    redirectUriConfigured: OAUTH_REDIRECT_URIS.length > 0,
+    redirectUris: OAUTH_REDIRECT_URIS,
     clientConfigured: oauthClientConfigured() && redirectUriConfigured()
   };
 }
@@ -2734,7 +2736,21 @@ async function handleApi(req, res, urlObj) {
   if (method === 'GET' && pathname === '/api/oauth/authorize-url') {
     const state = String(searchParams.get('state') || '').trim() || oauthState();
     const clientId = String(searchParams.get('clientId') || '').trim() || OAUTH_CLIENT_ID;
-    const redirectUri = String(searchParams.get('redirectUri') || '').trim() || OAUTH_REDIRECT_URI;
+    const host = req.headers.host || `localhost:${PORT}`;
+    const protocol = req.headers['x-forwarded-proto'] || 'http';
+    const currentBase = `${protocol}://${host}`;
+
+    // Find a matching redirect URI for the current host
+    let defaultRedirectUri = OAUTH_REDIRECT_URIS.find(u => u.startsWith(currentBase)) || OAUTH_REDIRECT_URI;
+
+    // Allow overriding via query param ONLY if it's in the allowed list (security)
+    let redirectUri = String(searchParams.get('redirectUri') || '').trim();
+    if (redirectUri && !OAUTH_REDIRECT_URIS.includes(redirectUri)) {
+      redirectUri = defaultRedirectUri; // Ignore invalid override
+    }
+    if (!redirectUri) {
+      redirectUri = defaultRedirectUri;
+    }
     const authInfo = buildOAuthAuthorizeUrl({
       state,
       clientId,
@@ -4007,7 +4023,12 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
     return html(res, 400, content);
   }
 
-  const redirectUri = OAUTH_REDIRECT_URI || `${absoluteBaseUrl(req)}${urlObj.pathname}`;
+  const host = req.headers.host || `localhost:${PORT}`;
+  const protocol = req.headers['x-forwarded-proto'] || 'http';
+  const currentBase = `${protocol}://${host}`;
+  const matchedRedirectUri = OAUTH_REDIRECT_URIS.find(u => u.startsWith(currentBase));
+
+  const redirectUri = matchedRedirectUri || OAUTH_REDIRECT_URI || `${absoluteBaseUrl(req)}${urlObj.pathname}`;
   let exchanged = false;
   let exchangeMessage = '尚未执行 code 换 token';
   let exchangePayload = null;
@@ -4176,7 +4197,7 @@ if (isMainModule) {
     console.log(`[AI Labor Market] SecondMe base: ${SECONDME_BASE_URL}`);
     console.log(`[AI Labor Market] mode: direct-secondme`);
     console.log(`[AI Labor Market] auth mode: ${currentAuthMode()}`);
-    console.log(`[AI Labor Market] OAuth client: ${oauthClientConfigured() ? 'configured' : 'missing'}; redirect_uri: ${OAUTH_REDIRECT_URI || 'missing'}`);
+    console.log(`[AI Labor Market] OAuth client: ${oauthClientConfigured() ? 'configured' : 'missing'}; redirect_uris: ${OAUTH_REDIRECT_URIS.join(', ') || 'missing'}`);
     console.log(`[AI Labor Market] required scopes: ${REQUIRED_SCOPES.join(',')}; extended scopes: ${EXTENDED_SCOPES.join(',')}`);
     if (!resolveSecondMeToken()) {
       console.log('[AI Labor Market] required login: OAuth Access Token');
