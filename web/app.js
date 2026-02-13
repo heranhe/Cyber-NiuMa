@@ -1858,6 +1858,12 @@ async function submitHire() {
     }
   }, 3200));
 
+  hireStatusTimers.push(setTimeout(() => {
+    if (isHireProcessing()) {
+      setHireStatus('DELIVERING', '交付生成中', 'running');
+    }
+  }, 4600));
+
   try {
     const result = await api('/api/skills/hire', {
       method: 'POST',
