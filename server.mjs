@@ -2081,55 +2081,98 @@ async function callCustomApiImageGeneration({
   };
 }
 
-// 从 chat/completions 响应中提取图片（兼容 Gemini / OpenAI 多模态格式）
+// 从 chat/completions 响应中提取图片(兼容 Gemini / OpenAI 多模态格式)
 function extractImagesFromChatResponse(payload) {
   const images = [];
   const choices = Array.isArray(payload?.choices) ? payload.choices : [];
 
+  console.log(`[extractImagesFromChatResponse] 处理 ${choices.length} 个 choices`);
+
   for (const choice of choices) {
     const message = choice?.message;
-    if (!message) continue;
+    if (!message) {
+      console.log('[extractImagesFromChatResponse] choice 无 message，跳过');
+      continue;
+    }
 
-    // 格式1: message.content 是数组（多模态 parts）
+    console.log('[extractImagesFromChatResponse] message.content 类型:', Array.isArray(message.content) ? 'array' : typeof message.content);
+
+    // 格式1: message.content 是数组(多模态 parts)
     if (Array.isArray(message.content)) {
+      console.log(`[extractImagesFromChatResponse] content 是数组，包含 ${message.content.length} 个 parts`);
       for (const part of message.content) {
+        console.log('[extractImagesFromChatResponse] part 结构:', JSON.stringify(part, null, 2).slice(0, 200));
+
         // Gemini 风格: { type: 'image_url', image_url: { url: 'data:...' } }
         if (part?.type === 'image_url' && part?.image_url?.url) {
+          console.log('[extractImagesFromChatResponse] 找到 image_url 格式');
           images.push(part.image_url.url);
         }
         // 另一种格式: { type: 'image', source: { data: '...', media_type: '...' } }
         if (part?.type === 'image' && part?.source?.data) {
+          console.log('[extractImagesFromChatResponse] 找到 image/source 格式');
           const mime = part.source.media_type || 'image/png';
           images.push(`data:${mime};base64,${part.source.data}`);
         }
         // Gemini inline_data: { inline_data: { mime_type, data } }
         if (part?.inline_data?.data) {
+          console.log('[extractImagesFromChatResponse] 找到 inline_data 格式');
           const mime = part.inline_data.mime_type || 'image/png';
           images.push(`data:${mime};base64,${part.inline_data.data}`);
+        }
+        // Gemini 可能直接在 part 中返回 base64
+        if (part?.data && typeof part.data === 'string') {
+          console.log('[extractImagesFromChatResponse] 找到直接 data 字段');
+          const mime = part.mime_type || part.mimeType || 'image/png';
+          images.push(`data:${mime};base64,${part.data}`);
         }
       }
     }
 
-    // 格式2: message.content 是字符串，尝试提取 markdown 图片链接或 base64
+    // 格式2: message.content 是字符串,尝试提取 markdown 图片链接或 base64
     if (typeof message.content === 'string') {
       const content = message.content;
+      console.log('[extractImagesFromChatResponse] content 是字符串，长度:', content.length);
+
       // 提取 markdown 图片 ![...](url)
       const mdImgRegex = /!\[.*?\]\((https?:\/\/[^\s)]+|data:image\/[^\s)]+)\)/g;
       let match;
       while ((match = mdImgRegex.exec(content)) !== null) {
+        console.log('[extractImagesFromChatResponse] 找到 markdown 图片');
         images.push(match[1]);
       }
       // 提取独立的 base64 data URI
       const b64Regex = /data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+/g;
       let b64Match;
       while ((b64Match = b64Regex.exec(content)) !== null) {
+        console.log('[extractImagesFromChatResponse] 找到独立 base64');
         if (!images.includes(b64Match[0])) {
           images.push(b64Match[0]);
         }
       }
     }
+
+    // 格式3: Gemini 还可能在 message 直接有 parts 字段
+    if (Array.isArray(message.parts)) {
+      console.log(`[extractImagesFromChatResponse] message 有 parts 数组，包含 ${message.parts.length} 个元素`);
+      for (const part of message.parts) {
+        console.log('[extractImagesFromChatResponse] part 结构:', JSON.stringify(part, null, 2).slice(0, 200));
+
+        if (part?.inline_data?.data) {
+          console.log('[extractImagesFromChatResponse] 在 parts 中找到 inline_data');
+          const mime = part.inline_data.mime_type || 'image/png';
+          images.push(`data:${mime};base64,${part.inline_data.data}`);
+        }
+        if (part?.data && typeof part.data === 'string') {
+          console.log('[extractImagesFromChatResponse] 在 parts 中找到直接 data');
+          const mime = part.mime_type || part.mimeType || 'image/png';
+          images.push(`data:${mime};base64,${part.data}`);
+        }
+      }
+    }
   }
 
+  console.log(`[extractImagesFromChatResponse] 最终提取到 ${images.length} 张图片`);
   return images;
 }
 
