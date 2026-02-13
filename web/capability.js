@@ -78,6 +78,7 @@ const el = {
   styleUploadStatus: document.querySelector('#style-upload-status'),
   styleImageClear: document.querySelector('#style-image-clear'),
   styleSaveBtn: document.querySelector('#style-save-btn'),
+  styleDeleteBtn: document.querySelector('#style-delete-btn'),
   styleCancelBtn: document.querySelector('#style-cancel-btn'),
   promptLabelText: document.querySelector('#prompt-label-text'),
 
@@ -326,6 +327,9 @@ function renderForm() {
   if (el.fieldName) el.fieldName.value = ability.name || '';
   if (el.fieldIcon) el.fieldIcon.value = ability.icon || '';
   if (el.fieldDescription) el.fieldDescription.value = ability.description || '';
+
+  // 切换能力时重置风格选中状态
+  state.selectedStyleId = null;
   if (el.fieldPrompt) el.fieldPrompt.value = ability.prompt || '';
 
   if (el.fieldUseCustomApi) el.fieldUseCustomApi.checked = !!ability.useCustomApi;
@@ -405,7 +409,16 @@ function updateCurrentFromForm() {
   ability.name = String(el.fieldName?.value || '').trim();
   ability.icon = String(el.fieldIcon?.value || '').trim() || '🤖';
   ability.description = String(el.fieldDescription?.value || '').trim();
-  ability.prompt = String(el.fieldPrompt?.value || '').trim();
+
+  // 根据选中的风格，将 textarea 内容写回正确的目标
+  const textareaPrompt = String(el.fieldPrompt?.value || '').trim();
+  if (state.selectedStyleId) {
+    const style = (ability.styles || []).find(s => s.id === state.selectedStyleId);
+    if (style) style.prompt = textareaPrompt;
+  } else {
+    ability.prompt = textareaPrompt;
+  }
+
   ability.useCustomApi = !!el.fieldUseCustomApi?.checked;
 
   ability.customApi.endpoint = String(el.fieldApiEndpoint?.value || '').trim();
@@ -988,6 +1001,11 @@ function openStyleEditor(styleId = null) {
   if (el.styleModal) {
     el.styleModal.classList.remove('hidden');
   }
+
+  // 编辑模式时显示删除按钮
+  if (el.styleDeleteBtn) {
+    el.styleDeleteBtn.classList.toggle('hidden', !style);
+  }
 }
 
 function closeStyleEditor() {
@@ -997,7 +1015,80 @@ function closeStyleEditor() {
   }
 }
 
-// 更新提示词标签文字（根据是否选中风格）
+function updateStyleImagePreview(url) {
+  if (!el.styleImagePreview) return;
+  const img = el.styleImagePreview.querySelector('img');
+  if (url && img) {
+    img.src = url;
+    img.onerror = () => {
+      el.styleImagePreview.classList.add('hidden');
+      if (el.styleUploadArea) el.styleUploadArea.classList.remove('hidden');
+    };
+    el.styleImagePreview.classList.remove('hidden');
+    // 有预览图时隐藏上传区域
+    if (el.styleUploadArea) el.styleUploadArea.classList.add('hidden');
+  } else {
+    el.styleImagePreview.classList.add('hidden');
+    // 没有预览图时显示上传区域
+    if (el.styleUploadArea) el.styleUploadArea.classList.remove('hidden');
+  }
+}
+
+// 上传风格图片
+async function uploadStyleImage(file) {
+  if (!file) return;
+
+  // 前端校验
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (!allowedTypes.includes(file.type)) {
+    showToast('不支持的图片格式，仅支持 JPG/PNG/WebP/GIF');
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('图片大小超过 5MB 限制');
+    return;
+  }
+
+  // 显示上传状态
+  if (el.styleUploadStatus) {
+    el.styleUploadStatus.textContent = '正在上传...';
+    el.styleUploadStatus.classList.remove('hidden');
+    el.styleUploadStatus.className = 'text-xs text-blue-600 mb-2';
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const resp = await fetch('/api/upload/image', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await resp.json();
+    if (!resp.ok || result.code !== 0) {
+      throw new Error(result.message || '上传失败');
+    }
+
+    const imageUrl = result.data.url;
+    if (el.styleFieldImage) el.styleFieldImage.value = imageUrl;
+    updateStyleImagePreview(imageUrl);
+
+    if (el.styleUploadStatus) {
+      el.styleUploadStatus.textContent = '上传成功';
+      el.styleUploadStatus.className = 'text-xs text-green-600 mb-2';
+    }
+
+    showToast('图片上传成功');
+  } catch (error) {
+    console.error('[capability] uploadStyleImage failed:', error);
+    if (el.styleUploadStatus) {
+      el.styleUploadStatus.textContent = error.message || '上传失败';
+      el.styleUploadStatus.className = 'text-xs text-red-600 mb-2';
+    }
+    showToast(error.message || '图片上传失败');
+  }
+}
 function updatePromptLabel() {
   if (!el.promptLabelText) return;
   const ability = getCurrentAbility();
@@ -1143,6 +1234,14 @@ function bindStyleEvents() {
   el.styleModalBackdrop?.addEventListener('click', closeStyleEditor);
   el.styleCancelBtn?.addEventListener('click', closeStyleEditor);
   el.styleSaveBtn?.addEventListener('click', onStyleSave);
+
+  // 弹窗中删除按钮
+  el.styleDeleteBtn?.addEventListener('click', () => {
+    if (state.editingStyleId) {
+      onStyleDelete(state.editingStyleId);
+      closeStyleEditor();
+    }
+  });
 
 
   // 文件上传事件
