@@ -1078,16 +1078,9 @@ async function loadSkillHall() {
   skillEmpty?.classList.add('hidden');
 
   try {
-    // 从用户能力中构建技能列表
-    // 实际项目中应该调用 API: const res = await api('/api/skills');
-    const skills = state.abilities.map(ability => ({
-      ...ability,
-      ownerId: state.me?.id || '',
-      ownerName: state.me?.name || state.me?.displayName || '匿名用户',
-      ownerAvatar: state.me?.avatar || state.me?.profileImageUrl || '',
-      completedOrders: 0,
-      rating: 0
-    }));
+    // 从公开 API 获取所有用户的技能（无需登录）
+    const res = await api('/api/skills/public');
+    const skills = Array.isArray(res?.data) ? res.data : [];
 
     state.skills = skills;
 

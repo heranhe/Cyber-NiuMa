@@ -2539,6 +2539,47 @@ async function handleApi(req, res, urlObj) {
     });
   }
 
+  // ===== 公开技能列表（无需登录） =====
+  if (method === 'GET' && pathname === '/api/skills/public') {
+    const allAbilities = await loadAbilities();
+    const profiles = await loadProfiles();
+    const workerLookup = workersMap(profiles);
+
+    const skills = [];
+    for (const [userId, abilities] of Object.entries(allAbilities)) {
+      if (!Array.isArray(abilities)) continue;
+      const owner = workerLookup.get(userId);
+      for (const raw of abilities) {
+        const ability = normalizeStoredAbility(raw);
+        // 只展示已启用的能力
+        if (ability.enabled === false) continue;
+        skills.push({
+          id: ability.id,
+          name: ability.name,
+          description: ability.description || '',
+          icon: ability.icon || '🔧',
+          abilityType: ability.abilityType || 'text',
+          coverImage: ability.coverImage || '',
+          styles: (ability.styles || []).map(s => ({
+            id: s.id, name: s.name, coverImage: s.coverImage || ''
+          })),
+          ownerId: userId,
+          ownerName: owner?.name || owner?.displayName || '匿名用户',
+          ownerAvatar: owner?.avatar || owner?.profileImageUrl || '',
+          completedOrders: 0,
+          rating: 0,
+          createdAt: ability.createdAt || ''
+        });
+      }
+    }
+
+    return json(res, 200, {
+      code: 0,
+      message: 'success',
+      data: skills
+    });
+  }
+
   if (method === 'GET' && pathname === '/api/me/labor-body') {
     const session = await getCurrentSessionWorker({ createIfMissing: true });
     const abilities = session?.user?.userId ? await getUserAbilities(session.user.userId) : [];
