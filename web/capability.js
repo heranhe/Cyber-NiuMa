@@ -93,11 +93,11 @@ const el = {
 
   // 封面图上传相关元素
   coverUploadArea: document.querySelector('#cover-upload-area'),
-  coverUploadPlaceholder: document.querySelector('#cover-upload-placeholder'),
   coverPreviewWrapper: document.querySelector('#cover-preview-wrapper'),
   coverPreviewImg: document.querySelector('#cover-preview-img'),
   coverRemoveBtn: document.querySelector('#cover-remove-btn'),
   coverFileInput: document.querySelector('#cover-file-input'),
+  avatarEmoji: document.querySelector('#avatar-emoji'),
 
   toast: document.querySelector('#toast')
 };
@@ -361,14 +361,16 @@ function renderForm() {
   renderStyles();
 }
 
-// 更新封面图预览 UI
+// 更新封面图预览 UI（集成在左上角头像区域）
 function updateCoverPreview(coverImage) {
   if (coverImage) {
-    if (el.coverUploadPlaceholder) el.coverUploadPlaceholder.classList.add('hidden');
+    // 有封面图：隐藏 emoji，显示图片
+    if (el.avatarEmoji) el.avatarEmoji.classList.add('hidden');
     if (el.coverPreviewWrapper) el.coverPreviewWrapper.classList.remove('hidden');
     if (el.coverPreviewImg) el.coverPreviewImg.src = coverImage;
   } else {
-    if (el.coverUploadPlaceholder) el.coverUploadPlaceholder.classList.remove('hidden');
+    // 无封面图：显示 emoji，隐藏图片
+    if (el.avatarEmoji) el.avatarEmoji.classList.remove('hidden');
     if (el.coverPreviewWrapper) el.coverPreviewWrapper.classList.add('hidden');
     if (el.coverPreviewImg) el.coverPreviewImg.src = '';
   }
