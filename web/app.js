@@ -1134,7 +1134,7 @@ function categorizeSkill(skill) {
   return 'other';
 }
 
-// 渲染技能列表（扁平网格，不分类）
+// 渲染技能列表（网格布局,固定比例）
 function renderSkillCategories(skills) {
   const container = document.querySelector('#skill-categories');
   if (!container) return;
@@ -1155,9 +1155,9 @@ function renderSkillCategories(skills) {
     return;
   }
 
-  // 瀑布流渲染
+  // 网格布局渲染（技能大厅专用）
   container.innerHTML = `
-    <div class="masonry-grid pb-12">
+    <div class="skill-grid pb-12">
       ${filteredSkills.map((s, i) => renderSkillCard(s, i)).join('')}
     </div>
   `;
@@ -1170,19 +1170,17 @@ const SKILL_COVER_IMAGES = [
   'https://lh3.googleusercontent.com/aida-public/AB6AXuApLeqfMTWrfgiwAnrZ8S9kMx4wQBWIhiog0wveE3m7R3Y4OgokllSADSKGhhQ1VUNfdkfPjEgAEpa8C7Zz-SvgVW7IOZWXAs9XFUp9oh_QFH1ESVWBygWqni4uxuoWYLr2Ythjp3I8DnDe5wR-HrviV-51UcVybRYkrTCP-NpkwHQv-iPpTRL0IdxeDtxqUqh_UX0-PH5xIyW33QocMBV8UgBAS9e3Uv66VeroVyFLPQNgY4ExC9zNGN-K-oJtkXUAL9HR1NroKinT'
 ];
 
-// 渲染单个技能卡片（瀑布流竖向卡片样式）
+// 渲染单个技能卡片（网格布局,固定4:3比例封面）
 function renderSkillCard(skill, index) {
   const category = categorizeSkill(skill);
   const categoryInfo = SKILL_CATEGORIES.find(c => c.id === category) || SKILL_CATEGORIES[4];
   const categoryName = categoryInfo.name.replace(categoryInfo.icon, '').trim();
-  const hasCustomCover = !!skill.coverImage;
   const coverImg = skill.coverImage || SKILL_COVER_IMAGES[index % SKILL_COVER_IMAGES.length];
-  const aspectRatio = hasCustomCover ? '' : ASPECT_RATIOS[index % ASPECT_RATIOS.length];
 
   return `
-    <div class="masonry-item bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-skill-id="${skill.id}">
-      <div class="relative m-2 rounded-xl overflow-hidden ${aspectRatio}">
-        <img alt="${escapeHtml(skill.name)}" class="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" />
+    <div class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-skill-id="${skill.id}">
+      <div class="relative m-2 skill-card-cover">
+        <img alt="${escapeHtml(skill.name)}" class="transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" />
         <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80"></div>
         <span class="absolute top-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-black/40 backdrop-blur-sm text-white border border-white/20">${skill.icon || '🔧'} ${categoryName}</span>
         <!-- 悬浮按钮 -->
