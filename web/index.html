@@ -274,6 +274,126 @@
           <span class="material-icons-round text-white/50 relative z-10">arrow_forward</span>
         </button>
 
+        <!-- 对话模块（默认展开） -->
+        <section id="chat-module"
+          class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark shadow-sm overflow-hidden">
+          <!-- 折叠/展开标题栏 -->
+          <button id="chat-toggle-btn" type="button"
+            class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            <div class="flex items-center gap-2 min-w-0">
+              <span
+                class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 text-white flex items-center justify-center">
+                <span class="material-icons-round text-base">forum</span>
+              </span>
+              <div class="min-w-0 text-left">
+                <div class="text-sm font-bold text-gray-900 dark:text-white">对话</div>
+                <p id="chat-status-text" class="text-xs text-subtext-light dark:text-subtext-dark truncate">暂无对话</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="chat-unread-dot" class="w-2.5 h-2.5 rounded-full bg-red-500 hidden animate-pulse"></span>
+              <span id="chat-chevron" class="material-icons-round text-gray-400 text-base rotate-180">expand_more</span>
+            </div>
+          </button>
+
+          <!-- 可折叠内容 -->
+          <div id="chat-content" class="border-t border-gray-100 dark:border-border-dark">
+            <!-- 聊天列表 -->
+            <div id="chat-list-view">
+              <div id="chat-list"
+                class="divide-y divide-gray-50 dark:divide-gray-800 max-h-[40vh] overflow-y-auto no-scrollbar">
+                <!-- 空状态 -->
+                <div id="chat-list-empty" class="px-4 py-8 text-center">
+                  <span
+                    class="material-icons-round text-3xl text-gray-300 dark:text-gray-600 mb-2 block">chat_bubble_outline</span>
+                  <p class="text-xs text-gray-400 dark:text-gray-500">暂无对话</p>
+                  <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">在技能大厅或任务大厅点击「加入对话」开始</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 对话框（默认隐藏） -->
+            <div id="chat-dialog-view" class="hidden flex flex-col" style="max-height: 60vh;">
+              <!-- 对话头部 -->
+              <div id="chat-header"
+                class="px-4 py-3 border-b border-gray-100 dark:border-border-dark bg-gray-50/50 dark:bg-gray-800/50">
+                <div class="flex items-center gap-3">
+                  <button id="chat-back-btn" type="button"
+                    class="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 transition-colors flex-shrink-0">
+                    <span class="material-icons-round text-lg">arrow_back</span>
+                  </button>
+                  <img id="chat-peer-avatar" src="" alt=""
+                    class="w-9 h-9 rounded-full border border-gray-200 dark:border-gray-600 flex-shrink-0" />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                      <span id="chat-peer-name"
+                        class="text-sm font-bold text-gray-900 dark:text-white truncate">对方名称</span>
+                      <span id="chat-role-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold">提需求</span>
+                    </div>
+                    <p id="chat-peer-title"
+                      class="text-[11px] text-subtext-light dark:text-subtext-dark truncate mt-0.5">技能/任务标题</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 消息流 -->
+              <div id="chat-messages" class="flex-1 overflow-y-auto px-4 py-3 space-y-3 no-scrollbar"
+                style="min-height: 120px; max-height: 30vh;">
+                <!-- 消息气泡由 JS 动态渲染 -->
+              </div>
+
+              <!-- 输入区域 -->
+              <div id="chat-input-area" class="border-t border-gray-100 dark:border-border-dark p-3 space-y-2">
+                <!-- 技能选择器 -->
+                <div class="relative">
+                  <button id="chat-skill-selector" type="button"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 hover:border-primary/50 transition-colors">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="material-icons-round text-base text-primary">psychology</span>
+                      <span id="chat-skill-label" class="truncate">选择我的技能</span>
+                    </div>
+                    <span id="chat-skill-chevron"
+                      class="material-icons-round text-gray-400 text-base transition-transform">expand_more</span>
+                  </button>
+                  <!-- 技能下拉列表 -->
+                  <div id="chat-skill-dropdown"
+                    class="hidden absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark rounded-xl shadow-lg overflow-hidden z-20">
+                    <div class="max-h-48 overflow-y-auto no-scrollbar py-1">
+                      <!-- 技能列表由 JS 动态渲染 -->
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 选中的技能胶囊 -->
+                <div id="chat-selected-skill-capsule" class="hidden">
+                  <!-- 由 JS 渲染 -->
+                </div>
+
+                <!-- 输入框和发送 -->
+                <div class="flex gap-2 items-end">
+                  <textarea id="chat-input"
+                    class="flex-1 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 resize-none focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                    placeholder="输入消息…" rows="2"></textarea>
+                  <button id="chat-send-btn" type="button"
+                    class="flex-shrink-0 w-10 h-10 rounded-xl bg-primary hover:bg-amber-700 text-white flex items-center justify-center transition-colors shadow-sm">
+                    <span class="material-icons-round text-lg">send</span>
+                  </button>
+                </div>
+
+                <!-- 发送选项 -->
+                <div class="flex items-center justify-between text-[11px]">
+                  <label class="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 cursor-pointer">
+                    <input id="chat-auto-send" type="checkbox"
+                      class="form-checkbox w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary" />
+                    生成后自动发送
+                  </label>
+                  <span id="chat-delivery-hint" class="text-gray-400 dark:text-gray-500 hidden">将调用技能生成交付</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- ai分身工作台（入口+面板） -->
         <section id="hire-fab-wrapper"
           class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark shadow-sm overflow-hidden">
@@ -290,9 +410,9 @@
               </div>
             </div>
             <div class="flex items-center gap-2">
-              <span id="hire-fab-dot"
-                class="w-2.5 h-2.5 rounded-full bg-green-500 hidden animate-pulse"></span>
-              <span id="hire-fab-chevron" class="material-icons-round text-gray-400 text-base rotate-180">expand_more</span>
+              <span id="hire-fab-dot" class="w-2.5 h-2.5 rounded-full bg-green-500 hidden animate-pulse"></span>
+              <span id="hire-fab-chevron"
+                class="material-icons-round text-gray-400 text-base rotate-180">expand_more</span>
             </div>
           </button>
 
@@ -305,11 +425,13 @@
                 </div>
                 <div class="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2.5">
                   <div class="text-[10px] text-gray-500 dark:text-gray-400">已完成</div>
-                  <div id="hire-stat-completed" class="text-base font-black text-green-600 dark:text-green-400 mt-0.5">0</div>
+                  <div id="hire-stat-completed" class="text-base font-black text-green-600 dark:text-green-400 mt-0.5">0
+                  </div>
                 </div>
                 <div class="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2.5">
                   <div class="text-[10px] text-gray-500 dark:text-gray-400">进行中</div>
-                  <div id="hire-stat-processing" class="text-base font-black text-blue-600 dark:text-blue-400 mt-0.5">0</div>
+                  <div id="hire-stat-processing" class="text-base font-black text-blue-600 dark:text-blue-400 mt-0.5">0
+                  </div>
                 </div>
               </div>
 
@@ -321,7 +443,8 @@
 
               <div class="rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
                 <div id="hire-panel-skill" class="text-sm font-semibold text-gray-900 dark:text-white">暂无进行中的需求</div>
-                <p id="hire-panel-requirement" class="mt-1 text-xs text-subtext-light dark:text-subtext-dark line-clamp-3"></p>
+                <p id="hire-panel-requirement"
+                  class="mt-1 text-xs text-subtext-light dark:text-subtext-dark line-clamp-3"></p>
               </div>
 
               <div>
@@ -620,181 +743,9 @@
     </div>
   </div>
 
-  <!-- 接单提交弹窗 -->
-  <div id="take-task-modal"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
-    <div
-      class="bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-md p-8 relative mx-4 border border-gray-100 dark:border-border-dark">
-      <button id="close-take-modal"
-        class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
-        <span class="material-icons-round">close</span>
-      </button>
+  <!-- 接单弹窗已移除，功能合并到对话模块 -->
 
-      <div class="mb-6">
-        <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 text-primary">
-          <span class="material-icons-round text-2xl">upload_file</span>
-        </div>
-        <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">提交任务交付</h2>
-        <p class="text-subtext-light dark:text-subtext-dark text-sm">
-          请选择用于完成此任务的 AI 分身。系统将自动生成交付链接。
-        </p>
-      </div>
-
-      <!-- 任务信息展示 -->
-      <div id="take-task-info"
-        class="mb-5 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
-        <div class="text-xs text-subtext-light dark:text-subtext-dark mb-1">当前任务</div>
-        <h4 id="take-task-title" class="font-bold text-gray-900 dark:text-white text-sm line-clamp-2">任务标题</h4>
-      </div>
-
-      <form id="take-task-form">
-        <input type="hidden" id="take-task-id" />
-        <div class="mb-6">
-          <label class="block text-sm font-bold mb-2 text-gray-900 dark:text-white">选择 AI 分身 (Capability)</label>
-          <div id="capability-list" class="space-y-3 max-h-48 overflow-y-auto">
-            <!-- 能力选项将由 JS 动态渲染 -->
-            <div class="text-sm text-subtext-light dark:text-subtext-dark text-center py-4">
-              加载中...
-            </div>
-          </div>
-        </div>
-
-        <div class="mb-6">
-          <label class="block text-sm font-bold mb-2 text-gray-900 dark:text-white">备注信息 (选填)</label>
-          <textarea id="take-task-note"
-            class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all resize-none text-sm text-gray-900 dark:text-white placeholder-gray-400"
-            placeholder="添加关于此次交付的说明..." rows="3"></textarea>
-        </div>
-
-        <div class="flex gap-3">
-          <button type="button" id="cancel-take-btn"
-            class="flex-1 py-3 px-4 rounded-xl font-bold border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">取消</button>
-          <button type="submit"
-            class="flex-1 py-3 px-4 rounded-xl font-bold bg-primary hover:bg-amber-700 text-white shadow-lg shadow-primary/30 transition-all flex items-center justify-center gap-2">
-            <span>确认接单</span>
-            <span class="material-icons-round text-sm">send</span>
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 雇佣弹窗 -->
-  <div id="hire-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
-    <div
-      class="bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-lg p-0 relative mx-4 border border-gray-100 dark:border-border-dark overflow-hidden">
-      <!-- 关闭按钮 -->
-      <button id="close-hire-modal"
-        class="absolute top-4 right-4 z-10 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
-        <span class="material-icons-round">close</span>
-      </button>
-
-      <!-- 输入表单视图 -->
-      <div id="hire-form-view">
-        <!-- 技能信息头部 -->
-        <div
-          class="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 px-6 pt-6 pb-5">
-          <div class="flex items-center gap-4">
-            <div id="hire-skill-icon"
-              class="w-14 h-14 rounded-2xl bg-white dark:bg-surface-dark shadow-md flex items-center justify-center text-3xl border border-gray-100 dark:border-border-dark">
-              🔧
-            </div>
-            <div class="flex-1 min-w-0">
-              <h3 id="hire-skill-name" class="text-lg font-bold text-gray-900 dark:text-white truncate">技能名称</h3>
-              <p id="hire-skill-desc" class="text-sm text-subtext-light dark:text-subtext-dark mt-0.5 line-clamp-2">技能简介
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <!-- 需求输入区 -->
-        <div class="px-6 py-5 space-y-4">
-          <div id="hire-style-section" class="hidden">
-            <label class="block text-sm font-bold text-gray-900 dark:text-white mb-2">
-              <span class="material-icons-round text-sm align-middle mr-1 text-primary">palette</span>
-              选择风格
-            </label>
-            <div id="hire-style-list" class="grid grid-cols-3 gap-2">
-              <!-- 风格选项由 JS 动态渲染 -->
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-bold text-gray-900 dark:text-white mb-2">
-              <span class="material-icons-round text-sm align-middle mr-1 text-primary">edit_note</span>
-              描述你的需求
-            </label>
-            <textarea id="hire-requirement"
-              class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all resize-none text-sm text-gray-900 dark:text-white placeholder-gray-400"
-              placeholder="详细描述你想要什么效果，例如：帮我设计一张科技风格的海报，主题是 AI 与未来…" rows="5"></textarea>
-            <p class="text-[11px] text-gray-400 mt-1.5">尽量详细描述你的需求，AI 将根据你的描述生成交付内容</p>
-          </div>
-
-          <!-- 操作按钮 -->
-          <div class="flex gap-3 pt-1">
-            <button type="button" id="cancel-hire-btn"
-              class="flex-1 py-3 px-4 rounded-xl font-bold border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-              取消
-            </button>
-            <button type="button" id="submit-hire-btn"
-              class="flex-1 py-3 px-4 rounded-xl font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg shadow-orange-200/50 dark:shadow-none transition-all flex items-center justify-center gap-2">
-              <span class="material-icons-round text-sm">rocket_launch</span>
-              开始交付
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 交付中视图 -->
-      <div id="hire-loading-view" class="hidden px-6 py-12 text-center">
-        <div class="relative w-20 h-20 mx-auto mb-6">
-          <div class="absolute inset-0 rounded-full border-4 border-gray-100 dark:border-gray-700"></div>
-          <div class="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
-          <div class="absolute inset-3 rounded-full bg-primary/10 flex items-center justify-center">
-            <span class="material-icons-round text-primary text-2xl animate-pulse">auto_awesome</span>
-          </div>
-        </div>
-        <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">AI 正在处理中…</h3>
-        <p class="text-sm text-subtext-light dark:text-subtext-dark">正在调用技能 API 生成交付内容，请稍候</p>
-      </div>
-
-      <!-- 交付结果视图 -->
-      <div id="hire-result-view" class="hidden">
-        <!-- 成功头部 -->
-        <div
-          class="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 px-6 py-4 flex items-center gap-3">
-          <span class="material-icons-round text-green-500 text-2xl">check_circle</span>
-          <div>
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white">交付完成</h3>
-            <p id="hire-result-skill-name" class="text-xs text-subtext-light dark:text-subtext-dark"></p>
-          </div>
-        </div>
-        <!-- 结果内容 -->
-        <div class="px-6 py-4 max-h-[50vh] overflow-y-auto">
-          <!-- 图片结果（如有） -->
-          <div id="hire-result-images" class="hidden mb-4 grid grid-cols-2 gap-3">
-            <!-- 图片将由 JS 动态渲染 -->
-          </div>
-          <!-- 文本结果 -->
-          <div id="hire-result-text"
-            class="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed">
-          </div>
-        </div>
-        <!-- 底部操作 -->
-        <div class="px-6 pb-5 flex gap-3">
-          <button type="button" id="hire-close-result-btn"
-            class="flex-1 py-3 px-4 rounded-xl font-bold border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-            关闭
-          </button>
-          <button type="button" id="hire-retry-btn"
-            class="flex-1 py-3 px-4 rounded-xl font-bold bg-primary hover:bg-amber-700 text-white transition-colors flex items-center justify-center gap-2">
-            <span class="material-icons-round text-sm">refresh</span>
-            重新生成
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- 雇佣弹窗已移除，功能合并到对话模块 -->
 
   <script src="/app.js" type="module"></script>
 </body>

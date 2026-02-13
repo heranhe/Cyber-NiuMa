@@ -60,15 +60,32 @@ const publishForm = document.querySelector('#publish-form');
 const closePublishModal = document.querySelector('#close-publish-modal');
 const cancelPublishBtn = document.querySelector('#cancel-publish-btn');
 
-// 接单弹窗元素
-const takeTaskModal = document.querySelector('#take-task-modal');
-const takeTaskForm = document.querySelector('#take-task-form');
-const takeTaskIdInput = document.querySelector('#take-task-id');
-const takeTaskTitle = document.querySelector('#take-task-title');
-const takeTaskNote = document.querySelector('#take-task-note');
-const capabilityList = document.querySelector('#capability-list');
-const closeTakeModal = document.querySelector('#close-take-modal');
-const cancelTakeBtn = document.querySelector('#cancel-take-btn');
+// 对话模块元素
+const chatModule = document.querySelector('#chat-module');
+const chatToggleBtn = document.querySelector('#chat-toggle-btn');
+const chatContent = document.querySelector('#chat-content');
+const chatChevron = document.querySelector('#chat-chevron');
+const chatStatusText = document.querySelector('#chat-status-text');
+const chatUnreadDot = document.querySelector('#chat-unread-dot');
+const chatListView = document.querySelector('#chat-list-view');
+const chatListEl = document.querySelector('#chat-list');
+const chatListEmpty = document.querySelector('#chat-list-empty');
+const chatDialogView = document.querySelector('#chat-dialog-view');
+const chatBackBtn = document.querySelector('#chat-back-btn');
+const chatPeerAvatar = document.querySelector('#chat-peer-avatar');
+const chatPeerName = document.querySelector('#chat-peer-name');
+const chatRoleBadge = document.querySelector('#chat-role-badge');
+const chatPeerTitle = document.querySelector('#chat-peer-title');
+const chatMessagesEl = document.querySelector('#chat-messages');
+const chatInput = document.querySelector('#chat-input');
+const chatSendBtn = document.querySelector('#chat-send-btn');
+const chatSkillSelector = document.querySelector('#chat-skill-selector');
+const chatSkillLabel = document.querySelector('#chat-skill-label');
+const chatSkillChevron = document.querySelector('#chat-skill-chevron');
+const chatSkillDropdown = document.querySelector('#chat-skill-dropdown');
+const chatSelectedSkillCapsule = document.querySelector('#chat-selected-skill-capsule');
+const chatAutoSend = document.querySelector('#chat-auto-send');
+const chatDeliveryHint = document.querySelector('#chat-delivery-hint');
 
 // 排行榜
 const rankingList = document.querySelector('#ranking-list');
@@ -248,9 +265,9 @@ function renderTaskCard(task, index) {
   // 按钮配置
   let actionBtn = '';
   if (task.status === 'OPEN' && canOperate()) {
-    actionBtn = `<button class="task-action flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="take" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">touch_app</span> 雇佣</button>`;
+    actionBtn = `<button class="task-action flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="join-chat" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">forum</span> 加入对话</button>`;
   } else if (task.status === 'IN_PROGRESS' && canOperate()) {
-    actionBtn = `<button class="task-action flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="deliver" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">rocket_launch</span> 交付</button>`;
+    actionBtn = `<button class="task-action flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="join-chat" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">forum</span> 加入对话</button>`;
   } else if (task.status === 'DELIVERED') {
     actionBtn = `<button class="task-action flex-1 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1" data-action="view" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">visibility</span> 查看</button>`;
   } else {
@@ -756,9 +773,10 @@ async function onTaskActionClick(event) {
     }
 
     try {
-      if (action === 'take') {
-        // 打开接单弹窗
-        openTakeTaskModal(taskId);
+      if (action === 'take' || action === 'join-chat') {
+        // 打开对话（接单方角色）
+        const task = state.tasks.find(t => t.id === taskId);
+        if (task) openConversation('worker', task);
       } else if (action === 'deliver') {
         // 实现 AI 交付逻辑
         await deliverTask(taskId, button);
@@ -1316,11 +1334,8 @@ function renderSkillCard(skill, index) {
         <!-- 悬浮按钮 -->
         <div class="card-hover-gradient"></div>
         <div class="card-hover-buttons">
-          <button class="flex-1 py-2 rounded-lg text-[11px] font-bold bg-white text-gray-800 hover:bg-gray-100 shadow-sm transition-all flex items-center justify-center gap-1">
-            <span class="material-symbols-outlined text-[16px]">chat_bubble</span> 咨询
-          </button>
-          <button class="skill-hire-btn flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="hire" data-skill-id="${skill.id}">
-            <span class="material-symbols-outlined text-[16px]">touch_app</span> 雇佣
+          <button class="skill-join-chat-btn flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="join-chat" data-skill-id="${skill.id}">
+            <span class="material-symbols-outlined text-[16px]">forum</span> 加入对话
           </button>
         </div>
       </div>
@@ -1744,8 +1759,8 @@ function renderHireStyleOptions(skill) {
       >
         <div class="w-full aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden mb-1.5">
           ${styleImage
-            ? `<img src="${escapeHtml(styleImage)}" alt="${escapeHtml(style.name)}" class="w-full h-full object-cover hire-style-image" loading="lazy" />`
-            : '<span class="text-xl">🎨</span>'}
+        ? `<img src="${escapeHtml(styleImage)}" alt="${escapeHtml(style.name)}" class="w-full h-full object-cover hire-style-image" loading="lazy" />`
+        : '<span class="text-xl">🎨</span>'}
         </div>
         <div class="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">${escapeHtml(style.name)}</div>
       </button>
@@ -1980,21 +1995,563 @@ hireManageDemandsBtn?.addEventListener('click', () => {
 renderHireSummary();
 renderHireWorkbench();
 
-// 技能大厅卡片点击事件委托（雇佣按钮）
+// 技能大厅卡片点击事件委托（加入对话按钮）
 const skillCategoriesContainer = document.querySelector('#skill-categories');
 if (skillCategoriesContainer) {
   skillCategoriesContainer.addEventListener('click', (e) => {
-    const hireBtn = e.target.closest('.skill-hire-btn');
-    if (hireBtn) {
+    const joinBtn = e.target.closest('.skill-join-chat-btn');
+    if (joinBtn) {
       e.stopPropagation();
       if (!canOperate()) {
         showToast('请先登录');
         return;
       }
-      const skillId = hireBtn.dataset.skillId;
-      if (skillId) openHireModal(skillId);
+      const skillId = joinBtn.dataset.skillId;
+      if (skillId) {
+        const skill = state.skills.find(s => s.id === skillId);
+        if (skill) openConversation('demand', skill);
+      }
     }
   });
 }
+
+// ===== 对话模块 =====
+const CHAT_STORAGE_KEY = 'chat_conversations_v1';
+const chatState = {
+  conversations: [],       // [{id, role, peerId, peerName, peerAvatar, title, desc, messages[], skillId?, createdAt, updatedAt}]
+  activeConversationId: null,
+  selectedSkill: null,     // {id, name, icon, description}
+  skillDropdownOpen: false,
+  collapsed: false
+};
+
+// 持久化
+function loadConversations() {
+  try {
+    const data = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (data) chatState.conversations = JSON.parse(data);
+  } catch { chatState.conversations = []; }
+}
+
+function persistConversations() {
+  try {
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatState.conversations));
+  } catch (e) { console.warn('对话持久化失败', e); }
+}
+
+loadConversations();
+
+// 折叠/展开
+function toggleChatModule() {
+  chatState.collapsed = !chatState.collapsed;
+  if (chatState.collapsed) {
+    chatContent?.classList.add('collapsed');
+    chatChevron?.classList.add('collapsed');
+  } else {
+    chatContent?.classList.remove('collapsed');
+    chatChevron?.classList.remove('collapsed');
+  }
+}
+
+chatToggleBtn?.addEventListener('click', toggleChatModule);
+
+// 时间格式
+function chatTimeLabel(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+  if (diff < 86400000) return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+// 渲染聊天列表
+function renderChatList() {
+  if (!chatListEl) return;
+  const convs = chatState.conversations;
+  const statusCount = convs.length;
+
+  // 更新状态文字
+  if (chatStatusText) {
+    chatStatusText.textContent = statusCount > 0 ? `${statusCount} 个对话` : '暂无对话';
+  }
+
+  if (convs.length === 0) {
+    if (chatListEmpty) chatListEmpty.classList.remove('hidden');
+    // 清除非空状态的列表项
+    const items = chatListEl.querySelectorAll('.chat-list-item');
+    items.forEach(i => i.remove());
+    return;
+  }
+
+  if (chatListEmpty) chatListEmpty.classList.add('hidden');
+
+  // 按最后消息时间排序（最新在前）
+  const sorted = [...convs].sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+
+  let html = '';
+  for (const conv of sorted) {
+    const lastMsg = conv.messages[conv.messages.length - 1];
+    const preview = lastMsg ? (lastMsg.type === 'delivery' ? '🎉 交付结果' : (lastMsg.text || '').slice(0, 30)) : '暂无消息';
+    const time = chatTimeLabel(conv.updatedAt || conv.createdAt);
+    const isActive = conv.id === chatState.activeConversationId;
+    const roleEmoji = conv.role === 'demand' ? '🟠' : '🟢';
+    const avatarFallback = conv.peerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.peerName?.[0] || 'AI')}&background=random&rounded=true&size=36`;
+
+    html += `
+      <div class="chat-list-item ${isActive ? 'active' : ''}" data-conv-id="${conv.id}">
+        <img src="${avatarFallback}" alt="${escapeHtml(conv.peerName)}" class="chat-list-item-avatar" />
+        <div class="chat-list-item-info">
+          <div class="chat-list-item-name">${roleEmoji} ${escapeHtml(conv.peerName || '对方')}</div>
+          <div class="chat-list-item-preview">${escapeHtml(preview)}</div>
+        </div>
+        <span class="chat-list-item-time">${time}</span>
+      </div>
+    `;
+  }
+
+  // 只替换列表项内容，保留 empty 节点
+  const existingItems = chatListEl.querySelectorAll('.chat-list-item');
+  existingItems.forEach(i => i.remove());
+  chatListEl.insertAdjacentHTML('beforeend', html);
+}
+
+// 渲染对话
+function renderChatDialog() {
+  const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
+  if (!conv) return;
+
+  // 头部
+  const avatarFallback = conv.peerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.peerName?.[0] || 'AI')}&background=random&rounded=true&size=36`;
+  if (chatPeerAvatar) chatPeerAvatar.src = avatarFallback;
+  if (chatPeerName) chatPeerName.textContent = conv.peerName || '对方';
+  if (chatPeerTitle) chatPeerTitle.textContent = conv.title || '';
+
+  // 角色标识
+  if (chatRoleBadge) {
+    if (conv.role === 'demand') {
+      chatRoleBadge.textContent = '🟠 提需求';
+      chatRoleBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold chat-role-demand';
+    } else {
+      chatRoleBadge.textContent = '🟢 接活';
+      chatRoleBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold chat-role-worker';
+    }
+  }
+
+  // 消息流
+  renderChatMessages(conv);
+
+  // 技能选择器状态
+  if (chatState.selectedSkill) {
+    renderSelectedSkillCapsule(chatState.selectedSkill);
+  } else {
+    if (chatSelectedSkillCapsule) {
+      chatSelectedSkillCapsule.classList.add('hidden');
+      chatSelectedSkillCapsule.innerHTML = '';
+    }
+    if (chatSkillLabel) chatSkillLabel.textContent = '选择我的技能';
+  }
+
+  // 如果 role 是 demand，技能选择器不需要显示
+  if (conv.role === 'demand') {
+    if (chatSkillSelector) chatSkillSelector.style.display = 'none';
+    if (chatDeliveryHint) chatDeliveryHint.classList.add('hidden');
+  } else {
+    if (chatSkillSelector) chatSkillSelector.style.display = '';
+    if (chatDeliveryHint) {
+      chatDeliveryHint.classList.toggle('hidden', !chatState.selectedSkill);
+    }
+  }
+}
+
+// 渲染消息流
+function renderChatMessages(conv) {
+  if (!chatMessagesEl || !conv) return;
+
+  let html = '';
+  // 系统消息：对话创建
+  html += `<div class="chat-bubble chat-bubble-system">对话已创建 · ${chatTimeLabel(conv.createdAt)}</div>`;
+
+  for (const msg of conv.messages) {
+    if (msg.type === 'system') {
+      html += `<div class="chat-bubble chat-bubble-system">${escapeHtml(msg.text)}</div>`;
+    } else if (msg.type === 'self') {
+      const skillTag = msg.skillName ? `<div class="mt-1"><span class="skill-capsule">${msg.skillIcon || '🔧'} ${escapeHtml(msg.skillName)}</span></div>` : '';
+      html += `
+        <div class="chat-bubble chat-bubble-self">
+          ${escapeHtml(msg.text)}${skillTag}
+        </div>
+      `;
+    } else if (msg.type === 'peer') {
+      html += `<div class="chat-bubble chat-bubble-peer">${escapeHtml(msg.text)}</div>`;
+    } else if (msg.type === 'delivery') {
+      const imgHtml = (msg.images && msg.images.length > 0) ? `
+        <div class="delivery-images">
+          ${msg.images.map(img => `<img src="${normalizeImageSrc(img)}" alt="交付图片" loading="lazy" />`).join('')}
+        </div>
+      ` : '';
+      html += `
+        <div class="chat-bubble-delivery">
+          <div class="delivery-header">
+            <span class="material-icons-round text-sm">check_circle</span>
+            交付结果 · ${msg.skillName || ''}
+          </div>
+          <div class="delivery-content">${escapeHtml(msg.content || '')}</div>
+          ${imgHtml}
+        </div>
+      `;
+    } else if (msg.type === 'loading') {
+      html += `
+        <div class="chat-bubble-loading">
+          <span></span><span></span><span></span>
+        </div>
+      `;
+    }
+  }
+
+  chatMessagesEl.innerHTML = html;
+  // 滚动到底部
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+}
+
+// 选中技能胶囊
+function renderSelectedSkillCapsule(skill) {
+  if (!chatSelectedSkillCapsule || !skill) return;
+  chatSelectedSkillCapsule.classList.remove('hidden');
+  chatSelectedSkillCapsule.innerHTML = `
+    <span class="skill-capsule">
+      ${skill.icon || '🔧'} ${escapeHtml(skill.name)}
+      <span class="skill-capsule-remove" data-action="remove-skill">✕</span>
+    </span>
+  `;
+  if (chatSkillLabel) chatSkillLabel.textContent = skill.name;
+  if (chatDeliveryHint) chatDeliveryHint.classList.remove('hidden');
+}
+
+// 技能下拉列表
+function renderSkillDropdown() {
+  if (!chatSkillDropdown) return;
+  const dropdownContent = chatSkillDropdown.querySelector('div');
+  if (!dropdownContent) return;
+
+  const abilities = state.abilities || [];
+  if (abilities.length === 0) {
+    dropdownContent.innerHTML = `
+      <div class="px-3 py-4 text-center text-xs text-gray-400">
+        暂无技能，请先在「AI分身 → 管理」中添加
+      </div>
+    `;
+    return;
+  }
+
+  dropdownContent.innerHTML = abilities.map(a => `
+    <div class="chat-skill-option ${chatState.selectedSkill?.id === a.id ? 'selected' : ''}" data-skill-id="${a.id}">
+      <span class="text-lg">${a.icon || '🔧'}</span>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold text-gray-900 dark:text-white truncate">${escapeHtml(a.name)}</div>
+        <div class="text-[11px] text-gray-500 dark:text-gray-400 truncate">${escapeHtml(a.description || '')}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// 切换技能下拉
+function toggleSkillDropdown() {
+  chatState.skillDropdownOpen = !chatState.skillDropdownOpen;
+  chatSkillDropdown?.classList.toggle('hidden', !chatState.skillDropdownOpen);
+  if (chatSkillChevron) {
+    chatSkillChevron.style.transform = chatState.skillDropdownOpen ? 'rotate(180deg)' : '';
+  }
+  if (chatState.skillDropdownOpen) renderSkillDropdown();
+}
+
+chatSkillSelector?.addEventListener('click', toggleSkillDropdown);
+
+// 选择技能
+chatSkillDropdown?.addEventListener('click', (e) => {
+  const option = e.target.closest('.chat-skill-option');
+  if (!option) return;
+  const skillId = option.dataset.skillId;
+  const ability = state.abilities.find(a => a.id === skillId);
+  if (ability) {
+    chatState.selectedSkill = { id: ability.id, name: ability.name, icon: ability.icon || '🔧', description: ability.description || '' };
+    renderSelectedSkillCapsule(chatState.selectedSkill);
+  }
+  // 关闭下拉
+  chatState.skillDropdownOpen = false;
+  chatSkillDropdown?.classList.add('hidden');
+  if (chatSkillChevron) chatSkillChevron.style.transform = '';
+});
+
+// 移除已选技能
+chatSelectedSkillCapsule?.addEventListener('click', (e) => {
+  if (e.target.closest('.skill-capsule-remove')) {
+    chatState.selectedSkill = null;
+    chatSelectedSkillCapsule.classList.add('hidden');
+    chatSelectedSkillCapsule.innerHTML = '';
+    if (chatSkillLabel) chatSkillLabel.textContent = '选择我的技能';
+    if (chatDeliveryHint) chatDeliveryHint.classList.add('hidden');
+  }
+});
+
+// 切换对话
+function switchConversation(convId) {
+  chatState.activeConversationId = convId;
+  chatState.selectedSkill = null;
+  chatState.skillDropdownOpen = false;
+
+  // 切换视图
+  if (chatListView) chatListView.classList.add('hidden');
+  if (chatDialogView) chatDialogView.classList.remove('hidden');
+
+  renderChatDialog();
+  renderChatList();
+}
+
+// 返回列表
+function backToChatList() {
+  chatState.activeConversationId = null;
+  chatState.selectedSkill = null;
+  chatState.skillDropdownOpen = false;
+  chatSkillDropdown?.classList.add('hidden');
+
+  if (chatDialogView) chatDialogView.classList.add('hidden');
+  if (chatListView) chatListView.classList.remove('hidden');
+
+  renderChatList();
+}
+
+chatBackBtn?.addEventListener('click', backToChatList);
+
+// 列表点击切换
+chatListEl?.addEventListener('click', (e) => {
+  const item = e.target.closest('.chat-list-item');
+  if (!item) return;
+  const convId = item.dataset.convId;
+  if (convId) switchConversation(convId);
+});
+
+// 打开/创建对话（统一入口）
+function openConversation(role, data) {
+  // role: 'demand' | 'worker'
+  // data: skill 或 task 对象
+
+  const isDemand = role === 'demand';
+  const peerId = isDemand ? (data.ownerId || data.id) : (data.publisherId || data.id);
+  const peerName = isDemand ? (data.ownerName || data.name || '技能提供者') : (data.publisherName || data.title || '任务发布者');
+  const title = isDemand ? (data.name || '技能对话') : (data.title || '任务对话');
+  const desc = isDemand ? (data.description || '') : (data.description || '');
+  const peerAvatar = data.avatar || '';
+  const refId = data.id; // 技能 ID 或 任务 ID
+
+  // 查找是否已有对应对话
+  let conv = chatState.conversations.find(c => c.refId === refId && c.role === role);
+
+  if (!conv) {
+    // 创建新对话
+    const newId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    conv = {
+      id: newId,
+      role,
+      refId,
+      peerId,
+      peerName,
+      peerAvatar,
+      title,
+      desc,
+      messages: [
+        { type: 'system', text: isDemand ? `你向「${peerName}」发起了需求对话` : `你对任务「${title}」发起了接活对话`, time: new Date().toISOString() }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    chatState.conversations.unshift(conv);
+    persistConversations();
+  }
+
+  // 确保模块展开
+  if (chatState.collapsed) toggleChatModule();
+
+  // 打开对话
+  switchConversation(conv.id);
+
+  showToast(`💬 已进入对话`);
+}
+
+// 发送消息
+async function sendChatMessage() {
+  const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
+  if (!conv) return;
+
+  const text = chatInput?.value?.trim();
+  if (!text && !chatState.selectedSkill) {
+    showToast('请输入消息');
+    return;
+  }
+
+  const skill = chatState.selectedSkill;
+
+  // 添加用户消息
+  const userMsg = {
+    type: 'self',
+    text: text || (skill ? `请使用「${skill.name}」生成交付` : ''),
+    skillId: skill?.id || null,
+    skillName: skill?.name || null,
+    skillIcon: skill?.icon || null,
+    time: new Date().toISOString()
+  };
+  conv.messages.push(userMsg);
+  conv.updatedAt = new Date().toISOString();
+
+  // 清空输入框
+  if (chatInput) chatInput.value = '';
+
+  renderChatMessages(conv);
+  persistConversations();
+
+  // 如果选择了技能，调用 API 生成交付
+  if (skill && conv.role === 'worker') {
+    // 添加加载状态
+    conv.messages.push({ type: 'loading' });
+    renderChatMessages(conv);
+
+    // 更新工作台状态
+    clearHireStatusTimers();
+    const now = new Date().toISOString();
+    Object.assign(currentHireJob, {
+      id: `hire_${Date.now()}`,
+      status: 'ACCEPTED',
+      skillId: skill.id,
+      skillName: skill.name,
+      skillIcon: skill.icon,
+      requirement: text || '',
+      selectedStyleId: '',
+      timeline: [],
+      result: null,
+      createdAt: now
+    });
+    setHireStatus('ACCEPTED', 'AI 已接单', 'info');
+    openHireWorkbench();
+
+    hireStatusTimers.push(setTimeout(() => {
+      if (isHireProcessing()) setHireStatus('ANALYZING', '分析需求中', 'running');
+    }, 900));
+    hireStatusTimers.push(setTimeout(() => {
+      if (isHireProcessing()) setHireStatus('THINKING', '思考方案中', 'running');
+    }, 2200));
+    hireStatusTimers.push(setTimeout(() => {
+      if (isHireProcessing()) setHireStatus('DELIVERING', '交付生成中', 'running');
+    }, 3500));
+
+    try {
+      const result = await api('/api/skills/hire', {
+        method: 'POST',
+        body: {
+          skillId: skill.id,
+          requirement: text || '',
+          selectedStyleId: ''
+        }
+      });
+
+      clearHireStatusTimers();
+
+      // 移除 loading 消息
+      conv.messages = conv.messages.filter(m => m.type !== 'loading');
+
+      const normalizedResult = {
+        content: result?.data?.content || '交付完成，但内容为空。',
+        images: result?.data?.images || []
+      };
+
+      // 添加交付结果消息
+      conv.messages.push({
+        type: 'delivery',
+        content: normalizedResult.content,
+        images: normalizedResult.images,
+        skillName: skill.name,
+        time: new Date().toISOString()
+      });
+      conv.updatedAt = new Date().toISOString();
+
+      currentHireJob.result = normalizedResult;
+      setHireStatus('COMPLETED', '已完成', 'success');
+      renderHireWorkbench();
+
+      appendHireSummary({
+        id: currentHireJob.id,
+        skillId: currentHireJob.skillId,
+        skillName: currentHireJob.skillName,
+        skillIcon: currentHireJob.skillIcon,
+        status: 'COMPLETED',
+        requirement: currentHireJob.requirement,
+        timeline: currentHireJob.timeline.slice(),
+        result: normalizedResult,
+        createdAt: currentHireJob.createdAt,
+        completedAt: new Date().toISOString()
+      });
+
+      showToast('🎉 交付完成！');
+    } catch (err) {
+      clearHireStatusTimers();
+      conv.messages = conv.messages.filter(m => m.type !== 'loading');
+
+      const message = err.message || '交付失败，请重试';
+      conv.messages.push({
+        type: 'system',
+        text: `❌ 交付失败：${message}`,
+        time: new Date().toISOString()
+      });
+      conv.updatedAt = new Date().toISOString();
+
+      currentHireJob.result = { content: message, images: [] };
+      setHireStatus('FAILED', `执行失败：${message}`, 'error');
+      showToast(message);
+    }
+
+    renderChatMessages(conv);
+    persistConversations();
+    renderChatList();
+
+    // 清除已选技能
+    chatState.selectedSkill = null;
+    if (chatSelectedSkillCapsule) {
+      chatSelectedSkillCapsule.classList.add('hidden');
+      chatSelectedSkillCapsule.innerHTML = '';
+    }
+    if (chatSkillLabel) chatSkillLabel.textContent = '选择我的技能';
+    if (chatDeliveryHint) chatDeliveryHint.classList.add('hidden');
+
+  } else if (skill && conv.role === 'demand') {
+    // 需求方选择了技能：暂存为普通消息
+    renderChatList();
+  } else {
+    // 纯文本消息
+    renderChatList();
+  }
+}
+
+chatSendBtn?.addEventListener('click', sendChatMessage);
+
+// Enter 发送（Shift+Enter 换行）
+chatInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChatMessage();
+  }
+});
+
+// 点击外部关闭技能下拉
+document.addEventListener('click', (e) => {
+  if (chatState.skillDropdownOpen && !e.target.closest('#chat-skill-selector') && !e.target.closest('#chat-skill-dropdown')) {
+    chatState.skillDropdownOpen = false;
+    chatSkillDropdown?.classList.add('hidden');
+    if (chatSkillChevron) chatSkillChevron.style.transform = '';
+  }
+});
+
+// 初始化聊天列表
+renderChatList();
 
 bootstrap();
