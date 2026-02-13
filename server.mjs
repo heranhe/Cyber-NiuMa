@@ -1995,39 +1995,71 @@ async function callCustomApiImageGeneration({
     requestBody.quality = 'hd';
   }
 
-  console.log(`[图像生成] 尝试 /images/generations: ${imagesUrl}, model=${modelName}`);
-
-  const imgResponse = await fetch(imagesUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
-    },
-    body: JSON.stringify(requestBody)
-  });
-
-  // 如果 /images/generations 成功，按 OpenAI 格式解析
-  if (imgResponse.ok) {
-    const text = await imgResponse.text();
-    let payload = {};
-    try { payload = text ? JSON.parse(text) : {}; } catch { payload = {}; }
-
+  const parseImagesFromPayload = (payload) => {
     const images = [];
     const dataItems = Array.isArray(payload?.data) ? payload.data : [];
     for (const item of dataItems) {
       if (item.url) images.push(item.url);
       else if (item.b64_json) images.push(`data:image/png;base64,${item.b64_json}`);
     }
+    return images;
+  };
 
+  const requestImagesGeneration = async (body) => {
+    const response = await fetch(imagesUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    const text = await response.text();
+    let payload = {};
+    try { payload = text ? JSON.parse(text) : {}; } catch { payload = {}; }
+    return { response, text, payload };
+  };
+
+  console.log(`[图像生成] 尝试 /images/generations: ${imagesUrl}, model=${modelName}`);
+  let imageAttempt = await requestImagesGeneration(requestBody);
+
+  if (imageAttempt.response.ok) {
+    const images = parseImagesFromPayload(imageAttempt.payload);
     if (images.length) {
       console.log(`[图像生成] /images/generations 成功, ${images.length} 张图片`);
       return { endpoint: imagesUrl, model: modelName, images };
     }
   }
 
+  // 某些 OpenAI 兼容服务（如 Gemini）不接受 size/quality，400 时改为最小参数重试
+  const firstErrorText = shortText(imageAttempt.text, 600).toLowerCase();
+  const shouldRetryMinimal = !imageAttempt.response.ok
+    && [400, 422].includes(imageAttempt.response.status)
+    && (firstErrorText.includes('size') || firstErrorText.includes('quality') || firstErrorText.includes('unknown field') || firstErrorText.includes('invalid argument'));
+
+  if (shouldRetryMinimal) {
+    const minimalBody = {
+      model: modelName,
+      prompt: String(prompt).trim(),
+      n: Math.max(1, Math.min(4, n || 1)),
+      response_format: 'b64_json'
+    };
+    console.log('[图像生成] /images/generations 首次失败，移除 size/quality 后重试');
+    imageAttempt = await requestImagesGeneration(minimalBody);
+
+    if (imageAttempt.response.ok) {
+      const images = parseImagesFromPayload(imageAttempt.payload);
+      if (images.length) {
+        console.log(`[图像生成] /images/generations 重试成功, ${images.length} 张图片`);
+        return { endpoint: imagesUrl, model: modelName, images };
+      }
+    }
+  }
+
   // 策略2: 回退到 /chat/completions（Gemini 等多模态模型通过 chat 接口生成图片）
   const chatUrl = buildCustomApiUrl(endpoint, '/chat/completions');
-  console.log(`[图像生成] /images/generations 失败(${imgResponse.status}), 回退 /chat/completions: ${chatUrl}`);
+  console.log(`[图像生成] /images/generations 失败(${imageAttempt.response.status}), 回退 /chat/completions: ${chatUrl}`);
 
   const chatBody = {
     model: modelName,
@@ -2059,7 +2091,12 @@ async function callCustomApiImageGeneration({
   if (!chatResponse.ok) {
     throw new AppError(`图像生成 API 调用失败 (${chatResponse.status})`, 502, {
       endpoint: chatUrl,
-      body: shortText(chatText, 800)
+      body: shortText(chatText, 800),
+      imageGenerationError: {
+        endpoint: imagesUrl,
+        status: imageAttempt.response.status,
+        body: shortText(imageAttempt.text, 800)
+      }
     });
   }
 
@@ -2071,7 +2108,12 @@ async function callCustomApiImageGeneration({
     const textContent = chatPayload?.choices?.[0]?.message?.content || '';
     throw new AppError('图像生成未返回有效图片，模型可能不支持图像生成', 502, {
       endpoint: chatUrl,
-      response: shortText(textContent, 500)
+      response: shortText(textContent, 500),
+      imageGenerationError: {
+        endpoint: imagesUrl,
+        status: imageAttempt.response.status,
+        body: shortText(imageAttempt.text, 800)
+      }
     });
   }
 
