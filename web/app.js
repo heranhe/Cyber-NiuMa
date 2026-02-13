@@ -215,8 +215,8 @@ const COVER_IMAGES = [
   'https://lh3.googleusercontent.com/aida-public/AB6AXuARh5IYkrQkyjQfLr8nZOBtwKyStnzha5bSRJUZVxiqOP7_2wlmAynZs0TsKxPwFm8TFjwSLWZom90upOCG4ZCNypWwP796rxRNUbJ3rfSGMoPtTjXeL5NBhvKItiQUKtlP6PNCrKZRwtkxC5OqRsy1yhJzpIIGlS7dzROrn-P8uUj9KmbCSCjSnR90XDoe_Q3d1ygw-NAEBxJ44KqoOzq30U1IonyqN7ne4Tjo7E2b-Do7Nv2hmbr5kpp1Ze2ls4WWyv6Bm80k-56l'
 ];
 
-// 封面图长宽比列表（随机分配，营造瀑布流错落感）
-const ASPECT_RATIOS = ['aspect-[3/4]', 'aspect-[4/3]', 'aspect-[1/1]', 'aspect-[9/16]', 'aspect-[3/4]'];
+// 封面图长宽比列表（随机分配，营造瀑布流错落感；竖屏最高 4:3，避免过长）
+const ASPECT_RATIOS = ['aspect-[4/3]', 'aspect-[3/4]', 'aspect-[16/9]', 'aspect-[1/1]', 'aspect-[4/3]'];
 
 function renderTaskCard(task, index) {
   const statusLabel = statusText(task.status);
