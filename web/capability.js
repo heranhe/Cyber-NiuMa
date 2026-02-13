@@ -7,7 +7,8 @@ const state = {
   search: '',
   modelOptions: [],
   providers: [],
-  editingProvider: null
+  editingProvider: null,
+  editingStyleId: null  // 当前正在编辑的风格ID（null=新建）
 };
 
 const el = {
@@ -60,6 +61,20 @@ const el = {
   providerCancelBtn: document.querySelector('#provider-cancel-btn'),
   fieldProviderSelect: document.querySelector('#field-provider-select'),
 
+  // 风格相关元素
+  styleList: document.querySelector('#style-list'),
+  styleCount: document.querySelector('#style-count'),
+  styleModal: document.querySelector('#style-modal'),
+  styleModalBackdrop: document.querySelector('#style-modal-backdrop'),
+  styleModalClose: document.querySelector('#style-modal-close'),
+  styleModalTitle: document.querySelector('#style-modal-title'),
+  styleFieldName: document.querySelector('#style-field-name'),
+  styleFieldImage: document.querySelector('#style-field-image'),
+  styleFieldPrompt: document.querySelector('#style-field-prompt'),
+  styleImagePreview: document.querySelector('#style-image-preview'),
+  styleSaveBtn: document.querySelector('#style-save-btn'),
+  styleCancelBtn: document.querySelector('#style-cancel-btn'),
+
   toast: document.querySelector('#toast')
 };
 
@@ -109,6 +124,12 @@ async function api(path, options = {}) {
 function normalizeAbility(raw = {}) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const customApi = source.customApi && typeof source.customApi === 'object' ? source.customApi : {};
+  const styles = Array.isArray(source.styles) ? source.styles.map(s => ({
+    id: String(s?.id || '').trim(),
+    name: String(s?.name || '').trim(),
+    image: String(s?.image || '').trim(),
+    prompt: String(s?.prompt || '').trim()
+  })).filter(s => s.name) : [];
   return {
     id: String(source.id || '').trim(),
     name: String(source.name || '').trim(),
@@ -122,6 +143,7 @@ function normalizeAbility(raw = {}) {
       apiKey: String(customApi.apiKey || source.apiKey || '').trim(),
       model: String(customApi.model || source.model || '').trim()
     },
+    styles,
     createdAt: source.createdAt || null,
     updatedAt: source.updatedAt || null
   };
@@ -140,7 +162,8 @@ function newAbilityDraft() {
       endpoint: '',
       apiKey: '',
       model: ''
-    }
+    },
+    styles: []
   });
 }
 
@@ -284,6 +307,7 @@ function renderForm() {
   }
 
   renderModelOptions();
+  renderStyles();
 }
 
 function updateCurrentFromForm() {
@@ -388,7 +412,13 @@ function abilityPayload(ability) {
       endpoint: ability.customApi.endpoint,
       apiKey: ability.customApi.apiKey,
       model: ability.customApi.model
-    }
+    },
+    styles: (ability.styles || []).map(s => ({
+      id: s.id,
+      name: s.name,
+      image: s.image,
+      prompt: s.prompt
+    }))
   };
 }
 
@@ -626,6 +656,180 @@ function bindEvents() {
   ].forEach((node) => {
     node?.addEventListener('input', updateCurrentFromForm);
     node?.addEventListener('change', updateCurrentFromForm);
+  });
+}
+
+// ===== 风格管理功能 =====
+
+function renderStyles() {
+  const ability = getCurrentAbility();
+  const styles = ability.styles || [];
+
+  // 更新风格计数
+  if (el.styleCount) {
+    el.styleCount.textContent = String(styles.length);
+  }
+
+  if (!el.styleList) return;
+
+  // 生成风格卡片 HTML
+  const cardsHtml = styles.map(style => {
+    const imgContent = style.image
+      ? `<img src="${escapeHtml(style.image)}" alt="${escapeHtml(style.name)}" onerror="this.parentElement.innerHTML='🎨'" />`
+      : '🎨';
+    return `
+      <div class="style-card" data-style-id="${escapeHtml(style.id)}" title="${escapeHtml(style.name)}\n${escapeHtml(style.prompt || '无提示词')}">
+        <button type="button" class="style-card-delete" data-delete-style-id="${escapeHtml(style.id)}">&times;</button>
+        <div class="style-card-img">${imgContent}</div>
+        <div class="style-card-name">${escapeHtml(style.name)}</div>
+      </div>
+    `;
+  }).join('');
+
+  // 添加按钮
+  const addBtnHtml = `
+    <button type="button" class="style-card-add" id="add-style-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      添加风格
+    </button>
+  `;
+
+  el.styleList.innerHTML = cardsHtml + addBtnHtml;
+}
+
+function openStyleEditor(styleId = null) {
+  const ability = getCurrentAbility();
+  let style = null;
+
+  if (styleId) {
+    style = (ability.styles || []).find(s => s.id === styleId);
+  }
+
+  state.editingStyleId = style ? style.id : null;
+
+  if (el.styleModalTitle) {
+    el.styleModalTitle.textContent = style ? '编辑风格' : '添加风格';
+  }
+  if (el.styleFieldName) el.styleFieldName.value = style?.name || '';
+  if (el.styleFieldImage) el.styleFieldImage.value = style?.image || '';
+  if (el.styleFieldPrompt) el.styleFieldPrompt.value = style?.prompt || '';
+
+  // 图片预览
+  updateStyleImagePreview(style?.image || '');
+
+  if (el.styleModal) {
+    el.styleModal.classList.remove('hidden');
+  }
+}
+
+function closeStyleEditor() {
+  state.editingStyleId = null;
+  if (el.styleModal) {
+    el.styleModal.classList.add('hidden');
+  }
+}
+
+function updateStyleImagePreview(url) {
+  if (!el.styleImagePreview) return;
+  const img = el.styleImagePreview.querySelector('img');
+  if (url && img) {
+    img.src = url;
+    img.onerror = () => el.styleImagePreview.classList.add('hidden');
+    el.styleImagePreview.classList.remove('hidden');
+  } else {
+    el.styleImagePreview.classList.add('hidden');
+  }
+}
+
+function onStyleSave() {
+  const name = el.styleFieldName?.value?.trim() || '';
+  const image = el.styleFieldImage?.value?.trim() || '';
+  const prompt = el.styleFieldPrompt?.value?.trim() || '';
+
+  if (!name) {
+    showToast('请输入风格名称');
+    return;
+  }
+
+  const ability = getCurrentAbility();
+  if (!ability.styles) ability.styles = [];
+
+  if (state.editingStyleId) {
+    // 编辑已有风格
+    const idx = ability.styles.findIndex(s => s.id === state.editingStyleId);
+    if (idx >= 0) {
+      ability.styles[idx] = { ...ability.styles[idx], name, image, prompt };
+    }
+  } else {
+    // 新增风格
+    const newStyle = {
+      id: 'style_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      name,
+      image,
+      prompt
+    };
+    ability.styles.push(newStyle);
+  }
+
+  closeStyleEditor();
+  renderStyles();
+  showToast(state.editingStyleId ? '风格已更新' : '风格已添加');
+}
+
+function onStyleDelete(styleId) {
+  const ability = getCurrentAbility();
+  if (!ability.styles) return;
+
+  const style = ability.styles.find(s => s.id === styleId);
+  if (!style) return;
+
+  if (!window.confirm(`确认删除风格「${style.name}」？`)) {
+    return;
+  }
+
+  ability.styles = ability.styles.filter(s => s.id !== styleId);
+  renderStyles();
+  showToast('风格已删除');
+}
+
+function bindStyleEvents() {
+  // 风格列表点击事件（事件委托）
+  el.styleList?.addEventListener('click', (event) => {
+    // 删除按钮
+    const deleteBtn = event.target.closest('[data-delete-style-id]');
+    if (deleteBtn) {
+      event.stopPropagation();
+      const id = deleteBtn.dataset.deleteStyleId;
+      if (id) onStyleDelete(id);
+      return;
+    }
+
+    // 添加按钮
+    const addBtn = event.target.closest('#add-style-btn');
+    if (addBtn) {
+      openStyleEditor();
+      return;
+    }
+
+    // 点击卡片编辑
+    const card = event.target.closest('[data-style-id]');
+    if (card) {
+      const id = card.dataset.styleId;
+      if (id) openStyleEditor(id);
+    }
+  });
+
+  // 弹窗事件
+  el.styleModalClose?.addEventListener('click', closeStyleEditor);
+  el.styleModalBackdrop?.addEventListener('click', closeStyleEditor);
+  el.styleCancelBtn?.addEventListener('click', closeStyleEditor);
+  el.styleSaveBtn?.addEventListener('click', onStyleSave);
+
+  // 图片 URL 实时预览
+  el.styleFieldImage?.addEventListener('input', (e) => {
+    updateStyleImagePreview(e.target.value?.trim() || '');
   });
 }
 
@@ -872,6 +1076,7 @@ function bindProviderEvents() {
 async function bootstrap() {
   bindEvents();
   bindProviderEvents();
+  bindStyleEvents();
   loadProviders();
   try {
     await loadProfile();

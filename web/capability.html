@@ -140,6 +140,131 @@
       transform: translate(-50%, 0);
       opacity: 1;
     }
+
+    /* 风格卡片区域 */
+    .style-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 4px 0;
+      scroll-behavior: smooth;
+    }
+
+    .style-scroll::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .style-scroll::-webkit-scrollbar-thumb {
+      background: #D1D5DB;
+      border-radius: 2px;
+    }
+
+    .style-card {
+      flex-shrink: 0;
+      width: 100px;
+      cursor: pointer;
+      border-radius: 16px;
+      border: 2px solid transparent;
+      background: #F9FAFB;
+      transition: all .2s ease;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .style-card:hover {
+      border-color: #D97706;
+      box-shadow: 0 4px 12px rgba(217, 119, 6, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .style-card.is-selected {
+      border-color: #D97706;
+      background: #FFF7ED;
+      box-shadow: 0 4px 12px rgba(217, 119, 6, 0.2);
+    }
+
+    .style-card-img {
+      width: 100%;
+      height: 72px;
+      object-fit: cover;
+      background: linear-gradient(135deg, #F3F4F6, #E5E7EB);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9CA3AF;
+      font-size: 24px;
+    }
+
+    .style-card-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .style-card-name {
+      padding: 6px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #374151;
+    }
+
+    .style-card-add {
+      flex-shrink: 0;
+      width: 100px;
+      height: 100%;
+      min-height: 98px;
+      cursor: pointer;
+      border-radius: 16px;
+      border: 2px dashed #D1D5DB;
+      background: transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: #9CA3AF;
+      font-size: 11px;
+      font-weight: 600;
+      transition: all .2s ease;
+    }
+
+    .style-card-add:hover {
+      border-color: #D97706;
+      color: #D97706;
+      background: #FFFBEB;
+    }
+
+    .style-card-add svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .style-card-delete {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .style-card:hover .style-card-delete {
+      display: flex;
+    }
   </style>
 </head>
 
@@ -264,6 +389,25 @@
                         class="w-full rounded-xl border-gray-200 bg-gray-50 py-2.5 px-3 text-sm focus:ring-primary focus:border-primary"
                         placeholder="一句话说明这个能力擅长做什么" />
                     </div>
+                  </div>
+                </div>
+
+                <!-- 风格管理区域 -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="flex items-center gap-2 text-xs font-bold text-gray-800 uppercase tracking-wider">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                        stroke="currentColor" class="w-4 h-4 text-primary">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
+                      </svg>
+                      风格选项
+                    </label>
+                    <span id="style-count"
+                      class="text-[11px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500">0</span>
+                  </div>
+                  <div id="style-list" class="style-scroll">
+                    <!-- 风格卡片由 JS 动态渲染 -->
                   </div>
                 </div>
 
@@ -426,6 +570,51 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 风格编辑弹窗 -->
+  <div id="style-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" id="style-modal-backdrop"></div>
+    <div
+      class="absolute inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h2 id="style-modal-title" class="text-lg font-black">添加风格</h2>
+        <button id="style-modal-close" type="button" class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-gray-500">
+            <path fill-rule="evenodd"
+              d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z"
+              clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">风格名称</label>
+          <input id="style-field-name" type="text" placeholder="例如：赛博朋克"
+            class="w-full rounded-lg border-gray-200 bg-gray-50 py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">风格图片 URL</label>
+          <input id="style-field-image" type="url" placeholder="https://example.com/style.jpg"
+            class="w-full rounded-lg border-gray-200 bg-gray-50 py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
+          <div id="style-image-preview" class="mt-2 hidden">
+            <img class="w-full h-32 object-cover rounded-lg border border-gray-200" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">风格提示词</label>
+          <textarea id="style-field-prompt" rows="4"
+            class="w-full rounded-lg border-gray-200 bg-gray-50 font-mono text-sm p-3 focus:ring-primary focus:border-primary"
+            placeholder="这个风格要使用的特定提示词..."></textarea>
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <button id="style-save-btn" type="button"
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-black hover:bg-gray-800 transition-colors">保存风格</button>
+          <button id="style-cancel-btn" type="button"
+            class="px-4 py-2.5 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors">取消</button>
         </div>
       </div>
     </div>

@@ -645,6 +645,23 @@ function normalizeCustomApiConfig(payload = {}, fallback = {}) {
   };
 }
 
+// 规范化单个风格对象
+function normalizeStyle(raw = {}) {
+  const s = raw && typeof raw === 'object' ? raw : {};
+  return {
+    id: String(s.id || '').trim() || uid('style'),
+    name: String(s.name || '').trim(),
+    image: String(s.image || '').trim(),
+    prompt: String(s.prompt || '').trim()
+  };
+}
+
+// 规范化风格数组
+function normalizeStyles(input) {
+  if (!Array.isArray(input)) return [];
+  return input.map(normalizeStyle).filter(s => s.name);
+}
+
 function normalizeStoredAbility(payload = {}) {
   const source = payload && typeof payload === 'object' ? payload : {};
   return {
@@ -663,6 +680,7 @@ function normalizeStoredAbility(payload = {}) {
       },
       source?.customApi
     ),
+    styles: normalizeStyles(source.styles),
     createdAt: source.createdAt || null,
     updatedAt: source.updatedAt || null
   };
@@ -1095,6 +1113,7 @@ async function updateUserAbility(userId, abilityId, patch) {
     enabled: hasOwn(patch, 'enabled') ? toBoolean(patch.enabled, true) : current.enabled,
     useCustomApi: hasOwn(patch, 'useCustomApi') ? toBoolean(patch.useCustomApi, false) : current.useCustomApi,
     customApi: mergedCustomApi,
+    styles: hasOwn(patch, 'styles') ? normalizeStyles(patch.styles) : current.styles,
     createdAt: current.createdAt || nowIso(),
     updatedAt: nowIso()
   });
