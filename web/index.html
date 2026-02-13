@@ -465,6 +465,42 @@
         </button>
       </div>
       <form id="publish-form" class="space-y-4">
+        <!-- 封面图上传 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">封面图<span
+              class="text-xs text-gray-400 font-normal ml-1">（可选，展示在任务卡片上）</span></label>
+          <label
+            class="relative block border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-colors bg-gray-50/50 dark:bg-gray-800/50 aspect-[16/9]">
+            <input type="file" id="publish-cover-input" accept="image/*"
+              class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="(function(input){
+                const file = input.files[0]; if(!file) return;
+                const reader = new FileReader();
+                reader.onload = function(e){
+                  const preview = document.getElementById('cover-preview');
+                  preview.querySelector('img').src = e.target.result;
+                  preview.classList.remove('hidden');
+                  document.getElementById('cover-placeholder').classList.add('hidden');
+                };
+                reader.readAsDataURL(file);
+              })(this)" />
+            <!-- 默认占位 -->
+            <div id="cover-placeholder"
+              class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span
+                class="material-icons-round text-4xl text-gray-300 dark:text-gray-600 mb-2">add_photo_alternate</span>
+              <p class="text-xs text-gray-500 dark:text-gray-400">点击上传封面图</p>
+              <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">建议比例 16:9，JPG / PNG</p>
+            </div>
+            <!-- 预览 -->
+            <div id="cover-preview" class="absolute inset-0 hidden">
+              <img class="w-full h-full object-cover" alt="封面预览" />
+              <div
+                class="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span class="text-white text-xs font-bold bg-black/50 px-3 py-1 rounded-full">更换封面</span>
+              </div>
+            </div>
+          </label>
+        </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">任务标题</label>
           <input name="title" type="text"
@@ -472,27 +508,10 @@
             placeholder="一句话描述你的劳务目标" required />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">任务描述</label>
-          <textarea name="description" rows="3"
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">需求正文</label>
+          <textarea name="description" rows="4"
             class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="详细描述交付预期、风格约束、应用场景" required></textarea>
-        </div>
-        <!-- 附件上传区域 -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">附件（可选）</label>
-          <div id="publish-dropzone"
-            class="relative border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-xl p-4 text-center hover:border-primary/50 transition-colors cursor-pointer bg-gray-50/50 dark:bg-gray-800/50">
-            <input type="file" id="publish-files" name="files" multiple accept="image/*,.pdf,.doc,.docx,.txt"
-              class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-            <div class="pointer-events-none">
-              <span
-                class="material-icons-round text-3xl text-gray-300 dark:text-gray-600 mb-2 block">cloud_upload</span>
-              <p class="text-xs text-gray-500 dark:text-gray-400">点击或拖放图片/文档</p>
-              <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">支持 JPG、PNG、PDF、Word 等格式</p>
-            </div>
-          </div>
-          <!-- 已选文件列表 -->
-          <div id="publish-file-list" class="mt-2 space-y-1 hidden"></div>
         </div>
         <!-- 积分设置 -->
         <div>
@@ -507,9 +526,6 @@
               placeholder="0" />
             <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">积分</span>
           </div>
-        </div>
-        <div class="text-xs text-subtext-light dark:text-subtext-dark">
-          <span class="font-medium">示例：</span>logo设计、ai修图、文案修改、出点主意
         </div>
         <div class="flex gap-3 pt-2">
           <button type="button" id="cancel-publish-btn"

@@ -223,9 +223,14 @@ function renderTaskCard(task, index) {
   const statusBg = task.status === 'DELIVERED' ? 'bg-green-500' : task.status === 'IN_PROGRESS' ? 'bg-blue-500' : 'bg-gray-200 text-gray-800';
   const statusTextColor = task.status === 'DELIVERED' || task.status === 'IN_PROGRESS' ? 'text-white' : '';
 
-  // 随机选封面图和比例
-  const coverImg = COVER_IMAGES[index % COVER_IMAGES.length];
-  const aspectRatio = ASPECT_RATIOS[index % ASPECT_RATIOS.length];
+  // 优先使用任务自带封面图，否则用随机封面
+  const coverImg = task.coverImage || COVER_IMAGES[index % COVER_IMAGES.length];
+  // 有自定义封面时不强制比例，让图片高度自适应；无自定义封面用随机比例
+  const hasCustomCover = !!task.coverImage;
+  const aspectRatio = hasCustomCover ? '' : ASPECT_RATIOS[index % ASPECT_RATIOS.length];
+  const imgClass = hasCustomCover
+    ? 'w-full h-auto object-contain transform group-hover:scale-110 transition-transform duration-700 ease-in-out'
+    : 'w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-in-out';
 
   // 按钮配置
   let actionBtn = '';
@@ -242,14 +247,14 @@ function renderTaskCard(task, index) {
   return `
     <div class="masonry-item bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-task-id="${task.id}">
       <div class="relative m-2 rounded-xl overflow-hidden ${aspectRatio}">
-        <img alt="${escapeHtml(task.title)}" class="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" />
+        <img alt="${escapeHtml(task.title)}" class="${imgClass}" src="${coverImg}" />
         <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80"></div>
         ${task.budget ? `<span class="absolute top-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-black/40 backdrop-blur-sm text-white border border-white/20">¥ ${escapeHtml(String(task.budget))}</span>` : ''}
         <span class="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] font-bold ${statusBg} ${statusTextColor} shadow-sm z-10">${statusLabel}</span>
         <!-- 悬浮按钮：hover 时显示在封面底部 -->
         <div class="card-hover-gradient"></div>
         <div class="card-hover-buttons">
-          <button class="task-action flex-1 py-2 rounded-lg text-[11px] font-bold text-white hover:bg-white/20 border border-white/30 backdrop-blur-sm transition-all flex items-center justify-center gap-1" data-action="view" data-task-id="${task.id}">
+          <button class="task-action flex-1 py-2 rounded-lg text-[11px] font-bold bg-white text-gray-800 hover:bg-gray-100 shadow-sm transition-all flex items-center justify-center gap-1" data-action="view" data-task-id="${task.id}">
             <span class="material-symbols-outlined text-[16px]">forum</span> 讨论
           </button>
           ${actionBtn}
@@ -258,9 +263,6 @@ function renderTaskCard(task, index) {
       <div class="px-4 pb-4 pt-1 flex flex-col cursor-pointer" onclick="window.location.href='/task-detail.html?id=${task.id}'">
         <h3 class="font-bold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors text-base mb-2" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</h3>
         <p class="text-xs text-subtext-light dark:text-subtext-dark line-clamp-3 mb-3 leading-relaxed">${escapeHtml(task.description)}</p>
-        <div class="flex flex-wrap gap-1.5">
-          <span class="px-2 py-0.5 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-100 dark:border-gray-600">${escapeHtml(task.laborType || '通用')}</span>
-        </div>
       </div>
     </div>
   `;
@@ -581,9 +583,19 @@ async function onPublishSubmit(event) {
     budget: parseInt(formData.get('budget') || '0', 10) || 0
   };
 
+  // 读取封面图为 base64
+  const coverInput = document.getElementById('publish-cover-input');
+  if (coverInput?.files?.[0]) {
+    try {
+      data.coverImage = await fileToDataUrl(coverInput.files[0]);
+    } catch (e) {
+      console.warn('封面图读取失败', e);
+    }
+  }
+
   if (!data.title || !data.description) {
     showToast('请填写任务标题和描述');
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '发布任务'; }
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '派活'; }
     return;
   }
 
@@ -592,12 +604,25 @@ async function onPublishSubmit(event) {
     showToast('任务发布成功');
     closePublishModalFn();
     publishForm.reset();
+    // 清除封面预览
+    const preview = document.getElementById('cover-preview');
+    if (preview) { preview.classList.add('hidden'); preview.querySelector('img')?.removeAttribute('src'); }
     await loadTasks();
   } catch (err) {
     showToast(err.message || '发布失败');
   } finally {
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '发布任务'; }
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '派活'; }
   }
+}
+
+// 将文件转为 data URL
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 // ===== 接单弹窗 =====
@@ -1162,7 +1187,7 @@ function renderSkillCard(skill, index) {
         <!-- 悬浮按钮 -->
         <div class="card-hover-gradient"></div>
         <div class="card-hover-buttons">
-          <button class="flex-1 py-2 rounded-lg text-[11px] font-bold text-white hover:bg-white/20 border border-white/30 backdrop-blur-sm transition-all flex items-center justify-center gap-1">
+          <button class="flex-1 py-2 rounded-lg text-[11px] font-bold bg-white text-gray-800 hover:bg-gray-100 shadow-sm transition-all flex items-center justify-center gap-1">
             <span class="material-symbols-outlined text-[16px]">chat_bubble</span> 咨询
           </button>
           <button class="flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1">
