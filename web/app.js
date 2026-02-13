@@ -60,6 +60,20 @@ const publishForm = document.querySelector('#publish-form');
 const closePublishModal = document.querySelector('#close-publish-modal');
 const cancelPublishBtn = document.querySelector('#cancel-publish-btn');
 
+// 接单弹窗元素（已移除弹窗，保留变量声明避免 ReferenceError）
+const takeTaskModal = document.querySelector('#take-task-modal');
+const closeTakeModal = document.querySelector('#close-take-modal');
+const cancelTakeBtn = document.querySelector('#cancel-take-btn');
+const takeTaskForm = document.querySelector('#take-task-form');
+const takeTaskIdInput = document.querySelector('#take-task-id');
+const takeTaskTitle = document.querySelector('#take-task-title');
+const takeTaskNote = document.querySelector('#take-task-note');
+const capabilityList = document.querySelector('#capability-list');
+
+// 雇佣弹窗元素（已移除弹窗，保留变量声明避免 ReferenceError）
+const hireModal = document.querySelector('#hire-modal');
+
+
 // 对话模块元素
 const chatModule = document.querySelector('#chat-module');
 const chatToggleBtn = document.querySelector('#chat-toggle-btn');
@@ -1386,7 +1400,6 @@ if (skillCategoryFilters) {
 }
 
 // ===== 雇佣弹窗逻辑 =====
-const hireModal = document.getElementById('hire-modal');
 const hireFormView = document.getElementById('hire-form-view');
 const hireLoadingView = document.getElementById('hire-loading-view');
 const hireResultView = document.getElementById('hire-result-view');
