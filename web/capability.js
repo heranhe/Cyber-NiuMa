@@ -713,7 +713,10 @@ async function onTestImageGeneration() {
     }
   } catch (error) {
     const details = error?.payload?.details || {};
-    const nested = details?.imageGenerationError?.body || details?.response || '';
+    const nested = details?.imageGenerationError?.body
+      || details?.responsesGenerationError?.body
+      || details?.response
+      || '';
     const finalMessage = nested ? `${error.message || '未知错误'}: ${nested}` : (error.message || '未知错误');
     if (el.testImageStatus) {
       el.testImageStatus.textContent = `❌ 测试失败: ${finalMessage}`;

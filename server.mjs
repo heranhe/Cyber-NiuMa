@@ -1777,6 +1777,12 @@ function normalizeCustomApiBaseUrl(endpoint) {
   if (pathname.endsWith('/chat/completions')) {
     pathname = pathname.slice(0, -'/chat/completions'.length) || '/v1';
   }
+  if (pathname.endsWith('/images/generations')) {
+    pathname = pathname.slice(0, -'/images/generations'.length) || '/v1';
+  }
+  if (pathname.endsWith('/responses')) {
+    pathname = pathname.slice(0, -'/responses'.length) || '/v1';
+  }
   if (pathname.endsWith('/models')) {
     pathname = pathname.slice(0, -'/models'.length) || '/v1';
   }
@@ -2084,7 +2090,57 @@ async function callCustomApiImageGeneration({
     }
   }
 
-  // 策略2: 回退到 /chat/completions（Gemini 等多模态模型通过 chat 接口生成图片）
+  // 策略2: 尝试 /responses（部分第三方代理只支持该端点）
+  const responsesUrl = buildCustomApiUrl(endpoint, '/responses');
+  const responsesBody = {
+    model: modelName,
+    input: String(prompt).trim(),
+    modalities: ['image'],
+    tools: [
+      {
+        type: 'image_generation'
+      }
+    ]
+  };
+  if (String(size || '').trim() && !isNoLimitValue(size)) {
+    responsesBody.tools[0].size = String(size).trim();
+  }
+  if (String(quality || '').trim() && !isNoLimitValue(quality)) {
+    responsesBody.tools[0].quality = String(quality).trim();
+  }
+
+  let responsesAttempt = null;
+  console.log(`[图像生成] 尝试 /responses: ${responsesUrl}`);
+  try {
+    const response = await fetch(responsesUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(responsesBody)
+    });
+    const text = await response.text();
+    let payload = {};
+    try { payload = text ? JSON.parse(text) : {}; } catch { payload = {}; }
+    responsesAttempt = { response, text, payload };
+
+    if (responsesAttempt.response.ok) {
+      const responseImages = extractImagesFromResponsesPayload(responsesAttempt.payload);
+      if (responseImages.length) {
+        console.log(`[图像生成] /responses 成功, ${responseImages.length} 张图片`);
+        return { endpoint: responsesUrl, model: modelName, images: responseImages };
+      }
+    }
+  } catch (error) {
+    responsesAttempt = {
+      response: { status: 0, ok: false },
+      text: String(error?.message || 'request_failed'),
+      payload: {}
+    };
+  }
+
+  // 策略3: 回退到 /chat/completions（Gemini 等多模态模型通过 chat 接口生成图片）
   const chatUrl = buildCustomApiUrl(endpoint, '/chat/completions');
   console.log(`[图像生成] /images/generations 失败(${imageAttempt.response.status}), 回退 /chat/completions: ${chatUrl}`);
 
@@ -2123,6 +2179,11 @@ async function callCustomApiImageGeneration({
         endpoint: imagesUrl,
         status: imageAttempt.response.status,
         body: shortText(imageAttempt.text, 800)
+      },
+      responsesGenerationError: {
+        endpoint: responsesUrl,
+        status: responsesAttempt?.response?.status || 0,
+        body: shortText(responsesAttempt?.text || '', 800)
       }
     });
   }
@@ -2142,6 +2203,11 @@ async function callCustomApiImageGeneration({
         endpoint: imagesUrl,
         status: imageAttempt.response.status,
         body: shortText(imageAttempt.text, 800)
+      },
+      responsesGenerationError: {
+        endpoint: responsesUrl,
+        status: responsesAttempt?.response?.status || 0,
+        body: shortText(responsesAttempt?.text || '', 800)
       }
     });
   }
@@ -2153,6 +2219,68 @@ async function callCustomApiImageGeneration({
     model: modelName,
     images
   };
+}
+
+// 从 /responses 响应中提取图片（兼容 OpenAI 与代理变体）
+function extractImagesFromResponsesPayload(payload) {
+  const images = [];
+  const pushUnique = (value) => {
+    const url = String(value || '').trim();
+    if (!url) return;
+    if (!images.includes(url)) {
+      images.push(url);
+    }
+  };
+
+  const toDataUri = (data, mime = 'image/png') => {
+    const b64 = String(data || '').trim();
+    if (!b64) return '';
+    if (b64.startsWith('data:image/')) return b64;
+    return `data:${mime};base64,${b64}`;
+  };
+
+  const parsePart = (part) => {
+    if (!part || typeof part !== 'object') return;
+
+    if (part.image_url?.url) pushUnique(part.image_url.url);
+    if (part.url && typeof part.url === 'string' && (part.url.startsWith('http') || part.url.startsWith('data:image/'))) {
+      pushUnique(part.url);
+    }
+    if (part.b64_json) pushUnique(toDataUri(part.b64_json, part.mime_type || part.mimeType || 'image/png'));
+    if (part.result && typeof part.result === 'string') pushUnique(toDataUri(part.result, part.mime_type || part.mimeType || 'image/png'));
+    if (part.data && typeof part.data === 'string') pushUnique(toDataUri(part.data, part.mime_type || part.mimeType || 'image/png'));
+    if (part.inline_data?.data) pushUnique(toDataUri(part.inline_data.data, part.inline_data.mime_type || 'image/png'));
+
+    const text = typeof part.text === 'string' ? part.text : (typeof part.content === 'string' ? part.content : '');
+    if (text) {
+      const mdImgRegex = /!\[[^\]]*\]\((https?:\/\/[^\s)]+|data:image\/[^\s)]+)\)/g;
+      let match;
+      while ((match = mdImgRegex.exec(text)) !== null) {
+        pushUnique(match[1]);
+      }
+      const b64Regex = /data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+/g;
+      let b64Match;
+      while ((b64Match = b64Regex.exec(text)) !== null) {
+        pushUnique(b64Match[0]);
+      }
+    }
+
+    if (Array.isArray(part.content)) {
+      for (const inner of part.content) parsePart(inner);
+    }
+  };
+
+  if (Array.isArray(payload?.data)) {
+    for (const item of payload.data) parsePart(item);
+  }
+  if (Array.isArray(payload?.output)) {
+    for (const item of payload.output) parsePart(item);
+  }
+  if (payload?.message) {
+    parsePart(payload.message);
+  }
+
+  return images;
 }
 
 // 从 chat/completions 响应中提取图片(兼容 Gemini / OpenAI 多模态格式)

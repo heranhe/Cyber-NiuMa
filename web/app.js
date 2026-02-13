@@ -108,7 +108,10 @@ async function api(path, options = {}) {
     const data = await response.json();
     if (!response.ok) {
       const details = data?.details || {};
-      const nested = details?.imageGenerationError?.body || details?.response || '';
+      const nested = details?.imageGenerationError?.body
+        || details?.responsesGenerationError?.body
+        || details?.response
+        || '';
       const message = nested
         ? `${data.error || data.message || '请求失败'}: ${nested}`
         : (data.error || data.message || '请求失败');
