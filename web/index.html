@@ -194,6 +194,24 @@
             <p class="text-gray-500 dark:text-gray-400 mb-2">暂无技能展示</p>
             <p class="text-sm text-gray-400 dark:text-gray-500">快去配置你的AI分身技能吧！</p>
           </div>
+
+          <!-- 需求结果汇总 -->
+          <section id="hire-summary-section"
+            class="mt-6 bg-white dark:bg-surface-dark rounded-2xl p-5 border border-gray-100 dark:border-border-dark">
+            <div class="flex items-center justify-between gap-3 mb-3">
+              <h3 class="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span class="material-icons-round text-primary">inventory_2</span>
+                需求结果汇总
+              </h3>
+              <button id="hire-summary-clear-btn" type="button"
+                class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors">
+                清空
+              </button>
+            </div>
+            <div id="hire-summary-list" class="space-y-3">
+              <!-- 汇总内容由 JS 渲染 -->
+            </div>
+          </section>
         </div>
 
         <!-- 任务大厅内容（瀑布流） -->
@@ -628,6 +646,16 @@
 
         <!-- 需求输入区 -->
         <div class="px-6 py-5 space-y-4">
+          <div id="hire-style-section" class="hidden">
+            <label class="block text-sm font-bold text-gray-900 dark:text-white mb-2">
+              <span class="material-icons-round text-sm align-middle mr-1 text-primary">palette</span>
+              选择风格
+            </label>
+            <div id="hire-style-list" class="grid grid-cols-3 gap-2">
+              <!-- 风格选项由 JS 动态渲染 -->
+            </div>
+          </div>
+
           <div>
             <label class="block text-sm font-bold text-gray-900 dark:text-white mb-2">
               <span class="material-icons-round text-sm align-middle mr-1 text-primary">edit_note</span>
@@ -704,6 +732,50 @@
       </div>
     </div>
   </div>
+
+  <!-- 右上角悬浮工作台 -->
+  <div id="hire-fab-wrapper" class="fixed top-24 right-4 md:right-6 z-40 hidden">
+    <button id="hire-fab-btn" type="button"
+      class="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-xl shadow-orange-300/40 dark:shadow-none hover:scale-105 active:scale-95 transition-all relative">
+      <span class="material-icons-round text-2xl">auto_awesome</span>
+      <span id="hire-fab-dot" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-white hidden"></span>
+    </button>
+  </div>
+
+  <aside id="hire-floating-panel"
+    class="fixed top-24 right-4 md:right-6 w-[92vw] max-w-md z-50 bg-white/95 dark:bg-surface-dark/95 backdrop-blur rounded-2xl border border-gray-100 dark:border-border-dark shadow-2xl hidden overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-100 dark:border-border-dark flex items-center justify-between">
+      <div class="min-w-0">
+        <h3 class="text-sm font-bold text-gray-900 dark:text-white">AI 交付工作台</h3>
+        <p id="hire-panel-status" class="text-xs text-subtext-light dark:text-subtext-dark mt-0.5">空闲中</p>
+      </div>
+      <button id="hire-panel-close" type="button"
+        class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+        <span class="material-icons-round text-base">close</span>
+      </button>
+    </div>
+
+    <div class="px-4 pt-3 pb-4 space-y-3 max-h-[72vh] overflow-y-auto">
+      <div class="rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3">
+        <div id="hire-panel-skill" class="text-sm font-semibold text-gray-900 dark:text-white">暂无进行中的需求</div>
+        <p id="hire-panel-requirement" class="mt-1 text-xs text-subtext-light dark:text-subtext-dark line-clamp-3"></p>
+      </div>
+
+      <div>
+        <div class="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">实时状态</div>
+        <div id="hire-status-timeline" class="space-y-2 text-xs text-subtext-light dark:text-subtext-dark">
+          <!-- 状态时间线由 JS 渲染 -->
+        </div>
+      </div>
+
+      <div id="hire-panel-result-block" class="hidden">
+        <div class="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-2">交付结果</div>
+        <div id="hire-panel-result-images" class="hidden mb-2 grid grid-cols-2 gap-2"></div>
+        <pre id="hire-panel-result-text"
+          class="text-xs leading-relaxed whitespace-pre-wrap bg-gray-50 dark:bg-gray-800 rounded-xl p-3 border border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-200"></pre>
+      </div>
+    </div>
+  </aside>
 
   <script src="/app.js" type="module"></script>
 </body>

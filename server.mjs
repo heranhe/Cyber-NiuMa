@@ -761,13 +761,18 @@ function normalizeStyles(input) {
 function normalizeImageConfig(payload = {}, fallback = {}) {
   const source = payload && typeof payload === 'object' ? payload : {};
   const previous = fallback && typeof fallback === 'object' ? fallback : {};
-  const VALID_SIZES = ['256x256', '512x512', '1024x1024', '1024x1792', '1792x1024'];
   const size = String(source.size ?? previous.size ?? '1024x1024').trim();
+  const quality = String(source.quality ?? previous.quality ?? 'standard').trim();
   return {
-    size: VALID_SIZES.includes(size) ? size : '1024x1024',
+    size: size || '1024x1024',
     n: Math.max(1, Math.min(4, Number(source.n ?? previous.n ?? 1) || 1)),
-    quality: ['standard', 'hd'].includes(String(source.quality ?? previous.quality ?? 'standard')) ? String(source.quality ?? previous.quality ?? 'standard') : 'standard'
+    quality: quality || 'standard'
   };
+}
+
+function isNoLimitValue(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['不限制', 'unlimited', 'none', 'auto', 'any'].includes(normalized);
 }
 
 function normalizeStoredAbility(payload = {}) {
@@ -1966,9 +1971,9 @@ async function callCustomApiImageGeneration({
   apiKey,
   model,
   prompt,
-  size = '1024x1024',
+  size = '',
   n = 1,
-  quality = 'standard'
+  quality = ''
 }) {
   const token = String(apiKey || '').trim();
   if (!token) {
@@ -1988,11 +1993,13 @@ async function callCustomApiImageGeneration({
     model: modelName,
     prompt: String(prompt).trim(),
     n: Math.max(1, Math.min(4, n || 1)),
-    size: size || '1024x1024',
     response_format: 'b64_json'
   };
-  if (quality === 'hd') {
-    requestBody.quality = 'hd';
+  if (String(size || '').trim() && !isNoLimitValue(size)) {
+    requestBody.size = String(size).trim();
+  }
+  if (String(quality || '').trim() && !isNoLimitValue(quality)) {
+    requestBody.quality = String(quality).trim();
   }
 
   const parseImagesFromPayload = (payload) => {
@@ -2418,16 +2425,20 @@ async function imageApiDelivery(task, customBrief, workerLookup, ability = null)
     throw new AppError('图像生成提示词为空，请确保任务描述或能力提示词不为空', 400);
   }
 
-  console.log(`[图像交付] 开始生成, model=${model}, size=${imgConfig.size || '1024x1024'}`);
+  const selectedSize = isNoLimitValue(imgConfig.size) ? '' : String(imgConfig.size || '').trim();
+  const selectedQuality = isNoLimitValue(imgConfig.quality) ? '' : String(imgConfig.quality || '').trim();
+  const displaySize = selectedSize || '不限制';
+  const displayQuality = selectedQuality || '不限制';
+  console.log(`[图像交付] 开始生成, model=${model}, size=${displaySize}, quality=${displayQuality}`);
 
   const result = await callCustomApiImageGeneration({
     endpoint,
     apiKey,
     model,
     prompt: imagePrompt,
-    size: imgConfig.size || '1024x1024',
+    size: selectedSize,
     n: imgConfig.n || 1,
-    quality: imgConfig.quality || 'standard'
+    quality: selectedQuality
   });
 
   // 构建包含图片的交付内容（Markdown 格式，前端可直接渲染）
@@ -2439,7 +2450,8 @@ async function imageApiDelivery(task, customBrief, workerLookup, ability = null)
     `## 🎨 AI 图像生成交付`,
     '',
     `**模型**: ${result.model}`,
-    `**尺寸**: ${imgConfig.size || '1024x1024'}`,
+    `**尺寸**: ${displaySize}`,
+    `**质量**: ${displayQuality}`,
     `**提示词**: ${imagePrompt.length > 200 ? imagePrompt.slice(0, 200) + '…' : imagePrompt}`,
     '',
     imageMarkdown,
@@ -2603,7 +2615,10 @@ async function handleApi(req, res, urlObj) {
           abilityType: ability.abilityType || 'text',
           coverImage: ability.coverImage || '',
           styles: (ability.styles || []).map(s => ({
-            id: s.id, name: s.name, coverImage: s.coverImage || ''
+            id: s.id,
+            name: s.name,
+            image: s.image || s.coverImage || '',
+            coverImage: s.coverImage || s.image || ''
           })),
           ownerId: userId,
           ownerName: owner?.name || owner?.displayName || '匿名用户',
@@ -2810,7 +2825,8 @@ async function handleApi(req, res, urlObj) {
     const apiKey = String(body.apiKey || '').trim();
     const model = String(body.model || '').trim();
     const prompt = String(body.prompt || '一只可爱的猫咪').trim();
-    const size = String(body.size || '1024x1024').trim();
+    const size = String(body.size || '').trim();
+    const quality = String(body.quality || '').trim();
 
     if (!endpoint || !apiKey || !model) {
       return badRequest(res, 'endpoint / apiKey / model 不能为空');
@@ -2824,7 +2840,7 @@ async function handleApi(req, res, urlObj) {
         prompt,
         size,
         n: 1,
-        quality: 'standard'
+        quality
       });
       return json(res, 200, {
         code: 0,
@@ -3930,6 +3946,7 @@ async function handleApi(req, res, urlObj) {
 
     const skillId = String(body.skillId || '').trim();
     const requirement = String(body.requirement || '').trim();
+    const selectedStyleId = String(body.selectedStyleId || '').trim();
 
     if (!skillId) {
       return badRequest(res, '缺少技能ID (skillId)');
@@ -3964,6 +3981,14 @@ async function handleApi(req, res, urlObj) {
       return badRequest(res, '技能不存在或已下架');
     }
 
+    const availableStyles = Array.isArray(foundAbility.styles) ? foundAbility.styles : [];
+    if (selectedStyleId && availableStyles.length === 0) {
+      return badRequest(res, '当前技能未配置风格');
+    }
+    if (selectedStyleId && !availableStyles.some((style) => style.id === selectedStyleId)) {
+      return badRequest(res, '所选风格不存在或已下架');
+    }
+
     // 构建临时任务对象（不持久化到任务列表,仅用于交付引擎）
     const tempTask = {
       id: uid('hire'),
@@ -3972,6 +3997,7 @@ async function handleApi(req, res, urlObj) {
       laborType: foundAbility.abilityType === 'image' ? 'studio-retouch' : 'custom:general',
       laborTypeName: foundAbility.name,
       requirements: requirement,
+      selectedStyleId: selectedStyleId || null,
       status: 'IN_PROGRESS',
       requesterAi: worker.name || 'AI 用户',
       publisherId: worker.id,

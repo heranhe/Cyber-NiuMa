@@ -1242,12 +1242,301 @@ const hireSkillIcon = document.getElementById('hire-skill-icon');
 const hireSkillName = document.getElementById('hire-skill-name');
 const hireSkillDesc = document.getElementById('hire-skill-desc');
 const hireRequirement = document.getElementById('hire-requirement');
+const hireStyleSection = document.getElementById('hire-style-section');
+const hireStyleList = document.getElementById('hire-style-list');
 const hireResultSkillName = document.getElementById('hire-result-skill-name');
 const hireResultImages = document.getElementById('hire-result-images');
 const hireResultText = document.getElementById('hire-result-text');
+const hireFabWrapper = document.getElementById('hire-fab-wrapper');
+const hireFabBtn = document.getElementById('hire-fab-btn');
+const hireFabDot = document.getElementById('hire-fab-dot');
+const hireFloatingPanel = document.getElementById('hire-floating-panel');
+const hirePanelClose = document.getElementById('hire-panel-close');
+const hirePanelStatus = document.getElementById('hire-panel-status');
+const hirePanelSkill = document.getElementById('hire-panel-skill');
+const hirePanelRequirement = document.getElementById('hire-panel-requirement');
+const hireStatusTimeline = document.getElementById('hire-status-timeline');
+const hirePanelResultBlock = document.getElementById('hire-panel-result-block');
+const hirePanelResultImages = document.getElementById('hire-panel-result-images');
+const hirePanelResultText = document.getElementById('hire-panel-result-text');
+const hireSummaryList = document.getElementById('hire-summary-list');
+const hireSummaryClearBtn = document.getElementById('hire-summary-clear-btn');
 
 // 当前雇佣的技能信息
 let currentHireSkill = null;
+let currentHireStyleId = null;
+let hireStatusTimers = [];
+let hireSelectedSummaryId = null;
+
+const HIRE_SUMMARY_STORAGE_KEY = 'hire_summary_v1';
+const HIRE_SUMMARY_LIMIT = 30;
+const PROCESSING_HIRE_STATUSES = new Set(['ACCEPTED', 'THINKING', 'CALLING_SKILL']);
+const HIRE_STATUS_LABELS = {
+  IDLE: '空闲中',
+  ACCEPTED: 'AI 已接单',
+  THINKING: '正在思考中',
+  CALLING_SKILL: '正在调用 skill',
+  COMPLETED: '已完成',
+  FAILED: '执行失败'
+};
+
+const currentHireJob = {
+  id: '',
+  status: 'IDLE',
+  skillId: '',
+  skillName: '',
+  skillIcon: '🔧',
+  requirement: '',
+  selectedStyleId: '',
+  timeline: [],
+  result: null,
+  createdAt: ''
+};
+
+let hireSummaryRecords = loadHireSummaryRecords();
+
+function formatTimeLabel(iso) {
+  if (!iso) return '';
+  try {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    const second = String(date.getSeconds()).padStart(2, '0');
+    return `${hour}:${minute}:${second}`;
+  } catch {
+    return '';
+  }
+}
+
+function loadHireSummaryRecords() {
+  try {
+    const raw = localStorage.getItem(HIRE_SUMMARY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistHireSummaryRecords() {
+  try {
+    localStorage.setItem(HIRE_SUMMARY_STORAGE_KEY, JSON.stringify(hireSummaryRecords.slice(0, HIRE_SUMMARY_LIMIT)));
+  } catch (error) {
+    console.warn('persistHireSummaryRecords failed', error);
+  }
+}
+
+function clearHireStatusTimers() {
+  hireStatusTimers.forEach((timer) => clearTimeout(timer));
+  hireStatusTimers = [];
+}
+
+function isHireProcessing() {
+  return PROCESSING_HIRE_STATUSES.has(currentHireJob.status);
+}
+
+function getLatestTimelineText() {
+  if (!currentHireJob.timeline.length) return HIRE_STATUS_LABELS[currentHireJob.status] || '空闲中';
+  return currentHireJob.timeline[currentHireJob.timeline.length - 1].text;
+}
+
+function updateHireEntryVisibility() {
+  const hasHistory = hireSummaryRecords.length > 0;
+  const shouldShow = isHireProcessing() || currentHireJob.status === 'COMPLETED' || currentHireJob.status === 'FAILED' || hasHistory;
+  hireFabWrapper?.classList.toggle('hidden', !shouldShow);
+}
+
+function updateHireFabDot() {
+  hireFabDot?.classList.toggle('hidden', !isHireProcessing());
+}
+
+function openHireWorkbench() {
+  hireFloatingPanel?.classList.remove('hidden');
+}
+
+function closeHireWorkbench() {
+  hireFloatingPanel?.classList.add('hidden');
+}
+
+function setHireStatus(status, text, type = 'info') {
+  currentHireJob.status = status;
+  currentHireJob.timeline.push({
+    id: `timeline_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    text,
+    type,
+    at: new Date().toISOString()
+  });
+  renderHireWorkbench();
+}
+
+function buildTimelineDotClass(type) {
+  if (type === 'success') return 'bg-green-500';
+  if (type === 'error') return 'bg-red-500';
+  if (type === 'running') return 'bg-blue-500';
+  return 'bg-gray-400';
+}
+
+function getSummaryById(id) {
+  return hireSummaryRecords.find((item) => item.id === id) || null;
+}
+
+function renderHireSummary() {
+  if (!hireSummaryList) return;
+
+  if (!hireSummaryRecords.length) {
+    hireSummaryList.innerHTML = `
+      <div class="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-4 text-center text-xs text-gray-400 dark:text-gray-500">
+        暂无汇总内容。提交需求后会自动沉淀在这里。
+      </div>
+    `;
+    return;
+  }
+
+  hireSummaryList.innerHTML = hireSummaryRecords.map((item) => {
+    const activeClass = hireSelectedSummaryId === item.id ? 'border-primary/40 bg-primary/5' : 'border-gray-100 dark:border-gray-700 hover:border-primary/30';
+    return `
+      <button type="button" class="hire-summary-item w-full text-left rounded-xl border ${activeClass} p-3 transition-colors" data-summary-id="${item.id}">
+        <div class="flex items-center justify-between gap-2">
+          <div class="font-semibold text-sm text-gray-900 dark:text-white truncate">${escapeHtml(item.skillName || '未命名技能')}</div>
+          <span class="text-[11px] text-gray-400 whitespace-nowrap">${formatTimeLabel(item.completedAt || item.createdAt)}</span>
+        </div>
+        <p class="mt-1 text-xs text-subtext-light dark:text-subtext-dark line-clamp-2">${escapeHtml(item.requirement || '')}</p>
+      </button>
+    `;
+  }).join('');
+}
+
+function renderHireWorkbench() {
+  updateHireEntryVisibility();
+  updateHireFabDot();
+
+  const selectedSummary = getSummaryById(hireSelectedSummaryId);
+  const shouldUseCurrentJob = currentHireJob.status !== 'IDLE' || !selectedSummary;
+  const activeData = shouldUseCurrentJob ? currentHireJob : selectedSummary;
+
+  if (!activeData) return;
+
+  if (hirePanelStatus) {
+    hirePanelStatus.textContent = shouldUseCurrentJob ? getLatestTimelineText() : `已完成 · ${formatTimeLabel(activeData.completedAt || activeData.createdAt)}`;
+  }
+
+  if (hirePanelSkill) {
+    if (activeData.skillName) {
+      hirePanelSkill.textContent = `${activeData.skillIcon || '🔧'} ${activeData.skillName}`;
+    } else {
+      hirePanelSkill.textContent = '暂无进行中的需求';
+    }
+  }
+
+  if (hirePanelRequirement) {
+    hirePanelRequirement.textContent = activeData.requirement || '';
+  }
+
+  if (hireStatusTimeline) {
+    const timeline = Array.isArray(activeData.timeline) ? activeData.timeline : [];
+    if (!timeline.length) {
+      hireStatusTimeline.innerHTML = '<div class="text-xs text-gray-400">等待提交需求</div>';
+    } else {
+      hireStatusTimeline.innerHTML = timeline.map((item) => `
+        <div class="flex items-start gap-2">
+          <span class="w-2 h-2 rounded-full mt-1 ${buildTimelineDotClass(item.type)}"></span>
+          <div class="min-w-0">
+            <div class="text-xs text-gray-700 dark:text-gray-200">${escapeHtml(item.text)}</div>
+            <div class="text-[10px] text-gray-400 mt-0.5">${formatTimeLabel(item.at)}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  const result = activeData.result || null;
+  if (!result) {
+    hirePanelResultBlock?.classList.add('hidden');
+    return;
+  }
+
+  hirePanelResultBlock?.classList.remove('hidden');
+
+  const images = Array.isArray(result.images) ? result.images : [];
+  if (images.length > 0 && hirePanelResultImages) {
+    hirePanelResultImages.classList.remove('hidden');
+    hirePanelResultImages.innerHTML = images.map((src) => `
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <img src="${escapeHtml(src)}" class="w-full h-auto" alt="交付图片" loading="lazy" />
+      </div>
+    `).join('');
+  } else {
+    hirePanelResultImages?.classList.add('hidden');
+    if (hirePanelResultImages) hirePanelResultImages.innerHTML = '';
+  }
+
+  if (hirePanelResultText) {
+    hirePanelResultText.textContent = result.content || '交付完成，但内容为空。';
+  }
+}
+
+function appendHireSummary(record) {
+  hireSummaryRecords = [record, ...hireSummaryRecords.filter((item) => item.id !== record.id)].slice(0, HIRE_SUMMARY_LIMIT);
+  hireSelectedSummaryId = record.id;
+  persistHireSummaryRecords();
+  renderHireSummary();
+}
+
+function resetHireResultView() {
+  hireLoadingView?.classList.add('hidden');
+  hireResultView?.classList.add('hidden');
+  hireFormView?.classList.remove('hidden');
+  if (hireResultImages) hireResultImages.innerHTML = '';
+  if (hireResultText) hireResultText.textContent = '';
+  if (hireResultSkillName) hireResultSkillName.textContent = '';
+}
+
+function renderHireStyleOptions(skill) {
+  if (!hireStyleSection || !hireStyleList) return;
+
+  const styles = Array.isArray(skill?.styles) ? skill.styles.filter((style) => style?.id && style?.name) : [];
+
+  if (!styles.length) {
+    hireStyleSection.classList.add('hidden');
+    hireStyleList.innerHTML = '';
+    currentHireStyleId = null;
+    return;
+  }
+
+  hireStyleSection.classList.remove('hidden');
+  hireStyleList.innerHTML = styles.map((style) => {
+    const selectedClass = currentHireStyleId === style.id
+      ? 'border-primary bg-primary/5'
+      : 'border-gray-200 dark:border-gray-600 hover:border-primary/50';
+    const styleImage = style.image || style.coverImage || '';
+
+    return `
+      <button
+        type="button"
+        class="hire-style-option p-2 rounded-xl border text-left transition-colors ${selectedClass}"
+        data-style-id="${escapeHtml(style.id)}"
+        title="${escapeHtml(style.name)}"
+      >
+        <div class="w-full aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden mb-1.5">
+          ${styleImage
+            ? `<img src="${escapeHtml(styleImage)}" alt="${escapeHtml(style.name)}" class="w-full h-full object-cover" loading="lazy" />`
+            : '<span class="text-xl">🎨</span>'}
+        </div>
+        <div class="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">${escapeHtml(style.name)}</div>
+      </button>
+    `;
+  }).join('');
+
+  hireStyleList.querySelectorAll('.hire-style-option').forEach((button) => {
+    button.addEventListener('click', () => {
+      const styleId = button.dataset.styleId || '';
+      currentHireStyleId = currentHireStyleId === styleId ? null : styleId;
+      renderHireStyleOptions(skill);
+    });
+  });
+}
 
 // 打开雇佣弹窗
 function openHireModal(skillId) {
@@ -1257,12 +1546,14 @@ function openHireModal(skillId) {
     return;
   }
   currentHireSkill = skill;
+  currentHireStyleId = null;
 
   // 填充技能信息
   if (hireSkillIcon) hireSkillIcon.textContent = skill.icon || '🔧';
   if (hireSkillName) hireSkillName.textContent = skill.name || '未命名技能';
   if (hireSkillDesc) hireSkillDesc.textContent = skill.description || '这个 AI 分身很懒，还没写简介…';
   if (hireRequirement) hireRequirement.value = '';
+  renderHireStyleOptions(skill);
 
   // 显示表单视图，隐藏其他视图
   hireFormView?.classList.remove('hidden');
@@ -1276,63 +1567,98 @@ function openHireModal(skillId) {
 function closeHireModal() {
   hireModal?.classList.add('hidden');
   currentHireSkill = null;
+  currentHireStyleId = null;
+  resetHireResultView();
 }
 
 // 提交雇佣
 async function submitHire() {
   if (!currentHireSkill) return;
+  if (isHireProcessing()) {
+    openHireWorkbench();
+    showToast('已有需求正在处理中，可在右上角查看状态');
+    return;
+  }
 
   const requirement = hireRequirement?.value?.trim();
   if (!requirement) {
     showToast('请描述你的需求');
     return;
   }
+  const skillId = currentHireSkill.id;
+  const skillName = currentHireSkill.name || '未命名技能';
+  const skillIcon = currentHireSkill.icon || '🔧';
+  const selectedStyleId = currentHireStyleId || '';
 
-  // 切换到加载视图
-  hireFormView?.classList.add('hidden');
-  hireLoadingView?.classList.remove('hidden');
-  hireResultView?.classList.add('hidden');
+  const now = new Date().toISOString();
+  clearHireStatusTimers();
+  hireSelectedSummaryId = null;
+  Object.assign(currentHireJob, {
+    id: `hire_${Date.now()}`,
+    status: 'ACCEPTED',
+    skillId,
+    skillName,
+    skillIcon,
+    requirement,
+    selectedStyleId,
+    timeline: [],
+    result: null,
+    createdAt: now
+  });
+
+  setHireStatus('ACCEPTED', 'AI 已接单', 'info');
+  openHireWorkbench();
+  closeHireModal();
+  showToast('需求已提交，可在右上角查看处理进度');
+
+  hireStatusTimers.push(setTimeout(() => {
+    if (isHireProcessing()) {
+      setHireStatus('THINKING', '正在思考中', 'running');
+    }
+  }, 900));
+
+  hireStatusTimers.push(setTimeout(() => {
+    if (isHireProcessing()) {
+      setHireStatus('CALLING_SKILL', `调用 skill：${currentHireJob.skillName}`, 'running');
+    }
+  }, 2200));
 
   try {
     const result = await api('/api/skills/hire', {
       method: 'POST',
       body: {
-        skillId: currentHireSkill.id,
-        requirement
+        skillId,
+        requirement,
+        selectedStyleId
       }
     });
+    clearHireStatusTimers();
 
-    // 切换到结果视图
-    hireLoadingView?.classList.add('hidden');
-    hireResultView?.classList.remove('hidden');
+    const normalizedResult = {
+      content: result?.data?.content || '交付完成，但内容为空。',
+      images: result?.data?.images || []
+    };
 
-    // 显示技能名称
-    if (hireResultSkillName) {
-      hireResultSkillName.textContent = `技能: ${currentHireSkill.name}`;
-    }
+    currentHireJob.result = normalizedResult;
+    setHireStatus('COMPLETED', '已完成', 'success');
+    renderHireWorkbench();
 
-    // 处理图片结果
-    const images = result?.data?.images || [];
-    if (images.length > 0 && hireResultImages) {
-      hireResultImages.classList.remove('hidden');
-      hireResultImages.innerHTML = images.map(src => `
-        <div class="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-          <img src="${src}" class="w-full h-auto" alt="交付图片" loading="lazy" />
-        </div>
-      `).join('');
-    } else {
-      hireResultImages?.classList.add('hidden');
-    }
-
-    // 处理文本结果
-    const content = result?.data?.content || '交付完成，但内容为空。';
-    if (hireResultText) {
-      hireResultText.textContent = content;
-    }
+    appendHireSummary({
+      id: currentHireJob.id,
+      skillId: currentHireJob.skillId,
+      skillName: currentHireJob.skillName,
+      skillIcon: currentHireJob.skillIcon,
+      requirement: currentHireJob.requirement,
+      timeline: currentHireJob.timeline.slice(),
+      result: normalizedResult,
+      createdAt: currentHireJob.createdAt,
+      completedAt: new Date().toISOString()
+    });
+    showToast('交付完成，结果已加入汇总');
   } catch (err) {
-    // 出错时回到表单视图
-    hireLoadingView?.classList.add('hidden');
-    hireFormView?.classList.remove('hidden');
+    clearHireStatusTimers();
+    currentHireJob.result = { content: err.message || '雇佣失败，请重试', images: [] };
+    setHireStatus('FAILED', `执行失败：${err.message || '雇佣失败，请重试'}`, 'error');
     showToast(err.message || '雇佣失败，请重试');
   }
 }
@@ -1343,16 +1669,44 @@ document.getElementById('cancel-hire-btn')?.addEventListener('click', closeHireM
 document.getElementById('submit-hire-btn')?.addEventListener('click', submitHire);
 document.getElementById('hire-close-result-btn')?.addEventListener('click', closeHireModal);
 document.getElementById('hire-retry-btn')?.addEventListener('click', () => {
-  // 重新生成：回到表单视图
-  hireFormView?.classList.remove('hidden');
-  hireLoadingView?.classList.add('hidden');
-  hireResultView?.classList.add('hidden');
+  resetHireResultView();
+  openHireWorkbench();
 });
 
 // 点击弹窗外部关闭
 hireModal?.addEventListener('click', (e) => {
   if (e.target === hireModal) closeHireModal();
 });
+
+hireFabBtn?.addEventListener('click', () => {
+  openHireWorkbench();
+  renderHireWorkbench();
+});
+
+hirePanelClose?.addEventListener('click', closeHireWorkbench);
+
+hireSummaryList?.addEventListener('click', (e) => {
+  const button = e.target.closest('.hire-summary-item');
+  if (!button) return;
+  const summaryId = button.dataset.summaryId || '';
+  if (!summaryId) return;
+  hireSelectedSummaryId = summaryId;
+  openHireWorkbench();
+  renderHireSummary();
+  renderHireWorkbench();
+});
+
+hireSummaryClearBtn?.addEventListener('click', () => {
+  hireSummaryRecords = [];
+  hireSelectedSummaryId = null;
+  persistHireSummaryRecords();
+  renderHireSummary();
+  renderHireWorkbench();
+  showToast('汇总已清空');
+});
+
+renderHireSummary();
+renderHireWorkbench();
 
 // 技能大厅卡片点击事件委托（雇佣按钮）
 const skillCategoriesContainer = document.querySelector('#skill-categories');

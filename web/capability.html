@@ -557,23 +557,33 @@
                       </div>
                       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                          <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">图片尺寸</label>
-                          <select id="field-image-size"
-                            class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary">
-                            <option value="1024x1024">1024 × 1024（正方形）</option>
-                            <option value="1024x1792">1024 × 1792（竖版）</option>
-                            <option value="1792x1024">1792 × 1024（横版）</option>
-                            <option value="512x512">512 × 512（小尺寸）</option>
-                            <option value="256x256">256 × 256（缩略图）</option>
-                          </select>
+                          <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">图片尺寸 / 比例</label>
+                          <input id="field-image-size" type="text" list="image-size-suggestions"
+                            placeholder="例如: 1024x1024 / 1536x1024 / 16:9"
+                            class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
+                          <datalist id="image-size-suggestions">
+                            <option value="不限制"></option>
+                            <option value="1024x1024"></option>
+                            <option value="1024x1792"></option>
+                            <option value="1792x1024"></option>
+                            <option value="1536x1024"></option>
+                            <option value="1024x1536"></option>
+                            <option value="1:1"></option>
+                            <option value="4:3"></option>
+                            <option value="16:9"></option>
+                          </datalist>
                         </div>
                         <div>
                           <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">图片质量</label>
-                          <select id="field-image-quality"
-                            class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary">
-                            <option value="standard">标准 (Standard)</option>
-                            <option value="hd">高清 (HD)</option>
-                          </select>
+                          <input id="field-image-quality" type="text" list="image-quality-suggestions"
+                            placeholder="例如: standard / hd / high"
+                            class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
+                          <datalist id="image-quality-suggestions">
+                            <option value="不限制"></option>
+                            <option value="standard"></option>
+                            <option value="hd"></option>
+                            <option value="high"></option>
+                          </datalist>
                         </div>
                       </div>
                       <div>

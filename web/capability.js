@@ -174,8 +174,8 @@ function normalizeAbility(raw = {}) {
       model: String(customApi.model || source.model || '').trim()
     },
     imageConfig: {
-      size: String(imageConfig.size || '1024x1024').trim(),
-      quality: String(imageConfig.quality || 'standard').trim()
+      size: String(imageConfig.size ?? '1024x1024').trim(),
+      quality: String(imageConfig.quality ?? 'standard').trim()
     },
     styles,
     createdAt: source.createdAt || null,
@@ -430,8 +430,8 @@ function updateCurrentFromForm() {
 
   // 图像配置
   if (!ability.imageConfig) ability.imageConfig = {};
-  ability.imageConfig.size = String(el.fieldImageSize?.value || '1024x1024').trim();
-  ability.imageConfig.quality = String(el.fieldImageQuality?.value || 'standard').trim();
+  ability.imageConfig.size = String(el.fieldImageSize?.value ?? '1024x1024').trim();
+  ability.imageConfig.quality = String(el.fieldImageQuality?.value ?? 'standard').trim();
 
   if (el.avatarEmoji) {
     el.avatarEmoji.textContent = ability.icon || '🤖';
@@ -691,7 +691,8 @@ async function onTestImageGeneration() {
         apiKey: ability.customApi.apiKey,
         model: ability.customApi.model,
         prompt: '一只戴着太阳镜的猫咪，赛博朋克风格',
-        size: ability.imageConfig?.size || '1024x1024'
+        size: ability.imageConfig?.size || '1024x1024',
+        quality: ability.imageConfig?.quality || 'standard'
       }
     });
 
