@@ -17,6 +17,7 @@ const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 const WEB_DIR = path.join(__dirname, 'web');
+const UPLOADS_DIR = path.join(WEB_DIR, 'uploads');
 const IS_VERCEL = Boolean(process.env.VERCEL);
 const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'ai-labor-market') : path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'tasks.json');
@@ -76,8 +77,100 @@ const MIME = {
   '.webp': 'image/webp',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
   '.ico': 'image/x-icon'
 };
+
+// 图片上传允许的类型和最大大小
+const UPLOAD_ALLOWED_TYPES = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif'
+};
+const UPLOAD_MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+// 读取原始二进制请求体
+async function readRawBody(req, maxSize = UPLOAD_MAX_SIZE) {
+  const chunks = [];
+  let totalSize = 0;
+  for await (const chunk of req) {
+    totalSize += chunk.length;
+    if (totalSize > maxSize) {
+      throw new AppError(`文件大小超过限制（最大 ${Math.round(maxSize / 1024 / 1024)}MB）`, 413);
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+// 简易 multipart/form-data 解析器
+function parseMultipartFormData(buffer, contentType) {
+  const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;\s]+))/);
+  if (!boundaryMatch) {
+    throw new AppError('缺少 multipart boundary', 400);
+  }
+  const boundary = boundaryMatch[1] || boundaryMatch[2];
+  const boundaryBuf = Buffer.from('--' + boundary);
+  const endBuf = Buffer.from('--' + boundary + '--');
+
+  const parts = [];
+  let start = buffer.indexOf(boundaryBuf);
+  if (start < 0) return parts;
+
+  while (true) {
+    // 移动到 boundary 之后的 CRLF
+    start += boundaryBuf.length;
+    // 检查是否是结束标记
+    if (buffer.slice(start, start + 2).toString() === '--') break;
+    // 跳过 CRLF
+    if (buffer[start] === 0x0d && buffer[start + 1] === 0x0a) start += 2;
+
+    // 查找 headers 和 body 之间的空行 (\r\n\r\n)
+    const headerEnd = buffer.indexOf('\r\n\r\n', start);
+    if (headerEnd < 0) break;
+
+    const headerStr = buffer.slice(start, headerEnd).toString('utf8');
+    const bodyStart = headerEnd + 4;
+
+    // 查找下一个 boundary
+    let nextBoundary = buffer.indexOf(boundaryBuf, bodyStart);
+    if (nextBoundary < 0) nextBoundary = buffer.indexOf(endBuf, bodyStart);
+    if (nextBoundary < 0) break;
+
+    // body 结束于 boundary 前的 CRLF
+    let bodyEnd = nextBoundary - 2;
+    if (bodyEnd < bodyStart) bodyEnd = bodyStart;
+
+    const bodyData = buffer.slice(bodyStart, bodyEnd);
+
+    // 解析 headers
+    const headers = {};
+    headerStr.split('\r\n').forEach(line => {
+      const colonIdx = line.indexOf(':');
+      if (colonIdx > 0) {
+        const key = line.slice(0, colonIdx).trim().toLowerCase();
+        headers[key] = line.slice(colonIdx + 1).trim();
+      }
+    });
+
+    // 提取 filename 和 name
+    const disposition = headers['content-disposition'] || '';
+    const nameMatch = disposition.match(/\bname="([^"]*)"/)
+    const filenameMatch = disposition.match(/\bfilename="([^"]*)"/);
+
+    parts.push({
+      name: nameMatch ? nameMatch[1] : '',
+      filename: filenameMatch ? filenameMatch[1] : null,
+      contentType: headers['content-type'] || 'application/octet-stream',
+      data: bodyData
+    });
+
+    start = nextBoundary;
+  }
+
+  return parts;
+}
 
 const runtimeAuth = {
   accessToken: OAUTH_ACCESS_TOKEN,
@@ -662,8 +755,22 @@ function normalizeStyles(input) {
   return input.map(normalizeStyle).filter(s => s.name);
 }
 
+// 规范化图像生成配置
+function normalizeImageConfig(payload = {}, fallback = {}) {
+  const source = payload && typeof payload === 'object' ? payload : {};
+  const previous = fallback && typeof fallback === 'object' ? fallback : {};
+  const VALID_SIZES = ['256x256', '512x512', '1024x1024', '1024x1792', '1792x1024'];
+  const size = String(source.size ?? previous.size ?? '1024x1024').trim();
+  return {
+    size: VALID_SIZES.includes(size) ? size : '1024x1024',
+    n: Math.max(1, Math.min(4, Number(source.n ?? previous.n ?? 1) || 1)),
+    quality: ['standard', 'hd'].includes(String(source.quality ?? previous.quality ?? 'standard')) ? String(source.quality ?? previous.quality ?? 'standard') : 'standard'
+  };
+}
+
 function normalizeStoredAbility(payload = {}) {
   const source = payload && typeof payload === 'object' ? payload : {};
+  const abilityType = ['text', 'image'].includes(String(source.abilityType || '').trim()) ? String(source.abilityType).trim() : 'text';
   return {
     id: String(source.id || '').trim() || uid('ability'),
     name: String(source.name || '').trim(),
@@ -671,6 +778,7 @@ function normalizeStoredAbility(payload = {}) {
     description: String(source.description || '').trim(),
     prompt: String(source.prompt || '').trim(),
     enabled: toBoolean(source.enabled, true),
+    abilityType,
     useCustomApi: toBoolean(source.useCustomApi, false),
     customApi: normalizeCustomApiConfig(
       {
@@ -680,6 +788,7 @@ function normalizeStoredAbility(payload = {}) {
       },
       source?.customApi
     ),
+    imageConfig: abilityType === 'image' ? normalizeImageConfig(source.imageConfig, source.imageConfig) : normalizeImageConfig(),
     styles: normalizeStyles(source.styles),
     createdAt: source.createdAt || null,
     updatedAt: source.updatedAt || null
@@ -781,6 +890,10 @@ async function ensureDataFiles() {
   }
   if (!existsSync(ABILITIES_FILE)) {
     await fs.writeFile(ABILITIES_FILE, JSON.stringify({}, null, 2), 'utf8');
+  }
+  // 确保图片上传目录存在
+  if (!existsSync(UPLOADS_DIR)) {
+    await fs.mkdir(UPLOADS_DIR, { recursive: true });
   }
 }
 
@@ -1104,6 +1217,9 @@ async function updateUserAbility(userId, abilityId, patch) {
       current.customApi
     )
     : current.customApi;
+  const mergedImageConfig = hasOwn(patch, 'imageConfig') && patch.imageConfig && typeof patch.imageConfig === 'object'
+    ? normalizeImageConfig(patch.imageConfig, current.imageConfig)
+    : current.imageConfig;
   const updated = normalizeStoredAbility({
     ...current,
     name: hasOwn(patch, 'name') ? String(patch.name || '').trim() : current.name,
@@ -1111,8 +1227,10 @@ async function updateUserAbility(userId, abilityId, patch) {
     description: hasOwn(patch, 'description') ? String(patch.description || '').trim() : current.description,
     prompt: hasOwn(patch, 'prompt') ? String(patch.prompt || '').trim() : current.prompt,
     enabled: hasOwn(patch, 'enabled') ? toBoolean(patch.enabled, true) : current.enabled,
+    abilityType: hasOwn(patch, 'abilityType') ? String(patch.abilityType || 'text').trim() : current.abilityType,
     useCustomApi: hasOwn(patch, 'useCustomApi') ? toBoolean(patch.useCustomApi, false) : current.useCustomApi,
     customApi: mergedCustomApi,
+    imageConfig: mergedImageConfig,
     styles: hasOwn(patch, 'styles') ? normalizeStyles(patch.styles) : current.styles,
     createdAt: current.createdAt || nowIso(),
     updatedAt: nowIso()
@@ -1838,6 +1956,95 @@ async function callCustomApiChatCompletions({
   };
 }
 
+// 调用兼容 OpenAI 格式的图像生成 API
+async function callCustomApiImageGeneration({
+  endpoint,
+  apiKey,
+  model,
+  prompt,
+  size = '1024x1024',
+  n = 1,
+  quality = 'standard'
+}) {
+  const url = buildCustomApiUrl(endpoint, '/images/generations');
+  const token = String(apiKey || '').trim();
+  if (!token) {
+    throw new AppError('API Key 不能为空', 400);
+  }
+  const modelName = String(model || '').trim();
+  if (!modelName) {
+    throw new AppError('模型不能为空', 400);
+  }
+  if (!prompt || !String(prompt).trim()) {
+    throw new AppError('图像生成提示词不能为空', 400);
+  }
+
+  const requestBody = {
+    model: modelName,
+    prompt: String(prompt).trim(),
+    n: Math.max(1, Math.min(4, n || 1)),
+    size: size || '1024x1024',
+    response_format: 'url'
+  };
+  // 仅在 quality 为 hd 时添加该字段（部分 API 不支持此参数）
+  if (quality === 'hd') {
+    requestBody.quality = 'hd';
+  }
+
+  console.log(`[图像生成] 调用 ${url}, model=${modelName}, size=${size}, n=${n}`);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  const text = await response.text();
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    throw new AppError(`图像生成 API 调用失败 (${response.status})`, 502, {
+      endpoint: url,
+      body: shortText(text, 800)
+    });
+  }
+
+  // 解析返回的图片数据
+  const images = [];
+  const dataItems = Array.isArray(payload?.data) ? payload.data : [];
+  for (const item of dataItems) {
+    if (item.url) {
+      images.push(item.url);
+    } else if (item.b64_json) {
+      // base64 图片转为 data URI
+      images.push(`data:image/png;base64,${item.b64_json}`);
+    }
+  }
+
+  if (!images.length) {
+    throw new AppError('图像生成 API 未返回有效图片', 502, {
+      endpoint: url,
+      body: shortText(text, 800)
+    });
+  }
+
+  console.log(`[图像生成] 成功生成 ${images.length} 张图片`);
+
+  return {
+    endpoint: url,
+    model: modelName,
+    images
+  };
+}
+
 async function callSecondMeChatStream({
   payload,
   authToken = '',
@@ -1990,8 +2197,99 @@ async function customApiDelivery(task, customBrief, workerLookup, ability = null
   };
 }
 
+// 图像生成交付 —— 调用图像 API 直接生成图片
+async function imageApiDelivery(task, customBrief, workerLookup, ability = null) {
+  const config = ability?.customApi || {};
+  const endpoint = String(config.endpoint || '').trim();
+  const apiKey = String(config.apiKey || '').trim();
+  const model = String(config.model || '').trim();
+
+  if (!endpoint || !apiKey || !model) {
+    throw new AppError('当前能力已开启图像生成，但 endpoint / apiKey / model 配置不完整', 400, {
+      abilityId: ability?.id || null,
+      abilityName: ability?.name || null
+    });
+  }
+
+  const imgConfig = ability?.imageConfig || {};
+
+  // 组装图像生成提示词：结合任务描述 + 能力 prompt + 补充要求
+  const promptParts = [];
+  if (ability?.prompt) {
+    promptParts.push(ability.prompt);
+  }
+  if (task?.title) {
+    promptParts.push(task.title);
+  }
+  if (task?.description) {
+    promptParts.push(task.description);
+  }
+  if (customBrief) {
+    promptParts.push(customBrief);
+  }
+  // 如果有选定的风格，把风格 prompt 也加入
+  const selectedStyleId = task?.selectedStyleId;
+  if (selectedStyleId && Array.isArray(ability?.styles)) {
+    const style = ability.styles.find(s => s.id === selectedStyleId);
+    if (style?.prompt) {
+      promptParts.push(`风格要求: ${style.prompt}`);
+    }
+  }
+
+  const imagePrompt = promptParts.filter(Boolean).join('\n');
+
+  if (!imagePrompt.trim()) {
+    throw new AppError('图像生成提示词为空，请确保任务描述或能力提示词不为空', 400);
+  }
+
+  console.log(`[图像交付] 开始生成, model=${model}, size=${imgConfig.size || '1024x1024'}`);
+
+  const result = await callCustomApiImageGeneration({
+    endpoint,
+    apiKey,
+    model,
+    prompt: imagePrompt,
+    size: imgConfig.size || '1024x1024',
+    n: imgConfig.n || 1,
+    quality: imgConfig.quality || 'standard'
+  });
+
+  // 构建包含图片的交付内容（Markdown 格式，前端可直接渲染）
+  const imageMarkdown = result.images.map((url, i) => {
+    return `![生成图片${result.images.length > 1 ? ` ${i + 1}` : ''}](${url})`;
+  }).join('\n\n');
+
+  const content = [
+    `## 🎨 AI 图像生成交付`,
+    '',
+    `**模型**: ${result.model}`,
+    `**尺寸**: ${imgConfig.size || '1024x1024'}`,
+    `**提示词**: ${imagePrompt.length > 200 ? imagePrompt.slice(0, 200) + '…' : imagePrompt}`,
+    '',
+    imageMarkdown,
+    '',
+    `> 共生成 ${result.images.length} 张图片`
+  ].join('\n');
+
+  return {
+    mode: 'image',
+    engine: 'custom-api-image-generation',
+    content,
+    images: result.images,
+    model: result.model,
+    abilityId: ability?.id || null
+  };
+}
+
 async function generateDelivery(task, customBrief, workerLookup, { ability = null } = {}) {
   const preferCustomApi = Boolean(ability && ability.enabled !== false && ability.useCustomApi);
+
+  // 如果是图像生成类型的能力，走图像生成路径
+  if (preferCustomApi && ability.abilityType === 'image') {
+    return imageApiDelivery(task, customBrief, workerLookup, ability);
+  }
+
+  // 文本生成（自定义 API 或 SecondMe）
   if (preferCustomApi) {
     return customApiDelivery(task, customBrief, workerLookup, ability);
   }
@@ -2001,6 +2299,49 @@ async function generateDelivery(task, customBrief, workerLookup, { ability = nul
 async function handleApi(req, res, urlObj) {
   const { method } = req;
   const { pathname, searchParams } = urlObj;
+
+  // ===== 图片上传 =====
+  if (method === 'POST' && pathname === '/api/upload/image') {
+    const ct = String(req.headers['content-type'] || '');
+    if (!ct.includes('multipart/form-data')) {
+      throw new AppError('请使用 multipart/form-data 格式上传', 400);
+    }
+
+    const rawBody = await readRawBody(req, UPLOAD_MAX_SIZE);
+    const parts = parseMultipartFormData(rawBody, ct);
+    const filePart = parts.find(p => p.filename);
+    if (!filePart) {
+      throw new AppError('未找到上传的文件', 400);
+    }
+
+    const fileMime = filePart.contentType.toLowerCase().split(';')[0].trim();
+    const ext = UPLOAD_ALLOWED_TYPES[fileMime];
+    if (!ext) {
+      throw new AppError(`不支持的图片格式 (${fileMime})，仅支持 jpg/png/webp/gif`, 400);
+    }
+
+    // 生成唯一文件名
+    const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+    const savePath = path.join(UPLOADS_DIR, filename);
+
+    // 确保目录存在
+    if (!existsSync(UPLOADS_DIR)) {
+      await fs.mkdir(UPLOADS_DIR, { recursive: true });
+    }
+
+    await fs.writeFile(savePath, filePart.data);
+    console.log(`[upload] 图片已保存: ${filename} (${filePart.data.length} bytes)`);
+
+    return json(res, 200, {
+      code: 0,
+      message: '上传成功',
+      data: {
+        url: `/uploads/${filename}`,
+        filename,
+        size: filePart.data.length
+      }
+    });
+  }
 
   if (method === 'GET' && pathname === '/api/health') {
     return json(res, 200, {
@@ -2229,6 +2570,60 @@ async function handleApi(req, res, urlObj) {
       message: '模型列表拉取成功',
       data: result
     });
+  }
+
+  // 图像生成 API 测试端点
+  if (method === 'POST' && pathname === '/api/image-generate/test') {
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+
+    const endpoint = String(body.endpoint || '').trim();
+    const apiKey = String(body.apiKey || '').trim();
+    const model = String(body.model || '').trim();
+    const prompt = String(body.prompt || '一只可爱的猫咪').trim();
+    const size = String(body.size || '1024x1024').trim();
+
+    if (!endpoint || !apiKey || !model) {
+      return badRequest(res, 'endpoint / apiKey / model 不能为空');
+    }
+
+    try {
+      const result = await callCustomApiImageGeneration({
+        endpoint,
+        apiKey,
+        model,
+        prompt,
+        size,
+        n: 1,
+        quality: 'standard'
+      });
+      return json(res, 200, {
+        code: 0,
+        message: '图像生成测试成功',
+        data: {
+          images: result.images,
+          model: result.model
+        }
+      });
+    } catch (err) {
+      return json(res, err.statusCode || 502, {
+        code: err.statusCode || 502,
+        message: err.message || '图像生成测试失败',
+        data: err.data || null
+      });
+    }
   }
 
   if (method === 'GET' && pathname === '/api/oauth/meta') {

@@ -299,18 +299,39 @@ function renderWorkerInfo() {
 function extractImagesFromContent(content) {
     if (!content) return { text: content, images: [] };
 
-    // 匹配常见图片URL格式
-    const imageRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|svg)(?:\?[^\s]*)?)/gi;
     const images = [];
-    let match;
+    let processedContent = content;
 
-    while ((match = imageRegex.exec(content)) !== null) {
-        images.push(match[1]);
+    // 1. 匹配 Markdown 图片格式: ![alt](url)
+    const mdImageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi;
+    let mdMatch;
+    while ((mdMatch = mdImageRegex.exec(content)) !== null) {
+        images.push(mdMatch[2]);
     }
+    // 移除 Markdown 图片标记
+    processedContent = processedContent.replace(mdImageRegex, '');
 
-    // 移除图片URL，保留剩余文本
-    const text = content.replace(imageRegex, '').trim();
+    // 2. 匹配裸图片 URL（带常见图片扩展名）
+    const bareImageRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|svg)(?:\?[^\s]*)?)/gi;
+    let bareMatch;
+    while ((bareMatch = bareImageRegex.exec(processedContent)) !== null) {
+        if (!images.includes(bareMatch[1])) {
+            images.push(bareMatch[1]);
+        }
+    }
+    processedContent = processedContent.replace(bareImageRegex, '');
 
+    // 3. 匹配 data:image URI（base64 图片）
+    const dataUriRegex = /(data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+)/g;
+    let dataMatch;
+    while ((dataMatch = dataUriRegex.exec(content)) !== null) {
+        if (!images.includes(dataMatch[1])) {
+            images.push(dataMatch[1]);
+        }
+    }
+    processedContent = processedContent.replace(dataUriRegex, '');
+
+    const text = processedContent.trim();
     return { text, images };
 }
 
@@ -382,10 +403,10 @@ function renderDeliveries() {
         ${canViewContent ? `
           <div class="bg-white dark:bg-surface-dark rounded-lg p-4 border border-gray-100 dark:border-gray-600">
             ${images.length > 0 ? `
-              <div class="mb-3 flex flex-wrap gap-2">
+              <div class="mb-3 flex flex-wrap gap-3">
                 ${images.map(imgUrl => `
                   <a href="${escapeHtml(imgUrl)}" target="_blank" rel="noopener noreferrer" class="block">
-                    <img src="${escapeHtml(imgUrl)}" alt="交付图片" class="max-h-32 rounded-lg border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity object-cover" loading="lazy" />
+                    <img src="${escapeHtml(imgUrl)}" alt="交付图片" class="max-h-64 max-w-full rounded-xl border border-gray-200 dark:border-gray-600 hover:opacity-90 hover:shadow-lg transition-all object-contain cursor-zoom-in" loading="lazy" />
                   </a>
                 `).join('')}
               </div>
@@ -605,6 +626,11 @@ async function handleDeliver() {
     btn.disabled = true;
     btn.innerHTML = '<span class="material-icons-round text-base animate-spin">sync</span> AI 交付中...';
 
+    // 图像生成可能耗时较长，显示额外提示
+    let tipTimer = setTimeout(() => {
+        btn.innerHTML = '<span class="material-icons-round text-base animate-spin">sync</span> 图像生成中，请稍候...';
+    }, 5000);
+
     try {
         await api(`/api/tasks/${state.task.id}/deliver`, { method: 'POST' });
         showToast('交付成功！');
@@ -613,6 +639,8 @@ async function handleDeliver() {
         showToast(err.message || '交付失败');
         btn.innerHTML = original;
         btn.disabled = false;
+    } finally {
+        clearTimeout(tipTimer);
     }
 }
 

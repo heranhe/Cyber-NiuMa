@@ -72,8 +72,24 @@ const el = {
   styleFieldImage: document.querySelector('#style-field-image'),
   styleFieldPrompt: document.querySelector('#style-field-prompt'),
   styleImagePreview: document.querySelector('#style-image-preview'),
+  styleFileInput: document.querySelector('#style-file-input'),
+  styleUploadArea: document.querySelector('#style-upload-area'),
+  styleUploadStatus: document.querySelector('#style-upload-status'),
+  styleImageClear: document.querySelector('#style-image-clear'),
   styleSaveBtn: document.querySelector('#style-save-btn'),
   styleCancelBtn: document.querySelector('#style-cancel-btn'),
+
+  // 图像生成相关元素
+  fieldAbilityTypeText: document.querySelector('#field-ability-type-text'),
+  fieldAbilityTypeImage: document.querySelector('#field-ability-type-image'),
+  abilityTypeTextLabel: document.querySelector('#ability-type-text-label'),
+  abilityTypeImageLabel: document.querySelector('#ability-type-image-label'),
+  imageConfigPanel: document.querySelector('#image-config-panel'),
+  fieldImageSize: document.querySelector('#field-image-size'),
+  fieldImageQuality: document.querySelector('#field-image-quality'),
+  testImageBtn: document.querySelector('#test-image-btn'),
+  testImageStatus: document.querySelector('#test-image-status'),
+  testImagePreview: document.querySelector('#test-image-preview'),
 
   toast: document.querySelector('#toast')
 };
@@ -124,6 +140,7 @@ async function api(path, options = {}) {
 function normalizeAbility(raw = {}) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const customApi = source.customApi && typeof source.customApi === 'object' ? source.customApi : {};
+  const imageConfig = source.imageConfig && typeof source.imageConfig === 'object' ? source.imageConfig : {};
   const styles = Array.isArray(source.styles) ? source.styles.map(s => ({
     id: String(s?.id || '').trim(),
     name: String(s?.name || '').trim(),
@@ -137,11 +154,16 @@ function normalizeAbility(raw = {}) {
     description: String(source.description || '').trim(),
     prompt: String(source.prompt || '').trim(),
 
+    abilityType: ['text', 'image'].includes(String(source.abilityType || '')) ? source.abilityType : 'text',
     useCustomApi: !!source.useCustomApi,
     customApi: {
       endpoint: String(customApi.endpoint || source.apiEndpoint || source.endpoint || '').trim(),
       apiKey: String(customApi.apiKey || source.apiKey || '').trim(),
       model: String(customApi.model || source.model || '').trim()
+    },
+    imageConfig: {
+      size: String(imageConfig.size || '1024x1024').trim(),
+      quality: String(imageConfig.quality || 'standard').trim()
     },
     styles,
     createdAt: source.createdAt || null,
@@ -157,11 +179,16 @@ function newAbilityDraft() {
     description: '',
     prompt: '',
 
+    abilityType: 'text',
     useCustomApi: false,
     customApi: {
       endpoint: '',
       apiKey: '',
       model: ''
+    },
+    imageConfig: {
+      size: '1024x1024',
+      quality: 'standard'
     },
     styles: []
   });
@@ -226,9 +253,10 @@ function renderAbilityList() {
 
   el.list.innerHTML = visibleList.map((ability) => {
     const isActive = ability.id && ability.id === state.selectedId;
+    const typeTag = ability.abilityType === 'image' ? '🎨 图像' : '📝 文本';
     const mode = ability.useCustomApi
-      ? `API · ${escapeHtml(ability.customApi?.model || '未选模型')}`
-      : 'SecondMe';
+      ? `${typeTag} · API · ${escapeHtml(ability.customApi?.model || '未选模型')}`
+      : `${typeTag} · SecondMe`;
 
 
     return `
@@ -301,6 +329,16 @@ function renderForm() {
       : '当前已关闭：交付默认使用 SecondMe AI 接口。';
   }
 
+  // 能力类型选择
+  const isImage = ability.abilityType === 'image';
+  if (el.fieldAbilityTypeText) el.fieldAbilityTypeText.checked = !isImage;
+  if (el.fieldAbilityTypeImage) el.fieldAbilityTypeImage.checked = isImage;
+  updateAbilityTypeUI(isImage);
+
+  // 图像配置
+  if (el.fieldImageSize) el.fieldImageSize.value = ability.imageConfig?.size || '1024x1024';
+  if (el.fieldImageQuality) el.fieldImageQuality.value = ability.imageConfig?.quality || 'standard';
+
   if (el.deleteBtn) {
     el.deleteBtn.classList.toggle('hidden', !ability.id);
     el.deleteBtn.disabled = !state.connected;
@@ -308,6 +346,27 @@ function renderForm() {
 
   renderModelOptions();
   renderStyles();
+}
+
+// 更新能力类型 UI 状态
+function updateAbilityTypeUI(isImage) {
+  if (el.abilityTypeTextLabel) {
+    el.abilityTypeTextLabel.style.borderColor = !isImage ? '#D97706' : '#E5E7EB';
+    el.abilityTypeTextLabel.style.backgroundColor = !isImage ? '#FFF7ED' : '';
+  }
+  if (el.abilityTypeImageLabel) {
+    el.abilityTypeImageLabel.style.borderColor = isImage ? '#2563EB' : '#E5E7EB';
+    el.abilityTypeImageLabel.style.backgroundColor = isImage ? '#EFF6FF' : '';
+  }
+  if (el.imageConfigPanel) {
+    el.imageConfigPanel.classList.toggle('hidden', !isImage);
+  }
+  // 重置测试图片状态
+  if (el.testImagePreview) el.testImagePreview.classList.add('hidden');
+  if (el.testImageStatus) {
+    el.testImageStatus.textContent = '点击按钮测试当前 API 是否支持图像生成。';
+    el.testImageStatus.className = 'text-xs text-gray-500 mt-2';
+  }
 }
 
 function updateCurrentFromForm() {
@@ -323,6 +382,14 @@ function updateCurrentFromForm() {
   ability.customApi.apiKey = String(el.fieldApiKey?.value || '').trim();
   ability.customApi.model = String(el.fieldApiModel?.value || '').trim();
 
+  // 能力类型
+  ability.abilityType = el.fieldAbilityTypeImage?.checked ? 'image' : 'text';
+
+  // 图像配置
+  if (!ability.imageConfig) ability.imageConfig = {};
+  ability.imageConfig.size = String(el.fieldImageSize?.value || '1024x1024').trim();
+  ability.imageConfig.quality = String(el.fieldImageQuality?.value || 'standard').trim();
+
   if (el.avatarEmoji) {
     el.avatarEmoji.textContent = ability.icon || '🤖';
   }
@@ -337,6 +404,9 @@ function updateCurrentFromForm() {
   if (el.customApiPanel) {
     el.customApiPanel.classList.toggle('opacity-70', !ability.useCustomApi);
   }
+
+  // 更新能力类型 UI
+  updateAbilityTypeUI(ability.abilityType === 'image');
 
   const targetIdx = state.abilities.findIndex((item) => item.id && item.id === ability.id);
   if (targetIdx >= 0) {
@@ -407,11 +477,16 @@ function abilityPayload(ability) {
     description: ability.description,
     prompt: ability.prompt,
 
+    abilityType: ability.abilityType || 'text',
     useCustomApi: ability.useCustomApi,
     customApi: {
       endpoint: ability.customApi.endpoint,
       apiKey: ability.customApi.apiKey,
       model: ability.customApi.model
+    },
+    imageConfig: {
+      size: ability.imageConfig?.size || '1024x1024',
+      quality: ability.imageConfig?.quality || 'standard'
     },
     styles: (ability.styles || []).map(s => ({
       id: s.id,
@@ -525,6 +600,82 @@ async function onFetchModels() {
     if (el.fetchModelsBtn) {
       el.fetchModelsBtn.disabled = !state.connected;
       el.fetchModelsBtn.textContent = 'Fetch 模型';
+    }
+  }
+}
+
+// 测试图像生成功能
+async function onTestImageGeneration() {
+  if (!state.connected) {
+    showToast('请先登录');
+    return;
+  }
+
+  updateCurrentFromForm();
+  const ability = getCurrentAbility();
+
+  if (!ability.customApi.endpoint) {
+    showToast('请先填写 API Endpoint');
+    return;
+  }
+  if (!ability.customApi.apiKey) {
+    showToast('请先填写 API Key');
+    return;
+  }
+  if (!ability.customApi.model) {
+    showToast('请先选择模型');
+    return;
+  }
+
+  if (el.testImageBtn) {
+    el.testImageBtn.disabled = true;
+    el.testImageBtn.textContent = '⏳ 生成中...';
+  }
+  if (el.testImageStatus) {
+    el.testImageStatus.textContent = '正在调用图像生成 API，请稍候（可能需要 5~30 秒）...';
+    el.testImageStatus.className = 'text-xs text-blue-600 mt-2';
+  }
+  if (el.testImagePreview) {
+    el.testImagePreview.classList.add('hidden');
+  }
+
+  try {
+    const res = await api('/api/image-generate/test', {
+      method: 'POST',
+      body: {
+        endpoint: ability.customApi.endpoint,
+        apiKey: ability.customApi.apiKey,
+        model: ability.customApi.model,
+        prompt: '一只戴着太阳镜的猫咪，赛博朋克风格',
+        size: ability.imageConfig?.size || '1024x1024'
+      }
+    });
+
+    const images = res?.data?.images || [];
+    if (images.length > 0) {
+      if (el.testImagePreview) {
+        const img = el.testImagePreview.querySelector('img');
+        if (img) img.src = images[0];
+        el.testImagePreview.classList.remove('hidden');
+      }
+      if (el.testImageStatus) {
+        el.testImageStatus.textContent = `✅ 测试成功！模型: ${res.data.model || ability.customApi.model}`;
+        el.testImageStatus.className = 'text-xs text-green-700 mt-2 font-bold';
+      }
+      showToast('图像生成测试成功！');
+    } else {
+      throw new Error('API 未返回图片');
+    }
+  } catch (error) {
+    if (el.testImageStatus) {
+      el.testImageStatus.textContent = `❌ 测试失败: ${error.message || '未知错误'}`;
+      el.testImageStatus.className = 'text-xs text-red-600 mt-2';
+    }
+    showToast(error.message || '图像生成测试失败');
+  } finally {
+    if (el.testImageBtn) {
+      el.testImageBtn.disabled = false;
+      el.testImageBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" /></svg> 测试图像生成`;
     }
   }
 }
@@ -643,6 +794,13 @@ function bindEvents() {
   el.deleteBtn?.addEventListener('click', onDelete);
   el.fetchModelsBtn?.addEventListener('click', onFetchModels);
 
+  // 能力类型切换事件
+  el.fieldAbilityTypeText?.addEventListener('change', updateCurrentFromForm);
+  el.fieldAbilityTypeImage?.addEventListener('change', updateCurrentFromForm);
+
+  // 测试图像生成按钮
+  el.testImageBtn?.addEventListener('click', onTestImageGeneration);
+
   [
     el.fieldEnabled,
     el.fieldName,
@@ -652,7 +810,9 @@ function bindEvents() {
     el.fieldUseCustomApi,
     el.fieldApiEndpoint,
     el.fieldApiKey,
-    el.fieldApiModel
+    el.fieldApiModel,
+    el.fieldImageSize,
+    el.fieldImageQuality
   ].forEach((node) => {
     node?.addEventListener('input', updateCurrentFromForm);
     node?.addEventListener('change', updateCurrentFromForm);
@@ -719,6 +879,13 @@ function openStyleEditor(styleId = null) {
   // 图片预览
   updateStyleImagePreview(style?.image || '');
 
+  // 重置上传区域状态
+  if (el.styleFileInput) el.styleFileInput.value = '';
+  if (el.styleUploadStatus) {
+    el.styleUploadStatus.textContent = '';
+    el.styleUploadStatus.classList.add('hidden');
+  }
+
   if (el.styleModal) {
     el.styleModal.classList.remove('hidden');
   }
@@ -736,10 +903,75 @@ function updateStyleImagePreview(url) {
   const img = el.styleImagePreview.querySelector('img');
   if (url && img) {
     img.src = url;
-    img.onerror = () => el.styleImagePreview.classList.add('hidden');
+    img.onerror = () => {
+      el.styleImagePreview.classList.add('hidden');
+      if (el.styleUploadArea) el.styleUploadArea.classList.remove('hidden');
+    };
     el.styleImagePreview.classList.remove('hidden');
+    // 有预览图时隐藏上传区域
+    if (el.styleUploadArea) el.styleUploadArea.classList.add('hidden');
   } else {
     el.styleImagePreview.classList.add('hidden');
+    // 没有预览图时显示上传区域
+    if (el.styleUploadArea) el.styleUploadArea.classList.remove('hidden');
+  }
+}
+
+// 上传风格图片
+async function uploadStyleImage(file) {
+  if (!file) return;
+
+  // 前端校验
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (!allowedTypes.includes(file.type)) {
+    showToast('不支持的图片格式，仅支持 JPG/PNG/WebP/GIF');
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('图片大小超过 5MB 限制');
+    return;
+  }
+
+  // 显示上传状态
+  if (el.styleUploadStatus) {
+    el.styleUploadStatus.textContent = '正在上传...';
+    el.styleUploadStatus.classList.remove('hidden');
+    el.styleUploadStatus.className = 'text-xs text-blue-600 mb-2';
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const resp = await fetch('/api/upload/image', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await resp.json();
+    if (!resp.ok || result.code !== 0) {
+      throw new Error(result.message || '上传失败');
+    }
+
+    const imageUrl = result.data.url;
+    // 回填 URL 到输入框
+    if (el.styleFieldImage) el.styleFieldImage.value = imageUrl;
+    // 更新预览
+    updateStyleImagePreview(imageUrl);
+
+    if (el.styleUploadStatus) {
+      el.styleUploadStatus.textContent = '上传成功';
+      el.styleUploadStatus.className = 'text-xs text-green-600 mb-2';
+    }
+
+    showToast('图片上传成功');
+  } catch (error) {
+    console.error('[capability] uploadStyleImage failed:', error);
+    if (el.styleUploadStatus) {
+      el.styleUploadStatus.textContent = error.message || '上传失败';
+      el.styleUploadStatus.className = 'text-xs text-red-600 mb-2';
+    }
+    showToast(error.message || '图片上传失败');
   }
 }
 
@@ -827,9 +1059,24 @@ function bindStyleEvents() {
   el.styleCancelBtn?.addEventListener('click', closeStyleEditor);
   el.styleSaveBtn?.addEventListener('click', onStyleSave);
 
-  // 图片 URL 实时预览
-  el.styleFieldImage?.addEventListener('input', (e) => {
-    updateStyleImagePreview(e.target.value?.trim() || '');
+
+  // 文件上传事件
+  el.styleFileInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadStyleImage(file);
+    }
+  });
+
+  // 清除图片按钮
+  el.styleImageClear?.addEventListener('click', () => {
+    if (el.styleFieldImage) el.styleFieldImage.value = '';
+    if (el.styleFileInput) el.styleFileInput.value = '';
+    updateStyleImagePreview('');
+    if (el.styleUploadStatus) {
+      el.styleUploadStatus.textContent = '';
+      el.styleUploadStatus.classList.add('hidden');
+    }
   });
 }
 
