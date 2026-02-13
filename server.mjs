@@ -744,10 +744,11 @@ function normalizeCustomApiConfig(payload = {}, fallback = {}) {
 // 规范化单个风格对象
 function normalizeStyle(raw = {}) {
   const s = raw && typeof raw === 'object' ? raw : {};
+  const image = String(s.image ?? s.coverImage ?? s.imageUrl ?? '').trim();
   return {
     id: String(s.id || '').trim() || uid('style'),
     name: String(s.name || '').trim(),
-    image: String(s.image || '').trim(),
+    image,
     prompt: String(s.prompt || '').trim()
   };
 }
@@ -1778,6 +1779,15 @@ function normalizeCustomApiBaseUrl(endpoint) {
   }
   if (pathname.endsWith('/models')) {
     pathname = pathname.slice(0, -'/models'.length) || '/v1';
+  }
+  // Google Gemini OpenAI 兼容端点必须包含 /openai，否则 /images/generations 与 /chat/completions 会 404
+  if (url.hostname === 'generativelanguage.googleapis.com' && !/\/openai$/.test(pathname)) {
+    if (/^\/v1beta(\/.*)?$/.test(pathname) || /^\/v1(\/.*)?$/.test(pathname)) {
+      pathname = pathname.replace(/\/+$/, '');
+      if (!pathname.endsWith('/openai')) {
+        pathname = `${pathname}/openai`;
+      }
+    }
   }
   url.pathname = pathname;
   url.search = '';

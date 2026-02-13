@@ -155,7 +155,7 @@ function normalizeAbility(raw = {}) {
   const styles = Array.isArray(source.styles) ? source.styles.map(s => ({
     id: String(s?.id || '').trim(),
     name: String(s?.name || '').trim(),
-    image: String(s?.image || '').trim(),
+    image: String(s?.image ?? s?.coverImage ?? s?.imageUrl ?? '').trim(),
     prompt: String(s?.prompt || '').trim()
   })).filter(s => s.name) : [];
   return {
