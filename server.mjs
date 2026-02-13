@@ -17,9 +17,10 @@ const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 const WEB_DIR = path.join(__dirname, 'web');
-const UPLOADS_DIR = path.join(WEB_DIR, 'uploads');
 const IS_VERCEL = Boolean(process.env.VERCEL);
 const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'ai-labor-market') : path.join(__dirname, 'data');
+const LEGACY_UPLOADS_DIR = path.join(WEB_DIR, 'uploads');
+const UPLOADS_DIR = IS_VERCEL ? path.join(DATA_DIR, 'uploads') : LEGACY_UPLOADS_DIR;
 const DATA_FILE = path.join(DATA_DIR, 'tasks.json');
 const PROFILE_FILE = path.join(DATA_DIR, 'profiles.json');
 const ABILITIES_FILE = path.join(DATA_DIR, 'abilities.json');
@@ -4362,6 +4363,34 @@ async function serveStatic(req, res, urlObj) {
 
   if (pathname === '/') {
     pathname = '/index.html';
+  }
+
+  if (pathname.startsWith('/uploads/')) {
+    // 上传文件支持从当前目录和历史目录读取，兼容旧数据。
+    const uploadName = path.basename(pathname);
+    const uploadRoots = [UPLOADS_DIR];
+    if (LEGACY_UPLOADS_DIR !== UPLOADS_DIR) {
+      uploadRoots.push(LEGACY_UPLOADS_DIR);
+    }
+
+    for (const root of uploadRoots) {
+      const uploadPath = path.join(root, uploadName);
+      try {
+        const data = await fs.readFile(uploadPath);
+        const ext = path.extname(uploadPath).toLowerCase();
+        const type = MIME[ext] || 'application/octet-stream';
+        res.writeHead(200, {
+          'Content-Type': type,
+          'Content-Length': data.length
+        });
+        return res.end(data);
+      } catch {
+        // try next root
+      }
+    }
+
+    res.writeHead(404);
+    return res.end('Not Found');
   }
 
   const safePath = path.normalize(pathname).replace(/^([.]{2}[\/])+/, '');
