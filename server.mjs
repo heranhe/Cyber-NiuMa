@@ -2622,9 +2622,17 @@ async function imageApiDelivery(task, customBrief, workerLookup, ability = null)
 async function generateDelivery(task, customBrief, workerLookup, { ability = null } = {}) {
   const preferCustomApi = Boolean(ability && ability.enabled !== false && ability.useCustomApi);
 
-  // 如果是图像生成类型的能力，走图像生成路径
+  // 如果是图像生成类型的能力，先尝试图像生成路径，失败则回退到文本交付
   if (preferCustomApi && ability.abilityType === 'image') {
-    return imageApiDelivery(task, customBrief, workerLookup, ability);
+    try {
+      return await imageApiDelivery(task, customBrief, workerLookup, ability);
+    } catch (imgErr) {
+      console.warn(`[generateDelivery] 图像生成失败，回退到文本交付: ${imgErr.message}`);
+      // 回退到文本交付，并附加图像生成失败的提示
+      const textResult = await customApiDelivery(task, customBrief, workerLookup, ability);
+      textResult.content = `${textResult.content}\n\n---\n⚠️ 图像生成未成功（${imgErr.message?.slice(0, 80) || '未知错误'}），已回退为文本交付。`;
+      return textResult;
+    }
   }
 
   // 文本生成（自定义 API 或 SecondMe）
@@ -2633,6 +2641,7 @@ async function generateDelivery(task, customBrief, workerLookup, { ability = nul
   }
   return secondMeDelivery(task, customBrief, workerLookup);
 }
+
 
 async function handleApi(req, res, urlObj) {
   const { method } = req;
