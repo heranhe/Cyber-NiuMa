@@ -91,6 +91,14 @@ const el = {
   testImageStatus: document.querySelector('#test-image-status'),
   testImagePreview: document.querySelector('#test-image-preview'),
 
+  // 封面图上传相关元素
+  coverUploadArea: document.querySelector('#cover-upload-area'),
+  coverUploadPlaceholder: document.querySelector('#cover-upload-placeholder'),
+  coverPreviewWrapper: document.querySelector('#cover-preview-wrapper'),
+  coverPreviewImg: document.querySelector('#cover-preview-img'),
+  coverRemoveBtn: document.querySelector('#cover-remove-btn'),
+  coverFileInput: document.querySelector('#cover-file-input'),
+
   toast: document.querySelector('#toast')
 };
 
@@ -155,6 +163,7 @@ function normalizeAbility(raw = {}) {
     prompt: String(source.prompt || '').trim(),
 
     abilityType: ['text', 'image'].includes(String(source.abilityType || '')) ? source.abilityType : 'text',
+    coverImage: String(source.coverImage || '').trim() || null,
     useCustomApi: !!source.useCustomApi,
     customApi: {
       endpoint: String(customApi.endpoint || source.apiEndpoint || source.endpoint || '').trim(),
@@ -180,6 +189,7 @@ function newAbilityDraft() {
     prompt: '',
 
     abilityType: 'text',
+    coverImage: null,
     useCustomApi: false,
     customApi: {
       endpoint: '',
@@ -344,8 +354,24 @@ function renderForm() {
     el.deleteBtn.disabled = !state.connected;
   }
 
+  // 封面图预览
+  updateCoverPreview(ability.coverImage);
+
   renderModelOptions();
   renderStyles();
+}
+
+// 更新封面图预览 UI
+function updateCoverPreview(coverImage) {
+  if (coverImage) {
+    if (el.coverUploadPlaceholder) el.coverUploadPlaceholder.classList.add('hidden');
+    if (el.coverPreviewWrapper) el.coverPreviewWrapper.classList.remove('hidden');
+    if (el.coverPreviewImg) el.coverPreviewImg.src = coverImage;
+  } else {
+    if (el.coverUploadPlaceholder) el.coverUploadPlaceholder.classList.remove('hidden');
+    if (el.coverPreviewWrapper) el.coverPreviewWrapper.classList.add('hidden');
+    if (el.coverPreviewImg) el.coverPreviewImg.src = '';
+  }
 }
 
 // 更新能力类型 UI 状态
@@ -478,6 +504,7 @@ function abilityPayload(ability) {
     prompt: ability.prompt,
 
     abilityType: ability.abilityType || 'text',
+    coverImage: ability.coverImage || null,
     useCustomApi: ability.useCustomApi,
     customApi: {
       endpoint: ability.customApi.endpoint,
@@ -817,6 +844,66 @@ function bindEvents() {
     node?.addEventListener('input', updateCurrentFromForm);
     node?.addEventListener('change', updateCurrentFromForm);
   });
+
+  // 封面图上传事件
+  el.coverUploadArea?.addEventListener('click', (e) => {
+    if (e.target.closest('#cover-remove-btn')) return;
+    el.coverFileInput?.click();
+  });
+
+  el.coverUploadArea?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    el.coverUploadArea.classList.add('border-primary', 'bg-orange-50/50');
+  });
+
+  el.coverUploadArea?.addEventListener('dragleave', () => {
+    el.coverUploadArea.classList.remove('border-primary', 'bg-orange-50/50');
+  });
+
+  el.coverUploadArea?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    el.coverUploadArea.classList.remove('border-primary', 'bg-orange-50/50');
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      handleCoverFileSelect(file);
+    }
+  });
+
+  el.coverFileInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleCoverFileSelect(file);
+    e.target.value = '';
+  });
+
+  el.coverRemoveBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const ability = getCurrentAbility();
+    ability.coverImage = null;
+    updateCoverPreview(null);
+  });
+}
+
+// 处理封面图文件选择：转为 base64 data URL
+function handleCoverFileSelect(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+
+  // 限制文件大小（2MB）
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('封面图不能超过 2MB');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    const ability = getCurrentAbility();
+    ability.coverImage = dataUrl;
+    updateCoverPreview(dataUrl);
+  };
+  reader.onerror = () => {
+    showToast('读取图片失败');
+  };
+  reader.readAsDataURL(file);
 }
 
 // ===== 风格管理功能 =====

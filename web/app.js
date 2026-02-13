@@ -1175,8 +1175,9 @@ function renderSkillCard(skill, index) {
   const category = categorizeSkill(skill);
   const categoryInfo = SKILL_CATEGORIES.find(c => c.id === category) || SKILL_CATEGORIES[4];
   const categoryName = categoryInfo.name.replace(categoryInfo.icon, '').trim();
-  const coverImg = SKILL_COVER_IMAGES[index % SKILL_COVER_IMAGES.length];
-  const aspectRatio = ASPECT_RATIOS[index % ASPECT_RATIOS.length];
+  const hasCustomCover = !!skill.coverImage;
+  const coverImg = skill.coverImage || SKILL_COVER_IMAGES[index % SKILL_COVER_IMAGES.length];
+  const aspectRatio = hasCustomCover ? '' : ASPECT_RATIOS[index % ASPECT_RATIOS.length];
 
   return `
     <div class="masonry-item bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-skill-id="${skill.id}">

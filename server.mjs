@@ -779,6 +779,7 @@ function normalizeStoredAbility(payload = {}) {
     prompt: String(source.prompt || '').trim(),
     enabled: toBoolean(source.enabled, true),
     abilityType,
+    coverImage: String(source.coverImage || '').trim() || null,
     useCustomApi: toBoolean(source.useCustomApi, false),
     customApi: normalizeCustomApiConfig(
       {
@@ -1228,6 +1229,7 @@ async function updateUserAbility(userId, abilityId, patch) {
     prompt: hasOwn(patch, 'prompt') ? String(patch.prompt || '').trim() : current.prompt,
     enabled: hasOwn(patch, 'enabled') ? toBoolean(patch.enabled, true) : current.enabled,
     abilityType: hasOwn(patch, 'abilityType') ? String(patch.abilityType || 'text').trim() : current.abilityType,
+    coverImage: hasOwn(patch, 'coverImage') ? (String(patch.coverImage || '').trim() || null) : current.coverImage,
     useCustomApi: hasOwn(patch, 'useCustomApi') ? toBoolean(patch.useCustomApi, false) : current.useCustomApi,
     customApi: mergedCustomApi,
     imageConfig: mergedImageConfig,
