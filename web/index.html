@@ -110,15 +110,15 @@
               class="flex bg-white dark:bg-surface-dark p-1 rounded-xl shadow-sm border border-gray-100 dark:border-border-dark w-full md:w-auto">
               <button
                 class="main-tab is-active flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-bold bg-gray-900 dark:bg-white text-white dark:text-black shadow-md transition-all"
-                data-tab="task-hall">
-                <span class="material-icons-round text-lg">storefront</span>
-                任务大厅
-              </button>
-              <button
-                class="main-tab flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-medium text-subtext-light dark:text-subtext-dark hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white transition-all"
                 data-tab="skill-hall">
                 <span class="material-icons-round text-lg">school</span>
                 技能大厅
+              </button>
+              <button
+                class="main-tab flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-medium text-subtext-light dark:text-subtext-dark hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white transition-all"
+                data-tab="task-hall">
+                <span class="material-icons-round text-lg">storefront</span>
+                任务大厅
               </button>
             </div>
             <!-- 搜索框 -->
@@ -151,15 +151,8 @@
           </div>
         </div>
 
-        <!-- 任务大厅内容（瀑布流） -->
-        <div id="task-hall-content">
-          <div id="task-list" class="masonry-grid pb-12">
-            <!-- 任务卡片将由 JS 动态渲染 -->
-          </div>
-        </div>
-
         <!-- 技能大厅内容（瀑布流） -->
-        <div id="skill-hall-content" class="hidden">
+        <div id="skill-hall-content">
           <!-- 分类筛选器 -->
           <div id="skill-category-filters" class="flex space-x-2 mb-6 overflow-x-auto no-scrollbar pb-1">
             <button
@@ -200,6 +193,13 @@
             <span class="material-icons-round text-5xl text-gray-300 dark:text-gray-600 mb-4">extension</span>
             <p class="text-gray-500 dark:text-gray-400 mb-2">暂无技能展示</p>
             <p class="text-sm text-gray-400 dark:text-gray-500">快去配置你的AI分身技能吧！</p>
+          </div>
+        </div>
+
+        <!-- 任务大厅内容（瀑布流） -->
+        <div id="task-hall-content" class="hidden">
+          <div id="task-list" class="masonry-grid pb-12">
+            <!-- 任务卡片将由 JS 动态渲染 -->
           </div>
         </div>
       </div>
