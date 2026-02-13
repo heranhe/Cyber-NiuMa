@@ -1989,7 +1989,7 @@ async function callCustomApiImageGeneration({
     prompt: String(prompt).trim(),
     n: Math.max(1, Math.min(4, n || 1)),
     size: size || '1024x1024',
-    response_format: 'url'
+    response_format: 'b64_json'
   };
   if (quality === 'hd') {
     requestBody.quality = 'hd';
@@ -2037,7 +2037,10 @@ async function callCustomApiImageGeneration({
         content: `请根据以下描述生成一张图片:\n\n${String(prompt).trim()}`
       }
     ],
-    max_tokens: 4096
+    max_tokens: 4096,
+    // Gemini 兼容: 指定输出包含图片（不同代理可能使用不同字段名）
+    modalities: ['text', 'image'],
+    response_modalities: ['text', 'image']
   };
 
   const chatResponse = await fetch(chatUrl, {
@@ -3827,6 +3830,108 @@ async function handleApi(req, res, urlObj) {
       code: 0,
       message: '协作备注已提交',
       data: safeTaskSummary(task)
+    });
+  }
+
+  // ===== 技能雇佣（即时交付） =====
+  if (method === 'POST' && pathname === '/api/skills/hire') {
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const skillId = String(body.skillId || '').trim();
+    const requirement = String(body.requirement || '').trim();
+
+    if (!skillId) {
+      return badRequest(res, '缺少技能ID (skillId)');
+    }
+    if (!requirement) {
+      return badRequest(res, '请填写需求描述 (requirement)');
+    }
+
+    // 验证用户已登录
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    const worker = session.worker;
+    if (!worker) {
+      return badRequest(res, '请先登录');
+    }
+
+    // 在所有用户的能力中查找该 skillId（abilityId）
+    const allAbilities = await loadAbilities();
+    let foundAbility = null;
+    let abilityOwnerId = null;
+
+    for (const [userId, abilities] of Object.entries(allAbilities)) {
+      if (!Array.isArray(abilities)) continue;
+      const match = abilities.find(a => a.id === skillId);
+      if (match) {
+        foundAbility = normalizeStoredAbility(match);
+        abilityOwnerId = userId;
+        break;
+      }
+    }
+
+    if (!foundAbility) {
+      return badRequest(res, '技能不存在或已下架');
+    }
+
+    // 构建临时任务对象（不持久化到任务列表,仅用于交付引擎）
+    const tempTask = {
+      id: uid('hire'),
+      title: `雇佣: ${foundAbility.name}`,
+      description: requirement,
+      laborType: foundAbility.abilityType === 'image' ? 'studio-retouch' : 'custom:general',
+      laborTypeName: foundAbility.name,
+      requirements: requirement,
+      status: 'IN_PROGRESS',
+      requesterAi: worker.name || 'AI 用户',
+      publisherId: worker.id,
+      assigneeId: worker.id,
+      budget: '',
+      deadline: '',
+      participants: [worker.id],
+      updates: [],
+      sync: { events: [], secondMeSessionId: null },
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    };
+
+    const workerLookup = workersMap(await loadProfiles());
+
+    // 调用交付引擎
+    const delivery = await generateDelivery(tempTask, requirement, workerLookup, {
+      ability: foundAbility
+    });
+
+    // 保存交付历史
+    await saveDeliveryHistory({
+      id: uid('delivery'),
+      taskId: tempTask.id,
+      workerId: worker.id,
+      workerName: worker.name || 'AI 用户',
+      abilityId: foundAbility.id,
+      abilityName: foundAbility.name,
+      content: delivery.content || '',
+      status: 'completed',
+      createdAt: nowIso()
+    });
+
+    return json(res, 200, {
+      code: 0,
+      message: '雇佣交付已完成',
+      data: {
+        content: delivery.content || '',
+        images: delivery.images || [],
+        engine: delivery.engine || 'unknown',
+        abilityName: foundAbility.name,
+        abilityId: foundAbility.id
+      }
     });
   }
 

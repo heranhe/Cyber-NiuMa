@@ -598,6 +598,113 @@
     </div>
   </div>
 
+  <!-- 雇佣弹窗 -->
+  <div id="hire-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+    <div
+      class="bg-white dark:bg-surface-dark rounded-2xl shadow-2xl w-full max-w-lg p-0 relative mx-4 border border-gray-100 dark:border-border-dark overflow-hidden">
+      <!-- 关闭按钮 -->
+      <button id="close-hire-modal"
+        class="absolute top-4 right-4 z-10 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300">
+        <span class="material-icons-round">close</span>
+      </button>
+
+      <!-- 输入表单视图 -->
+      <div id="hire-form-view">
+        <!-- 技能信息头部 -->
+        <div
+          class="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 px-6 pt-6 pb-5">
+          <div class="flex items-center gap-4">
+            <div id="hire-skill-icon"
+              class="w-14 h-14 rounded-2xl bg-white dark:bg-surface-dark shadow-md flex items-center justify-center text-3xl border border-gray-100 dark:border-border-dark">
+              🔧
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 id="hire-skill-name" class="text-lg font-bold text-gray-900 dark:text-white truncate">技能名称</h3>
+              <p id="hire-skill-desc" class="text-sm text-subtext-light dark:text-subtext-dark mt-0.5 line-clamp-2">技能简介
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 需求输入区 -->
+        <div class="px-6 py-5 space-y-4">
+          <div>
+            <label class="block text-sm font-bold text-gray-900 dark:text-white mb-2">
+              <span class="material-icons-round text-sm align-middle mr-1 text-primary">edit_note</span>
+              描述你的需求
+            </label>
+            <textarea id="hire-requirement"
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all resize-none text-sm text-gray-900 dark:text-white placeholder-gray-400"
+              placeholder="详细描述你想要什么效果，例如：帮我设计一张科技风格的海报，主题是 AI 与未来…" rows="5"></textarea>
+            <p class="text-[11px] text-gray-400 mt-1.5">尽量详细描述你的需求，AI 将根据你的描述生成交付内容</p>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="flex gap-3 pt-1">
+            <button type="button" id="cancel-hire-btn"
+              class="flex-1 py-3 px-4 rounded-xl font-bold border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+              取消
+            </button>
+            <button type="button" id="submit-hire-btn"
+              class="flex-1 py-3 px-4 rounded-xl font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg shadow-orange-200/50 dark:shadow-none transition-all flex items-center justify-center gap-2">
+              <span class="material-icons-round text-sm">rocket_launch</span>
+              开始交付
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 交付中视图 -->
+      <div id="hire-loading-view" class="hidden px-6 py-12 text-center">
+        <div class="relative w-20 h-20 mx-auto mb-6">
+          <div class="absolute inset-0 rounded-full border-4 border-gray-100 dark:border-gray-700"></div>
+          <div class="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+          <div class="absolute inset-3 rounded-full bg-primary/10 flex items-center justify-center">
+            <span class="material-icons-round text-primary text-2xl animate-pulse">auto_awesome</span>
+          </div>
+        </div>
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">AI 正在处理中…</h3>
+        <p class="text-sm text-subtext-light dark:text-subtext-dark">正在调用技能 API 生成交付内容，请稍候</p>
+      </div>
+
+      <!-- 交付结果视图 -->
+      <div id="hire-result-view" class="hidden">
+        <!-- 成功头部 -->
+        <div
+          class="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 px-6 py-4 flex items-center gap-3">
+          <span class="material-icons-round text-green-500 text-2xl">check_circle</span>
+          <div>
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white">交付完成</h3>
+            <p id="hire-result-skill-name" class="text-xs text-subtext-light dark:text-subtext-dark"></p>
+          </div>
+        </div>
+        <!-- 结果内容 -->
+        <div class="px-6 py-4 max-h-[50vh] overflow-y-auto">
+          <!-- 图片结果（如有） -->
+          <div id="hire-result-images" class="hidden mb-4 grid grid-cols-2 gap-3">
+            <!-- 图片将由 JS 动态渲染 -->
+          </div>
+          <!-- 文本结果 -->
+          <div id="hire-result-text"
+            class="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed">
+          </div>
+        </div>
+        <!-- 底部操作 -->
+        <div class="px-6 pb-5 flex gap-3">
+          <button type="button" id="hire-close-result-btn"
+            class="flex-1 py-3 px-4 rounded-xl font-bold border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            关闭
+          </button>
+          <button type="button" id="hire-retry-btn"
+            class="flex-1 py-3 px-4 rounded-xl font-bold bg-primary hover:bg-amber-700 text-white transition-colors flex items-center justify-center gap-2">
+            <span class="material-icons-round text-sm">refresh</span>
+            重新生成
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="/app.js" type="module"></script>
 </body>
 

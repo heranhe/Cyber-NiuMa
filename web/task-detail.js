@@ -302,8 +302,8 @@ function extractImagesFromContent(content) {
     const images = [];
     let processedContent = content;
 
-    // 1. 匹配 Markdown 图片格式: ![alt](url)
-    const mdImageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi;
+    // 1. 匹配 Markdown 图片格式: ![alt](url) - 支持 http/https 和 data:image URI
+    const mdImageRegex = /!\[([^\]]*)\]\(((?:https?:\/\/[^\s)]+|data:image\/[^\s)]+))\)/gi;
     let mdMatch;
     while ((mdMatch = mdImageRegex.exec(content)) !== null) {
         images.push(mdMatch[2]);

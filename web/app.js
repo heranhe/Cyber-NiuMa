@@ -1189,7 +1189,7 @@ function renderSkillCard(skill, index) {
           <button class="flex-1 py-2 rounded-lg text-[11px] font-bold bg-white text-gray-800 hover:bg-gray-100 shadow-sm transition-all flex items-center justify-center gap-1">
             <span class="material-symbols-outlined text-[16px]">chat_bubble</span> 咨询
           </button>
-          <button class="flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1">
+          <button class="skill-hire-btn flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="hire" data-skill-id="${skill.id}">
             <span class="material-symbols-outlined text-[16px]">touch_app</span> 雇佣
           </button>
         </div>
@@ -1237,6 +1237,144 @@ if (skillCategoryFilters) {
 
     // 重新渲染技能列表
     renderSkillCategories(state.skills);
+  });
+}
+
+// ===== 雇佣弹窗逻辑 =====
+const hireModal = document.getElementById('hire-modal');
+const hireFormView = document.getElementById('hire-form-view');
+const hireLoadingView = document.getElementById('hire-loading-view');
+const hireResultView = document.getElementById('hire-result-view');
+const hireSkillIcon = document.getElementById('hire-skill-icon');
+const hireSkillName = document.getElementById('hire-skill-name');
+const hireSkillDesc = document.getElementById('hire-skill-desc');
+const hireRequirement = document.getElementById('hire-requirement');
+const hireResultSkillName = document.getElementById('hire-result-skill-name');
+const hireResultImages = document.getElementById('hire-result-images');
+const hireResultText = document.getElementById('hire-result-text');
+
+// 当前雇佣的技能信息
+let currentHireSkill = null;
+
+// 打开雇佣弹窗
+function openHireModal(skillId) {
+  const skill = state.skills.find(s => s.id === skillId);
+  if (!skill) {
+    showToast('技能不存在');
+    return;
+  }
+  currentHireSkill = skill;
+
+  // 填充技能信息
+  if (hireSkillIcon) hireSkillIcon.textContent = skill.icon || '🔧';
+  if (hireSkillName) hireSkillName.textContent = skill.name || '未命名技能';
+  if (hireSkillDesc) hireSkillDesc.textContent = skill.description || '这个 AI 分身很懒，还没写简介…';
+  if (hireRequirement) hireRequirement.value = '';
+
+  // 显示表单视图，隐藏其他视图
+  hireFormView?.classList.remove('hidden');
+  hireLoadingView?.classList.add('hidden');
+  hireResultView?.classList.add('hidden');
+
+  hireModal?.classList.remove('hidden');
+}
+
+// 关闭雇佣弹窗
+function closeHireModal() {
+  hireModal?.classList.add('hidden');
+  currentHireSkill = null;
+}
+
+// 提交雇佣
+async function submitHire() {
+  if (!currentHireSkill) return;
+
+  const requirement = hireRequirement?.value?.trim();
+  if (!requirement) {
+    showToast('请描述你的需求');
+    return;
+  }
+
+  // 切换到加载视图
+  hireFormView?.classList.add('hidden');
+  hireLoadingView?.classList.remove('hidden');
+  hireResultView?.classList.add('hidden');
+
+  try {
+    const result = await api('/api/skills/hire', {
+      method: 'POST',
+      body: {
+        skillId: currentHireSkill.id,
+        requirement
+      }
+    });
+
+    // 切换到结果视图
+    hireLoadingView?.classList.add('hidden');
+    hireResultView?.classList.remove('hidden');
+
+    // 显示技能名称
+    if (hireResultSkillName) {
+      hireResultSkillName.textContent = `技能: ${currentHireSkill.name}`;
+    }
+
+    // 处理图片结果
+    const images = result?.data?.images || [];
+    if (images.length > 0 && hireResultImages) {
+      hireResultImages.classList.remove('hidden');
+      hireResultImages.innerHTML = images.map(src => `
+        <div class="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+          <img src="${src}" class="w-full h-auto" alt="交付图片" loading="lazy" />
+        </div>
+      `).join('');
+    } else {
+      hireResultImages?.classList.add('hidden');
+    }
+
+    // 处理文本结果
+    const content = result?.data?.content || '交付完成，但内容为空。';
+    if (hireResultText) {
+      hireResultText.textContent = content;
+    }
+  } catch (err) {
+    // 出错时回到表单视图
+    hireLoadingView?.classList.add('hidden');
+    hireFormView?.classList.remove('hidden');
+    showToast(err.message || '雇佣失败，请重试');
+  }
+}
+
+// 雇佣弹窗事件绑定
+document.getElementById('close-hire-modal')?.addEventListener('click', closeHireModal);
+document.getElementById('cancel-hire-btn')?.addEventListener('click', closeHireModal);
+document.getElementById('submit-hire-btn')?.addEventListener('click', submitHire);
+document.getElementById('hire-close-result-btn')?.addEventListener('click', closeHireModal);
+document.getElementById('hire-retry-btn')?.addEventListener('click', () => {
+  // 重新生成：回到表单视图
+  hireFormView?.classList.remove('hidden');
+  hireLoadingView?.classList.add('hidden');
+  hireResultView?.classList.add('hidden');
+});
+
+// 点击弹窗外部关闭
+hireModal?.addEventListener('click', (e) => {
+  if (e.target === hireModal) closeHireModal();
+});
+
+// 技能大厅卡片点击事件委托（雇佣按钮）
+const skillCategoriesContainer = document.querySelector('#skill-categories');
+if (skillCategoriesContainer) {
+  skillCategoriesContainer.addEventListener('click', (e) => {
+    const hireBtn = e.target.closest('.skill-hire-btn');
+    if (hireBtn) {
+      e.stopPropagation();
+      if (!canOperate()) {
+        showToast('请先登录');
+        return;
+      }
+      const skillId = hireBtn.dataset.skillId;
+      if (skillId) openHireModal(skillId);
+    }
   });
 }
 
