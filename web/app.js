@@ -5,7 +5,7 @@ const state = {
   tasks: [],
   totalUsers: 0, // 至少登录过一次的用户数
   filter: 'ALL',  // 'ALL' | 'OPEN' | 'IN_PROGRESS' | 'DELIVERED' | 'MY_PUBLISHED'
-  mainTab: 'skill-hall',  // 'task-hall' | 'skill-hall'，默认显示技能大厅
+  mainTab: 'task-hall',  // 'task-hall' | 'skill-hall'，默认显示任务大厅
   skillCategoryFilter: 'all',  // 'all' | 'visual' | 'writing' | 'image' | 'design' | 'other'
   integration: null,
   secondMeConnected: false,
@@ -168,9 +168,10 @@ function renderOverview() {
   const orders = state.tasks.reduce((sum, t) => sum + (t.assigneeId ? 1 : 0), 0);
   const delivered = state.tasks.filter((t) => t.status === 'DELIVERED').length;
 
-  if (metricWorkers) metricWorkers.textContent = users;
-  if (metricOrders) metricOrders.textContent = orders;
-  if (metricDelivered) metricDelivered.textContent = delivered;
+  // 侧边栏技能排行榜中的元素现在显示 "X 单" 格式
+  if (metricWorkers) metricWorkers.textContent = `${users} 单`;
+  if (metricOrders) metricOrders.textContent = `${orders} 单`;
+  if (metricDelivered) metricDelivered.textContent = `${delivered} 单`;
 }
 
 function renderRanking() {
@@ -206,135 +207,62 @@ function renderRanking() {
   }).join('');
 }
 
-function renderTaskCard(task) {
+// 封面图列表（随机分配给任务卡片）
+const COVER_IMAGES = [
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuApLeqfMTWrfgiwAnrZ8S9kMx4wQBWIhiog0wveE3m7R3Y4OgokllSADSKGhhQ1VUNfdkfPjEgAEpa8C7Zz-SvgVW7IOZWXAs9XFUp9oh_QFH1ESVWBygWqni4uxuoWYLr2Ythjp3I8DnDe5wR-HrviV-51UcVybRYkrTCP-NpkwHQv-iPpTRL0IdxeDtxqUqh_UX0-PH5xIyW33QocMBV8UgBAS9e3Uv66VeroVyFLPQNgY4ExC9zNGN-K-oJtkXUAL9HR1NroKinT',
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuBH9cRv7ReWAcdCcBkmDMInDyGHd9GxpDneNmIXWPAoP9f2FkfTCz9qqsktI3m1EPzCZ3dtL8MBhVjzcH6iIqfWqsR00m-wUbc69WatakyLyeH_FmsMTWJDGhT324Gs2RUYuJCEsdQD9ou3jUuPKjjwniuFRB47Aayo5eoh9inDbZWHV-2JFaT3KLIaQmYyM36PtwV4BGld0bQsk4RVSL0o1Piw0KhhfNfZYUFjYCx1_NWB89KeUIP7Ix8_mbwDXmPNqTB8riNyf-YQ',
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuAzpNlFyrejz971QGU3hUvzOD066u0YrtwSs8rAaGgckNRbI6tPwHVH4Klth50_ja092AVPPq9d_EePMRspM6svLvZ0_Pp9j-Wkq8IaaKQ5ZYZfThGKgvbyFUbtaoAqrBTm3DTGtIgjhEOgT9sM11OXF_47tT2TOrtwVwiLqauWCgmHuxZkwL3uvN1dT1MHlGRRbw6h8TBAIxlpJy6pw7dBkCfwARrliv77tHFFp-CAKE1E6GTv49YOdfc6WaFaM_039vha9QD6dWui',
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuARh5IYkrQkyjQfLr8nZOBtwKyStnzha5bSRJUZVxiqOP7_2wlmAynZs0TsKxPwFm8TFjwSLWZom90upOCG4ZCNypWwP796rxRNUbJ3rfSGMoPtTjXeL5NBhvKItiQUKtlP6PNCrKZRwtkxC5OqRsy1yhJzpIIGlS7dzROrn-P8uUj9KmbCSCjSnR90XDoe_Q3d1ygw-NAEBxJ44KqoOzq30U1IonyqN7ne4Tjo7E2b-Do7Nv2hmbr5kpp1Ze2ls4WWyv6Bm80k-56l'
+];
+
+// 封面图长宽比列表（随机分配，营造瀑布流错落感）
+const ASPECT_RATIOS = ['aspect-[3/4]', 'aspect-[4/3]', 'aspect-[1/1]', 'aspect-[9/16]', 'aspect-[3/4]'];
+
+function renderTaskCard(task, index) {
   const statusLabel = statusText(task.status);
-  const statusCls = statusClass(task.status);
+  const statusBg = task.status === 'DELIVERED' ? 'bg-green-500' : task.status === 'IN_PROGRESS' ? 'bg-blue-500' : 'bg-gray-200 text-gray-800';
+  const statusTextColor = task.status === 'DELIVERED' || task.status === 'IN_PROGRESS' ? 'text-white' : '';
 
-  // 派活人信息
-  const publisherName = task.publisherName || '匿名发布者';
-  const publisherAvatar = task.publisherAvatar || publisherName.slice(0, 1).toUpperCase();
+  // 随机选封面图和比例
+  const coverImg = COVER_IMAGES[index % COVER_IMAGES.length];
+  const aspectRatio = ASPECT_RATIOS[index % ASPECT_RATIOS.length];
 
-  // 讨论/方案数量
-  const deliveryCount = task.deliveries?.length || 0;
-  const commentCount = task.comments?.length || 0;
+  // 按钮配置
+  let actionBtn = '';
+  if (task.status === 'OPEN' && canOperate()) {
+    actionBtn = `<button class="task-action flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="take" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">touch_app</span> 雇佣</button>`;
+  } else if (task.status === 'IN_PROGRESS' && canOperate()) {
+    actionBtn = `<button class="task-action flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="deliver" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">rocket_launch</span> 交付</button>`;
+  } else if (task.status === 'DELIVERED') {
+    actionBtn = `<button class="task-action flex-1 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1" data-action="view" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">visibility</span> 查看</button>`;
+  } else {
+    actionBtn = `<button class="task-action flex-1 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1" data-action="view" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">visibility</span> 查看</button>`;
+  }
 
   return `
-    <article class="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-gray-100 dark:border-border-dark hover:border-primary/30 hover:shadow-md transition-all cursor-pointer group overflow-hidden" data-task-id="${task.id}">
-      <div class="grid grid-cols-12 min-h-[16rem]">
-        <!-- 左侧：任务信息 -->
-        <div class="col-span-7 p-6 flex flex-col">
-          <!-- 状态标签 -->
-          <div class="flex items-center justify-between mb-3">
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${statusCls}">
-              <span class="w-1.5 h-1.5 ${task.status === 'DELIVERED' ? 'bg-green-500' : task.status === 'IN_PROGRESS' ? 'bg-yellow-500' : 'bg-blue-500'} rounded-full mr-1.5"></span>
-              ${statusLabel}
-            </span>
-            <span class="text-[10px] text-gray-400 dark:text-gray-500">ID: ${task.id?.slice(0, 8) || 'N/A'}</span>
-          </div>
-          
-          <!-- 任务标题 -->
-          <h3 class="text-xl font-bold text-gray-800 dark:text-white group-hover:text-primary transition-colors mb-2 line-clamp-2">${escapeHtml(task.title)}</h3>
-          
-          <!-- 任务简介 -->
-          <p class="text-sm text-gray-600 dark:text-gray-300 mb-4 line-clamp-3 leading-relaxed flex-grow">
-            ${escapeHtml(task.description)}
-          </p>
-          
-          <!-- 标签区 -->
-          <div class="flex flex-wrap gap-2 mb-4">
-            <span class="px-2.5 py-1 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 text-xs font-medium rounded-full border border-orange-100 dark:border-orange-800">
-              <span class="material-icons-round text-[12px] mr-0.5 align-middle">category</span>
-              ${escapeHtml(task.laborType || '通用')}
-            </span>
-            ${task.budget ? `<span class="px-2.5 py-1 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-xs font-medium rounded-full border border-green-100 dark:border-green-800">
-              <span class="material-icons-round text-[12px] mr-0.5 align-middle">paid</span>
-              ${escapeHtml(task.budget)}
-            </span>` : ''}
-            ${task.deadline ? `<span class="px-2.5 py-1 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 text-xs font-medium rounded-full border border-purple-100 dark:border-purple-800">
-              <span class="material-icons-round text-[12px] mr-0.5 align-middle">schedule</span>
-              ${escapeHtml(task.deadline)}
-            </span>` : ''}
-          </div>
-          
-          <!-- 派活人信息 -->
-          <div class="flex items-center gap-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-              ${typeof publisherAvatar === 'string' && publisherAvatar.length <= 2 ? publisherAvatar :
-      `<img src="${escapeHtml(publisherAvatar)}" class="w-full h-full rounded-full object-cover" alt="" />`}
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-xs font-bold text-gray-700 dark:text-gray-200 truncate">${escapeHtml(publisherName)}</p>
-              <p class="text-[10px] text-gray-400 dark:text-gray-500">派活人</p>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 右侧：讨论与结果 -->
-        <div class="col-span-5 bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-800/50 dark:to-gray-900/30 p-5 flex flex-col border-l border-gray-100 dark:border-border-dark">
-          <!-- 讨论区头部 -->
-          <div class="flex items-center gap-2 mb-3">
-            <span class="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1">
-              <span class="material-icons-round text-[14px] text-primary">forum</span>
-              讨论与结果
-            </span>
-            <!-- 徽章统计 -->
-            <div class="flex items-center gap-1.5 ml-auto">
-              <span class="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] font-bold rounded-md border border-green-200 dark:border-green-800">
-                交付 ${deliveryCount}
-              </span>
-              <span class="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold rounded-md border border-blue-200 dark:border-blue-800">
-                讨论 ${commentCount}
-              </span>
-            </div>
-          </div>
-          
-          <!-- 接单AI信息 -->
-          ${task.assigneeName ? `
-            <div class="mb-4 p-3 bg-white dark:bg-surface-dark rounded-lg border border-gray-100 dark:border-gray-700">
-              <div class="text-[10px] text-gray-400 dark:text-gray-500 mb-1 font-medium">接单AI</div>
-              <div class="flex items-center gap-2">
-                <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-orange-400 to-pink-400 flex items-center justify-center text-white text-[10px] font-bold">
-                  ${task.assigneeName.slice(0, 1).toUpperCase()}
-                </div>
-                <span class="text-sm font-bold text-gray-700 dark:text-gray-200 truncate">${escapeHtml(task.assigneeName)}</span>
-              </div>
-            </div>
-          ` : `
-            <div class="flex-grow flex flex-col items-center justify-center text-center p-2 opacity-60">
-              <span class="material-icons-round text-3xl text-gray-300 dark:text-gray-600 mb-2">smart_toy</span>
-              <p class="text-xs text-gray-400">${task.status === 'OPEN' ? '暂无 AI 接单<br/>等待接单中...' : '查看详细信息'}</p>
-            </div>
-          `}
-          
-          <!-- 操作按钮 -->
-          <div class="mt-auto space-y-2">
-            <!-- 交付详情按钮 -->
-            <button class="task-action w-full py-2.5 bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-200 hover:text-primary hover:border-primary/50 transition-all flex items-center justify-center gap-1.5" data-action="view" data-task-id="${task.id}">
-              <span class="material-icons-round text-[14px]">inventory_2</span>
-              交付详情
-            </button>
-            
-            <!-- AI交付/接单按钮 -->
-            ${task.status === 'OPEN' && canOperate() ? `
-              <button class="task-action w-full py-2.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-colors shadow-sm flex items-center justify-center gap-1.5" data-action="take" data-task-id="${task.id}">
-                <span class="material-icons-round text-[14px]">rocket_launch</span>
-                我要接单
-              </button>
-            ` : task.status === 'IN_PROGRESS' && canOperate() ? `
-              <button class="task-action w-full py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg text-xs font-bold hover:from-green-600 hover:to-emerald-700 transition-all shadow-sm flex items-center justify-center gap-1.5" data-action="deliver" data-task-id="${task.id}">
-                <span class="material-icons-round text-[14px]">check_circle</span>
-                我要AI交付
-              </button>
-            ` : task.status === 'DELIVERED' ? `
-              <div class="w-full py-2.5 bg-green-50 dark:bg-green-900/20 rounded-lg text-xs font-bold text-green-600 dark:text-green-400 flex items-center justify-center gap-1.5 border border-green-100 dark:border-green-800">
-                <span class="material-icons-round text-[14px]">verified</span>
-                已完成交付
-              </div>
-            ` : ''}
-          </div>
+    <div class="masonry-item bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-task-id="${task.id}">
+      <div class="relative m-2 rounded-xl overflow-hidden ${aspectRatio}">
+        <img alt="${escapeHtml(task.title)}" class="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" />
+        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80"></div>
+        ${task.budget ? `<span class="absolute top-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-black/40 backdrop-blur-sm text-white border border-white/20">¥ ${escapeHtml(String(task.budget))}</span>` : ''}
+        <span class="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] font-bold ${statusBg} ${statusTextColor} shadow-sm z-10">${statusLabel}</span>
+        <!-- 悬浮按钮：hover 时显示在封面底部 -->
+        <div class="card-hover-gradient"></div>
+        <div class="card-hover-buttons">
+          <button class="task-action flex-1 py-2 rounded-lg text-[11px] font-bold text-white hover:bg-white/20 border border-white/30 backdrop-blur-sm transition-all flex items-center justify-center gap-1" data-action="view" data-task-id="${task.id}">
+            <span class="material-symbols-outlined text-[16px]">forum</span> 讨论
+          </button>
+          ${actionBtn}
         </div>
       </div>
-    </article>
+      <div class="px-4 pb-4 pt-1 flex flex-col cursor-pointer" onclick="window.location.href='/task-detail.html?id=${task.id}'">
+        <h3 class="font-bold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors text-base mb-2" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</h3>
+        <p class="text-xs text-subtext-light dark:text-subtext-dark line-clamp-3 mb-3 leading-relaxed">${escapeHtml(task.description)}</p>
+        <div class="flex flex-wrap gap-1.5">
+          <span class="px-2 py-0.5 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-100 dark:border-gray-600">${escapeHtml(task.laborType || '通用')}</span>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -346,7 +274,6 @@ function renderTasks() {
 
   // 如果是"我的派发"，只显示当前用户发布的任务
   if (state.filter === 'MY_PUBLISHED') {
-    // 收集当前用户可能的所有ID
     const myIds = [
       state.me?.id,
       state.me?.userId,
@@ -362,7 +289,6 @@ function renderTasks() {
       tasks = [];
     }
   } else if (state.filter !== 'ALL') {
-    // 按状态过滤
     tasks = tasks.filter((t) => t.status === state.filter);
   }
 
@@ -371,7 +297,7 @@ function renderTasks() {
       ? (state.me ? '你还没有派发任何任务' : '请先登录查看我的派发')
       : '暂无任务';
     taskList.innerHTML = `
-      <div class="bg-white dark:bg-surface-dark rounded-2xl p-12 text-center border border-gray-100 dark:border-border-dark">
+      <div class="bg-white dark:bg-surface-dark rounded-2xl p-12 text-center border border-gray-100 dark:border-border-dark" style="column-span:all">
         <span class="material-icons-round text-5xl text-gray-300 dark:text-gray-600 mb-4 block">inbox</span>
         <p class="text-gray-500 dark:text-gray-400">${emptyMsg}</p>
       </div>
@@ -379,7 +305,7 @@ function renderTasks() {
     return;
   }
 
-  taskList.innerHTML = tasks.map(renderTaskCard).join('');
+  taskList.innerHTML = tasks.map((task, index) => renderTaskCard(task, index)).join('');
 }
 
 function renderSkillsList() {
@@ -415,26 +341,21 @@ function renderAIAvatar() {
     userAvatar.src = avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(state.me.name || state.me.displayName || '游客')}&background=random`;
   }
 
-  // 第一行：设置 AI 分身名称
+  // 设置 AI 分身名称（新版格式：用户名 · 劳务体）
   const username = state.me.name || state.me.displayName || state.me.username || '游客';
   if (aiName) {
-    aiName.textContent = `${username}的AI分身`;
+    aiName.textContent = `${username} · 劳务体`;
   }
 
-  // 第一行：设置积分和接单数（从 meWorker 获取）
+  // 设置积分和接单数（新版只显示纯数字）
   const earnedPoints = state.meWorker?.earnedPoints || 0;
   const completedOrders = state.meWorker?.completedOrders || 0;
 
   if (earnedPointsEl) {
-    earnedPointsEl.textContent = `已赚 ${earnedPoints} 积分`;
+    earnedPointsEl.textContent = earnedPoints;
   }
   if (completedOrdersEl) {
-    completedOrdersEl.textContent = `已接单 ${completedOrders} 单`;
-  }
-
-  // 第二行：设置技能数量
-  if (workerCount) {
-    workerCount.textContent = `${state.abilities.length}个`;
+    completedOrdersEl.textContent = completedOrders;
   }
 
   // 第三行：渲染技能标签（灰色胶囊样式）
@@ -958,7 +879,13 @@ function setFilter(filter) {
   state.filter = filter;
 
   statusFilters?.querySelectorAll('.filter').forEach((btn) => {
-    btn.classList.toggle('is-active', btn.dataset.status === filter);
+    if (btn.dataset.status === filter) {
+      btn.classList.add('is-active', 'bg-primary/10', 'text-primary', 'border-primary/20');
+      btn.classList.remove('bg-white', 'border-gray-200', 'text-gray-600');
+    } else {
+      btn.classList.remove('is-active', 'bg-primary/10', 'text-primary', 'border-primary/20');
+      btn.classList.add('bg-white', 'border-gray-200', 'text-gray-600');
+    }
   });
 
   renderTasks();
@@ -1091,12 +1018,14 @@ function switchMainTab(tabName) {
   const skillHallContent = document.querySelector('#skill-hall-content');
   const mainTabs = document.querySelectorAll('.main-tab');
 
-  // 更新标签页激活状态
+  // 更新标签页激活状态（pill toggle 样式）
   mainTabs.forEach(tab => {
     if (tab.dataset.tab === tabName) {
-      tab.classList.add('is-active');
+      tab.classList.add('is-active', 'bg-gray-900', 'dark:bg-white', 'text-white', 'dark:text-black', 'shadow-md', 'font-bold');
+      tab.classList.remove('text-subtext-light', 'dark:text-subtext-dark', 'font-medium');
     } else {
-      tab.classList.remove('is-active');
+      tab.classList.remove('is-active', 'bg-gray-900', 'dark:bg-white', 'text-white', 'dark:text-black', 'shadow-md', 'font-bold');
+      tab.classList.add('text-subtext-light', 'dark:text-subtext-dark', 'font-medium');
     }
   });
 
@@ -1201,82 +1130,52 @@ function renderSkillCategories(skills) {
     return;
   }
 
-  // 直接渲染为网格卡片
+  // 瀑布流渲染
   container.innerHTML = `
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-      ${filteredSkills.map(renderSkillCard).join('')}
+    <div class="masonry-grid pb-12">
+      ${filteredSkills.map((s, i) => renderSkillCard(s, i)).join('')}
     </div>
   `;
 }
 
-// 渲染单个技能卡片（新版卡片样式）
-function renderSkillCard(skill) {
-  // 确定技能类别标签
+// 技能封面图列表
+const SKILL_COVER_IMAGES = [
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuC0P0SSvUZo6srifGj-ww_RRElGYWAXJ4FcFZSm5rHCkYcbHOFjc6QNSnijKKnucytou0qIFY3D0nPf2dW-WMcudn6BVQzyGPU4M_sZixbEwQJpmLYjrlmVOTl0QYbittZmVV0OR0UAJ3BLngKHt7cUu0XUNQ-9N9WqoweRVBhJ_OFFlcm42V_AJHlZ_MFFfLmhPOl87dGa--mRbI1AIPSU-kwigylSHeCaD6DM0WFi02T8bKgbcGgFtgi1eghhfyXvyS8Oib1Y7pbU',
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuBH9cRv7ReWAcdCcBkmDMInDyGHd9GxpDneNmIXWPAoP9f2FkfTCz9qqsktI3m1EPzCZ3dtL8MBhVjzcH6iIqfWqsR00m-wUbc69WatakyLyeH_FmsMTWJDGhT324Gs2RUYuJCEsdQD9ou3jUuPKjjwniuFRB47Aayo5eoh9inDbZWHV-2JFaT3KLIaQmYyM36PtwV4BGld0bQsk4RVSL0o1Piw0KhhfNfZYUFjYCx1_NWB89KeUIP7Ix8_mbwDXmPNqTB8riNyf-YQ',
+  'https://lh3.googleusercontent.com/aida-public/AB6AXuApLeqfMTWrfgiwAnrZ8S9kMx4wQBWIhiog0wveE3m7R3Y4OgokllSADSKGhhQ1VUNfdkfPjEgAEpa8C7Zz-SvgVW7IOZWXAs9XFUp9oh_QFH1ESVWBygWqni4uxuoWYLr2Ythjp3I8DnDe5wR-HrviV-51UcVybRYkrTCP-NpkwHQv-iPpTRL0IdxeDtxqUqh_UX0-PH5xIyW33QocMBV8UgBAS9e3Uv66VeroVyFLPQNgY4ExC9zNGN-K-oJtkXUAL9HR1NroKinT'
+];
+
+// 渲染单个技能卡片（瀑布流竖向卡片样式）
+function renderSkillCard(skill, index) {
   const category = categorizeSkill(skill);
   const categoryInfo = SKILL_CATEGORIES.find(c => c.id === category) || SKILL_CATEGORIES[4];
   const categoryName = categoryInfo.name.replace(categoryInfo.icon, '').trim();
-
-  // 操作按钮样式
-  const actionBtnText = skill.completedOrders > 0 ? '查看案例' : '立即雇佣';
-  const actionBtnIcon = skill.completedOrders > 0 ? 'visibility' : 'phone_in_talk';
-
-  // 技能标签
-  const tags = [];
-  if (skill.name) tags.push(skill.name);
-  if (skill.description) {
-    // 从描述中提取关键词作为标签
-    const keywords = skill.description.split(/[,，、\s]+/).filter(k => k.length <= 8 && k.length > 0).slice(0, 3);
-    tags.push(...keywords);
-  }
-  // 去重并限制数量
-  const uniqueTags = [...new Set(tags)].slice(0, 3);
+  const coverImg = SKILL_COVER_IMAGES[index % SKILL_COVER_IMAGES.length];
+  const aspectRatio = ASPECT_RATIOS[index % ASPECT_RATIOS.length];
 
   return `
-    <div class="skill-card-new bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark p-5 flex flex-col hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer" data-skill-id="${skill.id}">
-      <!-- 标题 + 等级标签 -->
-      <div class="flex items-start justify-between mb-3">
-        <h3 class="text-base font-bold text-gray-900 dark:text-white leading-snug flex-1 mr-2 line-clamp-1">
-          ${skill.icon || '🔧'} ${escapeHtml(skill.name)}
-        </h3>
-        <span class="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap
-          ${category === 'visual' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
-      category === 'writing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-        category === 'image' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-          category === 'design' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' :
-            'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}">
-          ${categoryName}
-        </span>
+    <div class="masonry-item bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-skill-id="${skill.id}">
+      <div class="relative m-2 rounded-xl overflow-hidden ${aspectRatio}">
+        <img alt="${escapeHtml(skill.name)}" class="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" />
+        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80"></div>
+        <span class="absolute top-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-black/40 backdrop-blur-sm text-white border border-white/20">${skill.icon || '🔧'} ${categoryName}</span>
+        <!-- 悬浮按钮 -->
+        <div class="card-hover-gradient"></div>
+        <div class="card-hover-buttons">
+          <button class="flex-1 py-2 rounded-lg text-[11px] font-bold text-white hover:bg-white/20 border border-white/30 backdrop-blur-sm transition-all flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-[16px]">chat_bubble</span> 咨询
+          </button>
+          <button class="flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-[16px]">touch_app</span> 雇佣
+          </button>
+        </div>
       </div>
-
-      <!-- 技能描述 -->
-      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-3 leading-relaxed flex-grow min-h-[3.5rem]">
-        ${escapeHtml(skill.description || '这个 AI 分身很懒，还没写简介…')}
-      </p>
-
-      <!-- 技能标签 -->
-      <div class="flex flex-wrap gap-1.5 mb-4">
-        ${uniqueTags.map(tag => `
-          <span class="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-xs font-medium rounded-md">
-            ${escapeHtml(tag)}
-          </span>
-        `).join('')}
-      </div>
-
-      <!-- 底部操作 -->
-      <div class="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-700/50">
-        <button class="flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-primary transition-colors px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
-          <span class="material-icons-round text-[14px]">chat_bubble_outline</span>
-          咨询
-        </button>
-        <button class="flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-primary transition-colors px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
-          <span class="material-icons-round text-[14px]">info_outline</span>
-          详情
-        </button>
-        <div class="flex-1"></div>
-        <button class="flex items-center gap-1 px-4 py-2 bg-[#E89343] hover:bg-[#D97706] text-white text-xs font-bold rounded-xl shadow-sm transition-colors">
-          <span class="material-icons-round text-[14px]">${actionBtnIcon}</span>
-          ${actionBtnText}
-        </button>
+      <div class="px-4 pb-4 pt-1 flex flex-col">
+        <h3 class="font-bold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors text-base mb-2" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</h3>
+        <p class="text-xs text-subtext-light dark:text-subtext-dark line-clamp-3 mb-3 leading-relaxed">${escapeHtml(skill.description || '这个 AI 分身很懒，还没写简介…')}</p>
+        <div class="flex flex-wrap gap-1.5">
+          <span class="px-2 py-0.5 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-100 dark:border-gray-600">${categoryName}</span>
+        </div>
       </div>
     </div>
   `;
@@ -1304,10 +1203,10 @@ if (skillCategoryFilters) {
     // 更新筛选按钮激活状态
     skillCategoryFilters.querySelectorAll('.skill-category-filter').forEach(filter => {
       if (filter.dataset.category === category) {
-        filter.classList.add('is-active', 'bg-gray-900', 'text-white');
+        filter.classList.add('is-active', 'bg-primary/10', 'text-primary', 'border-primary/20');
         filter.classList.remove('bg-white', 'border', 'border-gray-200', 'text-gray-600');
       } else {
-        filter.classList.remove('is-active', 'bg-gray-900', 'text-white');
+        filter.classList.remove('is-active', 'bg-primary/10', 'text-primary', 'border-primary/20');
         filter.classList.add('bg-white', 'border', 'border-gray-200', 'text-gray-600');
       }
     });

@@ -101,15 +101,15 @@
 
 /* ===== 筛选按钮激活态 ===== */
 .filter.is-active {
-  background: #1f2937 !important;
-  color: white !important;
-  border-color: #1f2937 !important;
+  background: rgba(217, 119, 6, 0.1) !important;
+  color: #D97706 !important;
+  border-color: rgba(217, 119, 6, 0.2) !important;
 }
 
 .dark .filter.is-active {
-  background: white !important;
-  color: #1f2937 !important;
-  border-color: white !important;
+  background: rgba(217, 119, 6, 0.15) !important;
+  color: #F59E0B !important;
+  border-color: rgba(217, 119, 6, 0.3) !important;
 }
 
 /* ===== 任务卡片状态 ===== */
@@ -140,6 +140,16 @@
 .preview-scroll::-webkit-scrollbar-thumb {
   background-color: #e5e7eb;
   border-radius: 20px;
+}
+
+/* ===== 隐藏滚动条 ===== */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* ===== 能力标签悬浮提示 ===== */
@@ -202,28 +212,14 @@
   }
 }
 
-/* ===== 主标签页样式 ===== */
+/* ===== 主标签页样式（Pill Toggle） ===== */
 .main-tab {
   position: relative;
   cursor: pointer;
   outline: none;
   user-select: none;
+  transition: all 0.2s ease;
 }
-
-.main-tab.is-active {
-  color: #D97706;
-  border-bottom-color: #D97706;
-}
-
-.main-tab:not(.is-active) {
-  color: #9CA3AF;
-}
-
-.main-tab:not(.is-active):hover {
-  color: #6B7280;
-}
-
-
 
 /* ===== 技能分类区块样式 ===== */
 .skill-category-section {
@@ -269,4 +265,83 @@
   .skill-category-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* ===== 瀑布流布局 ===== */
+.masonry-grid {
+  column-count: 1;
+  column-gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .masonry-grid {
+    column-count: 2;
+  }
+}
+
+@media (min-width: 1280px) {
+  .masonry-grid {
+    column-count: 3;
+  }
+}
+
+.masonry-item {
+  break-inside: avoid;
+  margin-bottom: 1.5rem;
+}
+
+/* ===== 卡片悬浮按钮（覆盖在图片封面底部） ===== */
+.card-hover-buttons {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 20;
+  pointer-events: none;
+}
+
+.group:hover .card-hover-buttons {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* 悬浮按钮上方增加额外渐变遮罩以提升可读性 */
+.card-hover-gradient {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 60%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.3) 40%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.group:hover .card-hover-gradient {
+  opacity: 1;
+}
+
+/* ===== Shimmer 加载动画 ===== */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ===== Material Symbols 配置 ===== */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
