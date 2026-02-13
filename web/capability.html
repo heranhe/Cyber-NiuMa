@@ -426,9 +426,9 @@
                           d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" />
                       </svg>
                       风格选项
+                      <span id="style-count"
+                        class="text-[11px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500">0</span>
                     </label>
-                    <span id="style-count"
-                      class="text-[11px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500">0</span>
                   </div>
                   <div id="style-list" class="style-scroll">
                     <!-- 风格卡片由 JS 动态渲染 -->
@@ -436,13 +436,14 @@
                 </div>
 
                 <div>
-                  <label class="flex items-center gap-2 text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
+                  <label id="prompt-section-label"
+                    class="flex items-center gap-2 text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                       stroke="currentColor" class="w-4 h-4 text-primary">
                       <path stroke-linecap="round" stroke-linejoin="round"
                         d="M6.75 7.5h10.5m-10.5 4.5h10.5m-10.5 4.5h10.5M3 4.5h18v15H3v-15Z" />
                     </svg>
-                    系统提示词 (System Prompt)
+                    <span id="prompt-label-text">系统提示词 (System Prompt)</span>
                   </label>
                   <textarea id="field-prompt" rows="6"
                     class="w-full rounded-2xl border border-gray-200 bg-gray-50 font-mono text-sm p-4 focus:ring-primary focus:border-primary"
@@ -718,12 +719,7 @@
           <!-- 隐藏字段存储图片 URL -->
           <input id="style-field-image" type="hidden" />
         </div>
-        <div>
-          <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">风格提示词</label>
-          <textarea id="style-field-prompt" rows="4"
-            class="w-full rounded-lg border-gray-200 bg-gray-50 font-mono text-sm p-3 focus:ring-primary focus:border-primary"
-            placeholder="这个风格要使用的特定提示词..."></textarea>
-        </div>
+
         <div class="flex items-center gap-2 pt-1">
           <button id="style-save-btn" type="button"
             class="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-black hover:bg-gray-800 transition-colors">保存风格</button>

@@ -1968,7 +1968,6 @@ async function callCustomApiImageGeneration({
   n = 1,
   quality = 'standard'
 }) {
-  const url = buildCustomApiUrl(endpoint, '/images/generations');
   const token = String(apiKey || '').trim();
   if (!token) {
     throw new AppError('API Key 不能为空', 400);
@@ -1981,6 +1980,8 @@ async function callCustomApiImageGeneration({
     throw new AppError('图像生成提示词不能为空', 400);
   }
 
+  // 策略1: 先尝试 OpenAI 标准 /images/generations 端点
+  const imagesUrl = buildCustomApiUrl(endpoint, '/images/generations');
   const requestBody = {
     model: modelName,
     prompt: String(prompt).trim(),
@@ -1988,14 +1989,13 @@ async function callCustomApiImageGeneration({
     size: size || '1024x1024',
     response_format: 'url'
   };
-  // 仅在 quality 为 hd 时添加该字段（部分 API 不支持此参数）
   if (quality === 'hd') {
     requestBody.quality = 'hd';
   }
 
-  console.log(`[图像生成] 调用 ${url}, model=${modelName}, size=${size}, n=${n}`);
+  console.log(`[图像生成] 尝试 /images/generations: ${imagesUrl}, model=${modelName}`);
 
-  const response = await fetch(url, {
+  const imgResponse = await fetch(imagesUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -2004,47 +2004,131 @@ async function callCustomApiImageGeneration({
     body: JSON.stringify(requestBody)
   });
 
-  const text = await response.text();
-  let payload = {};
-  try {
-    payload = text ? JSON.parse(text) : {};
-  } catch {
-    payload = {};
-  }
+  // 如果 /images/generations 成功，按 OpenAI 格式解析
+  if (imgResponse.ok) {
+    const text = await imgResponse.text();
+    let payload = {};
+    try { payload = text ? JSON.parse(text) : {}; } catch { payload = {}; }
 
-  if (!response.ok) {
-    throw new AppError(`图像生成 API 调用失败 (${response.status})`, 502, {
-      endpoint: url,
-      body: shortText(text, 800)
-    });
-  }
+    const images = [];
+    const dataItems = Array.isArray(payload?.data) ? payload.data : [];
+    for (const item of dataItems) {
+      if (item.url) images.push(item.url);
+      else if (item.b64_json) images.push(`data:image/png;base64,${item.b64_json}`);
+    }
 
-  // 解析返回的图片数据
-  const images = [];
-  const dataItems = Array.isArray(payload?.data) ? payload.data : [];
-  for (const item of dataItems) {
-    if (item.url) {
-      images.push(item.url);
-    } else if (item.b64_json) {
-      // base64 图片转为 data URI
-      images.push(`data:image/png;base64,${item.b64_json}`);
+    if (images.length) {
+      console.log(`[图像生成] /images/generations 成功, ${images.length} 张图片`);
+      return { endpoint: imagesUrl, model: modelName, images };
     }
   }
 
-  if (!images.length) {
-    throw new AppError('图像生成 API 未返回有效图片', 502, {
-      endpoint: url,
-      body: shortText(text, 800)
+  // 策略2: 回退到 /chat/completions（Gemini 等多模态模型通过 chat 接口生成图片）
+  const chatUrl = buildCustomApiUrl(endpoint, '/chat/completions');
+  console.log(`[图像生成] /images/generations 失败(${imgResponse.status}), 回退 /chat/completions: ${chatUrl}`);
+
+  const chatBody = {
+    model: modelName,
+    messages: [
+      {
+        role: 'user',
+        content: `请根据以下描述生成一张图片:\n\n${String(prompt).trim()}`
+      }
+    ],
+    max_tokens: 4096
+  };
+
+  const chatResponse = await fetch(chatUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(chatBody)
+  });
+
+  const chatText = await chatResponse.text();
+  let chatPayload = {};
+  try { chatPayload = chatText ? JSON.parse(chatText) : {}; } catch { chatPayload = {}; }
+
+  if (!chatResponse.ok) {
+    throw new AppError(`图像生成 API 调用失败 (${chatResponse.status})`, 502, {
+      endpoint: chatUrl,
+      body: shortText(chatText, 800)
     });
   }
 
-  console.log(`[图像生成] 成功生成 ${images.length} 张图片`);
+  // 从 chat/completions 响应中提取图片
+  const images = extractImagesFromChatResponse(chatPayload);
+
+  if (!images.length) {
+    // 如果没提取到图片，但有文字内容，也许模型返回了描述而非图片
+    const textContent = chatPayload?.choices?.[0]?.message?.content || '';
+    throw new AppError('图像生成未返回有效图片，模型可能不支持图像生成', 502, {
+      endpoint: chatUrl,
+      response: shortText(textContent, 500)
+    });
+  }
+
+  console.log(`[图像生成] /chat/completions 成功, ${images.length} 张图片`);
 
   return {
-    endpoint: url,
+    endpoint: chatUrl,
     model: modelName,
     images
   };
+}
+
+// 从 chat/completions 响应中提取图片（兼容 Gemini / OpenAI 多模态格式）
+function extractImagesFromChatResponse(payload) {
+  const images = [];
+  const choices = Array.isArray(payload?.choices) ? payload.choices : [];
+
+  for (const choice of choices) {
+    const message = choice?.message;
+    if (!message) continue;
+
+    // 格式1: message.content 是数组（多模态 parts）
+    if (Array.isArray(message.content)) {
+      for (const part of message.content) {
+        // Gemini 风格: { type: 'image_url', image_url: { url: 'data:...' } }
+        if (part?.type === 'image_url' && part?.image_url?.url) {
+          images.push(part.image_url.url);
+        }
+        // 另一种格式: { type: 'image', source: { data: '...', media_type: '...' } }
+        if (part?.type === 'image' && part?.source?.data) {
+          const mime = part.source.media_type || 'image/png';
+          images.push(`data:${mime};base64,${part.source.data}`);
+        }
+        // Gemini inline_data: { inline_data: { mime_type, data } }
+        if (part?.inline_data?.data) {
+          const mime = part.inline_data.mime_type || 'image/png';
+          images.push(`data:${mime};base64,${part.inline_data.data}`);
+        }
+      }
+    }
+
+    // 格式2: message.content 是字符串，尝试提取 markdown 图片链接或 base64
+    if (typeof message.content === 'string') {
+      const content = message.content;
+      // 提取 markdown 图片 ![...](url)
+      const mdImgRegex = /!\[.*?\]\((https?:\/\/[^\s)]+|data:image\/[^\s)]+)\)/g;
+      let match;
+      while ((match = mdImgRegex.exec(content)) !== null) {
+        images.push(match[1]);
+      }
+      // 提取独立的 base64 data URI
+      const b64Regex = /data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+/g;
+      let b64Match;
+      while ((b64Match = b64Regex.exec(content)) !== null) {
+        if (!images.includes(b64Match[0])) {
+          images.push(b64Match[0]);
+        }
+      }
+    }
+  }
+
+  return images;
 }
 
 async function callSecondMeChatStream({

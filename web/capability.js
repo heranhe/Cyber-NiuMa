@@ -8,7 +8,8 @@ const state = {
   modelOptions: [],
   providers: [],
   editingProvider: null,
-  editingStyleId: null  // 当前正在编辑的风格ID（null=新建）
+  editingStyleId: null,     // 当前正在编辑的风格ID（null=新建）
+  selectedStyleId: null     // 当前选中的风格ID（null=默认提示词）
 };
 
 const el = {
@@ -78,6 +79,7 @@ const el = {
   styleImageClear: document.querySelector('#style-image-clear'),
   styleSaveBtn: document.querySelector('#style-save-btn'),
   styleCancelBtn: document.querySelector('#style-cancel-btn'),
+  promptLabelText: document.querySelector('#prompt-label-text'),
 
   // 图像生成相关元素
   fieldAbilityTypeText: document.querySelector('#field-ability-type-text'),
@@ -921,14 +923,20 @@ function renderStyles() {
 
   if (!el.styleList) return;
 
-  // 生成风格卡片 HTML
+  // 生成风格卡片 HTML（包含选中状态）
   const cardsHtml = styles.map(style => {
+    const isSelected = state.selectedStyleId === style.id;
+    const selectedClass = isSelected ? ' style-card--selected' : '';
     const imgContent = style.image
       ? `<img src="${escapeHtml(style.image)}" alt="${escapeHtml(style.name)}" onerror="this.parentElement.innerHTML='🎨'" />`
       : '🎨';
     return `
-      <div class="style-card" data-style-id="${escapeHtml(style.id)}" title="${escapeHtml(style.name)}\n${escapeHtml(style.prompt || '无提示词')}">
-        <button type="button" class="style-card-delete" data-delete-style-id="${escapeHtml(style.id)}">&times;</button>
+      <div class="style-card${selectedClass}" data-style-id="${escapeHtml(style.id)}" title="${escapeHtml(style.name)}">
+        <button type="button" class="style-card-edit" data-edit-style-id="${escapeHtml(style.id)}" title="编辑">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="10" height="10">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+          </svg>
+        </button>
         <div class="style-card-img">${imgContent}</div>
         <div class="style-card-name">${escapeHtml(style.name)}</div>
       </div>
@@ -946,6 +954,9 @@ function renderStyles() {
   `;
 
   el.styleList.innerHTML = cardsHtml + addBtnHtml;
+
+  // 更新提示词标签
+  updatePromptLabel();
 }
 
 function openStyleEditor(styleId = null) {
@@ -963,7 +974,6 @@ function openStyleEditor(styleId = null) {
   }
   if (el.styleFieldName) el.styleFieldName.value = style?.name || '';
   if (el.styleFieldImage) el.styleFieldImage.value = style?.image || '';
-  if (el.styleFieldPrompt) el.styleFieldPrompt.value = style?.prompt || '';
 
   // 图片预览
   updateStyleImagePreview(style?.image || '');
@@ -987,87 +997,62 @@ function closeStyleEditor() {
   }
 }
 
-function updateStyleImagePreview(url) {
-  if (!el.styleImagePreview) return;
-  const img = el.styleImagePreview.querySelector('img');
-  if (url && img) {
-    img.src = url;
-    img.onerror = () => {
-      el.styleImagePreview.classList.add('hidden');
-      if (el.styleUploadArea) el.styleUploadArea.classList.remove('hidden');
-    };
-    el.styleImagePreview.classList.remove('hidden');
-    // 有预览图时隐藏上传区域
-    if (el.styleUploadArea) el.styleUploadArea.classList.add('hidden');
+// 更新提示词标签文字（根据是否选中风格）
+function updatePromptLabel() {
+  if (!el.promptLabelText) return;
+  const ability = getCurrentAbility();
+  if (state.selectedStyleId) {
+    const style = (ability.styles || []).find(s => s.id === state.selectedStyleId);
+    if (style) {
+      el.promptLabelText.textContent = `🎨 ${style.name} · 风格提示词`;
+      return;
+    }
+  }
+  el.promptLabelText.textContent = '系统提示词 (System Prompt)';
+}
+
+// 将当前 textarea 内容保存到当前选中的目标（风格 or 默认 prompt）
+function savePromptToCurrentTarget() {
+  const ability = getCurrentAbility();
+  const currentPrompt = el.fieldPrompt?.value || '';
+
+  if (state.selectedStyleId) {
+    const style = (ability.styles || []).find(s => s.id === state.selectedStyleId);
+    if (style) {
+      style.prompt = currentPrompt;
+    }
   } else {
-    el.styleImagePreview.classList.add('hidden');
-    // 没有预览图时显示上传区域
-    if (el.styleUploadArea) el.styleUploadArea.classList.remove('hidden');
+    ability.prompt = currentPrompt;
   }
 }
 
-// 上传风格图片
-async function uploadStyleImage(file) {
-  if (!file) return;
+// 点击风格卡片：切换选中状态，切换 textarea 内容
+function selectStyle(styleId) {
+  const ability = getCurrentAbility();
 
-  // 前端校验
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-  if (!allowedTypes.includes(file.type)) {
-    showToast('不支持的图片格式，仅支持 JPG/PNG/WebP/GIF');
-    return;
-  }
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('图片大小超过 5MB 限制');
-    return;
-  }
+  // 1. 先把当前 textarea 保存到原来的目标
+  savePromptToCurrentTarget();
 
-  // 显示上传状态
-  if (el.styleUploadStatus) {
-    el.styleUploadStatus.textContent = '正在上传...';
-    el.styleUploadStatus.classList.remove('hidden');
-    el.styleUploadStatus.className = 'text-xs text-blue-600 mb-2';
-  }
-
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const resp = await fetch('/api/upload/image', {
-      method: 'POST',
-      body: formData
-    });
-
-    const result = await resp.json();
-    if (!resp.ok || result.code !== 0) {
-      throw new Error(result.message || '上传失败');
+  // 2. 如果点击的是已选中的，取消选中（回到默认提示词）
+  if (state.selectedStyleId === styleId) {
+    state.selectedStyleId = null;
+    if (el.fieldPrompt) el.fieldPrompt.value = ability.prompt || '';
+  } else {
+    // 3. 选中新风格，加载其 prompt
+    state.selectedStyleId = styleId;
+    const style = (ability.styles || []).find(s => s.id === styleId);
+    if (el.fieldPrompt) {
+      el.fieldPrompt.value = style?.prompt || '';
     }
-
-    const imageUrl = result.data.url;
-    // 回填 URL 到输入框
-    if (el.styleFieldImage) el.styleFieldImage.value = imageUrl;
-    // 更新预览
-    updateStyleImagePreview(imageUrl);
-
-    if (el.styleUploadStatus) {
-      el.styleUploadStatus.textContent = '上传成功';
-      el.styleUploadStatus.className = 'text-xs text-green-600 mb-2';
-    }
-
-    showToast('图片上传成功');
-  } catch (error) {
-    console.error('[capability] uploadStyleImage failed:', error);
-    if (el.styleUploadStatus) {
-      el.styleUploadStatus.textContent = error.message || '上传失败';
-      el.styleUploadStatus.className = 'text-xs text-red-600 mb-2';
-    }
-    showToast(error.message || '图片上传失败');
   }
+
+  // 4. 重新渲染卡片（更新选中状态）
+  renderStyles();
 }
 
 function onStyleSave() {
   const name = el.styleFieldName?.value?.trim() || '';
   const image = el.styleFieldImage?.value?.trim() || '';
-  const prompt = el.styleFieldPrompt?.value?.trim() || '';
 
   if (!name) {
     showToast('请输入风格名称');
@@ -1078,20 +1063,25 @@ function onStyleSave() {
   if (!ability.styles) ability.styles = [];
 
   if (state.editingStyleId) {
-    // 编辑已有风格
+    // 编辑已有风格（只更新名称和图片，不动 prompt）
     const idx = ability.styles.findIndex(s => s.id === state.editingStyleId);
     if (idx >= 0) {
-      ability.styles[idx] = { ...ability.styles[idx], name, image, prompt };
+      ability.styles[idx].name = name;
+      ability.styles[idx].image = image;
     }
   } else {
-    // 新增风格
+    // 新增风格（prompt 默认为空，界面上选中后在 textarea 编辑）
     const newStyle = {
       id: 'style_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
       name,
       image,
-      prompt
+      prompt: ''
     };
     ability.styles.push(newStyle);
+    // 自动选中新添加的风格
+    savePromptToCurrentTarget();
+    state.selectedStyleId = newStyle.id;
+    if (el.fieldPrompt) el.fieldPrompt.value = '';
   }
 
   closeStyleEditor();
@@ -1110,6 +1100,12 @@ function onStyleDelete(styleId) {
     return;
   }
 
+  // 如果删除的是当前选中的风格，切换回默认 prompt
+  if (state.selectedStyleId === styleId) {
+    state.selectedStyleId = null;
+    if (el.fieldPrompt) el.fieldPrompt.value = ability.prompt || '';
+  }
+
   ability.styles = ability.styles.filter(s => s.id !== styleId);
   renderStyles();
   showToast('风格已删除');
@@ -1118,12 +1114,12 @@ function onStyleDelete(styleId) {
 function bindStyleEvents() {
   // 风格列表点击事件（事件委托）
   el.styleList?.addEventListener('click', (event) => {
-    // 删除按钮
-    const deleteBtn = event.target.closest('[data-delete-style-id]');
-    if (deleteBtn) {
+    // 编辑按钮
+    const editBtn = event.target.closest('[data-edit-style-id]');
+    if (editBtn) {
       event.stopPropagation();
-      const id = deleteBtn.dataset.deleteStyleId;
-      if (id) onStyleDelete(id);
+      const id = editBtn.dataset.editStyleId;
+      if (id) openStyleEditor(id);
       return;
     }
 
@@ -1134,11 +1130,11 @@ function bindStyleEvents() {
       return;
     }
 
-    // 点击卡片编辑
+    // 点击卡片 → 选中该风格（切换提示词）
     const card = event.target.closest('[data-style-id]');
     if (card) {
       const id = card.dataset.styleId;
-      if (id) openStyleEditor(id);
+      if (id) selectStyle(id);
     }
   });
 
