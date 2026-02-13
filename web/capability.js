@@ -712,11 +712,14 @@ async function onTestImageGeneration() {
       throw new Error('API 未返回图片');
     }
   } catch (error) {
+    const details = error?.payload?.details || {};
+    const nested = details?.imageGenerationError?.body || details?.response || '';
+    const finalMessage = nested ? `${error.message || '未知错误'}: ${nested}` : (error.message || '未知错误');
     if (el.testImageStatus) {
-      el.testImageStatus.textContent = `❌ 测试失败: ${error.message || '未知错误'}`;
+      el.testImageStatus.textContent = `❌ 测试失败: ${finalMessage}`;
       el.testImageStatus.className = 'text-xs text-red-600 mt-2';
     }
-    showToast(error.message || '图像生成测试失败');
+    showToast(finalMessage || '图像生成测试失败');
   } finally {
     if (el.testImageBtn) {
       el.testImageBtn.disabled = false;

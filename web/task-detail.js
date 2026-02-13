@@ -55,7 +55,12 @@ async function api(path, options = {}) {
         const response = await fetch(path, { method, headers, body, credentials: 'include' });
         const data = await response.json();
         if (!response.ok) {
-            throw new Error(data.error || data.message || '请求失败');
+            const details = data?.details || {};
+            const nested = details?.imageGenerationError?.body || details?.response || '';
+            const message = nested
+                ? `${data.error || data.message || '请求失败'}: ${nested}`
+                : (data.error || data.message || '请求失败');
+            throw new Error(message);
         }
         return data;
     } catch (error) {
@@ -812,7 +817,24 @@ async function loadTask() {
     try {
         const res = await api(`/api/tasks/${taskId}`);
         state.task = res.task || res;
-        state.deliveries = res.deliveries || state.task.deliveries || [];
+        const deliveries = Array.isArray(res.deliveries) ? res.deliveries : [];
+        if (deliveries.length > 0) {
+            state.deliveries = deliveries;
+        } else if (state.task?.delivery?.content) {
+            state.deliveries = [{
+                id: state.task.id ? `${state.task.id}-latest` : `delivery-${Date.now()}`,
+                workerId: state.task.assigneeId || '',
+                workerName: state.task.assigneeName || 'AI 分身',
+                workerAvatar: state.task.assigneeAvatar || null,
+                abilityId: state.task.delivery?.abilityId || null,
+                abilityName: state.task.delivery?.abilityName || null,
+                content: state.task.delivery.content || '',
+                status: 'completed',
+                createdAt: state.task.delivery?.createdAt || state.task.updatedAt
+            }];
+        } else {
+            state.deliveries = [];
+        }
         state.discussions = res.comments || state.task.comments || [];
 
         // 渲染页面

@@ -12,8 +12,13 @@ const state = {
   me: null,
   meWorker: null,
   abilities: [], // 用户能力库
-  skills: [] // 所有技能列表
+  skills: [], // 所有技能列表
+  skillsLoaded: false,
+  skillsLoadedAt: 0,
+  skillsLoadingPromise: null
 };
+
+const SKILL_HALL_CACHE_TTL = 60 * 1000;
 
 // ===== DOM 元素 =====
 const topLogout = document.querySelector('#top-logout');
@@ -102,7 +107,12 @@ async function api(path, options = {}) {
     const response = await fetch(path, { method, headers, body, credentials: 'include' });
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || data.message || '请求失败');
+      const details = data?.details || {};
+      const nested = details?.imageGenerationError?.body || details?.response || '';
+      const message = nested
+        ? `${data.error || data.message || '请求失败'}: ${nested}`
+        : (data.error || data.message || '请求失败');
+      throw new Error(message);
     }
     return data;
   } catch (error) {
@@ -773,6 +783,45 @@ async function onTaskActionClick(event) {
 
 // AI 交付任务
 async function deliverTask(taskId, button) {
+  const task = state.tasks.find((item) => item.id === taskId);
+  const requirement = task?.description || task?.title || '';
+  const now = new Date().toISOString();
+
+  clearHireStatusTimers();
+  hireSelectedSummaryId = null;
+  Object.assign(currentHireJob, {
+    id: `task_delivery_${taskId}_${Date.now()}`,
+    status: 'ACCEPTED',
+    skillId: `task:${taskId}`,
+    skillName: `任务交付 · ${task?.title || '未命名任务'}`,
+    skillIcon: '📦',
+    requirement,
+    selectedStyleId: '',
+    timeline: [],
+    result: null,
+    createdAt: now
+  });
+  setHireStatus('ACCEPTED', '已接单', 'info');
+  openHireWorkbench();
+
+  hireStatusTimers.push(setTimeout(() => {
+    if (isHireProcessing()) {
+      setHireStatus('ANALYZING', '分析需求中', 'running');
+    }
+  }, 500));
+
+  hireStatusTimers.push(setTimeout(() => {
+    if (isHireProcessing()) {
+      setHireStatus('THINKING', '思考方案中', 'running');
+    }
+  }, 1400));
+
+  hireStatusTimers.push(setTimeout(() => {
+    if (isHireProcessing()) {
+      setHireStatus('DELIVERING', '交付生成中', 'running');
+    }
+  }, 2600));
+
   // 保存原始按钮内容
   const originalContent = button.innerHTML;
 
@@ -787,16 +836,57 @@ async function deliverTask(taskId, button) {
   try {
     const res = await api(`/api/tasks/${taskId}/deliver`, {
       method: 'POST',
-      body: JSON.stringify({ brief: '' })
+      body: { brief: '' }
     });
 
     if (res.code === 0) {
+      clearHireStatusTimers();
+      const deliveredTask = res?.data || {};
+      const normalizedResult = {
+        content: deliveredTask?.delivery?.content || '交付完成，但内容为空。',
+        images: deliveredTask?.delivery?.images || []
+      };
+
+      currentHireJob.result = normalizedResult;
+      setHireStatus('COMPLETED', '已完成', 'success');
+      renderHireWorkbench();
+
+      appendHireSummary({
+        id: currentHireJob.id,
+        skillId: currentHireJob.skillId,
+        skillName: currentHireJob.skillName,
+        skillIcon: currentHireJob.skillIcon,
+        status: 'COMPLETED',
+        requirement: currentHireJob.requirement,
+        timeline: currentHireJob.timeline.slice(),
+        result: normalizedResult,
+        createdAt: currentHireJob.createdAt,
+        completedAt: new Date().toISOString()
+      });
+
       showToast('🎉 交付成功！');
       await loadTasks(); // 刷新任务列表
     } else {
       throw new Error(res.message || '交付失败');
     }
   } catch (err) {
+    clearHireStatusTimers();
+    const message = err.message || '交付失败';
+    currentHireJob.result = { content: message, images: [] };
+    setHireStatus('FAILED', `执行失败：${message}`, 'error');
+    appendHireSummary({
+      id: currentHireJob.id,
+      skillId: currentHireJob.skillId,
+      skillName: currentHireJob.skillName,
+      skillIcon: currentHireJob.skillIcon,
+      status: 'FAILED',
+      requirement: currentHireJob.requirement,
+      timeline: currentHireJob.timeline.slice(),
+      result: { content: message, images: [] },
+      createdAt: currentHireJob.createdAt,
+      completedAt: new Date().toISOString()
+    });
+
     // 恢复按钮状态
     button.innerHTML = originalContent;
     button.disabled = false;
@@ -823,6 +913,15 @@ async function viewTaskDetails(taskId) {
 
 // 显示交付结果弹窗
 function showDeliveryModal(task) {
+  const deliveryContent = String(task.delivery?.content || '暂无内容');
+  const mdImageRegex = /!\[[^\]]*\]\((data:image\/[^\s)]+|https?:\/\/[^\s)]+)\)/gi;
+  const images = [];
+  let mdMatch;
+  while ((mdMatch = mdImageRegex.exec(deliveryContent)) !== null) {
+    images.push(mdMatch[1]);
+  }
+  const textContent = deliveryContent.replace(mdImageRegex, '').trim();
+
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4';
   modal.innerHTML = `
@@ -844,7 +943,12 @@ function showDeliveryModal(task) {
         <div class="mb-4">
           <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">AI 交付内容</h4>
           <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 prose dark:prose-invert max-w-none">
-            <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">${escapeHtml(task.delivery?.content || '暂无内容')}</pre>
+            ${images.length ? `
+              <div class="mb-3 grid grid-cols-2 gap-2">
+                ${images.map((src) => `<img src="${escapeHtml(src)}" class="w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700" alt="交付图片" loading="lazy" />`).join('')}
+              </div>
+            ` : ''}
+            <pre class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">${escapeHtml(textContent || '暂无内容')}</pre>
           </div>
         </div>
         <div class="text-xs text-gray-400 dark:text-gray-500">
@@ -1073,33 +1177,61 @@ async function loadSkillHall() {
   const skillLoading = document.querySelector('#skill-loading');
   const skillCategories = document.querySelector('#skill-categories');
   const skillEmpty = document.querySelector('#skill-empty');
+  const now = Date.now();
+  const hasFreshCache = state.skillsLoaded && (now - state.skillsLoadedAt) < SKILL_HALL_CACHE_TTL;
+
+  if (hasFreshCache) {
+    if (state.skills.length === 0) {
+      skillLoading?.classList.add('hidden');
+      skillCategories?.classList.add('hidden');
+      skillEmpty?.classList.remove('hidden');
+    } else {
+      skillLoading?.classList.add('hidden');
+      skillEmpty?.classList.add('hidden');
+      skillCategories?.classList.remove('hidden');
+      renderSkillCategories(state.skills);
+    }
+    return;
+  }
+
+  if (state.skillsLoadingPromise) {
+    await state.skillsLoadingPromise;
+    return;
+  }
 
   // 显示加载状态
   skillLoading?.classList.remove('hidden');
   skillCategories?.classList.add('hidden');
   skillEmpty?.classList.add('hidden');
 
-  try {
-    // 从公开 API 获取所有用户的技能（无需登录）
-    const res = await api('/api/skills/public');
-    const skills = Array.isArray(res?.data) ? res.data : [];
+  state.skillsLoadingPromise = (async () => {
+    try {
+      // 从公开 API 获取所有用户的技能（无需登录）
+      const res = await api('/api/skills/public');
+      const skills = Array.isArray(res?.data) ? res.data : [];
+      state.skills = skills;
+      state.skillsLoaded = true;
+      state.skillsLoadedAt = Date.now();
 
-    state.skills = skills;
+      // 隐藏加载状态
+      skillLoading?.classList.add('hidden');
 
-    // 隐藏加载状态
-    skillLoading?.classList.add('hidden');
-
-    if (skills.length === 0) {
+      if (skills.length === 0) {
+        skillEmpty?.classList.remove('hidden');
+      } else {
+        skillCategories?.classList.remove('hidden');
+        renderSkillCategories(skills);
+      }
+    } catch (err) {
+      console.error('加载技能失败:', err);
+      skillLoading?.classList.add('hidden');
       skillEmpty?.classList.remove('hidden');
-    } else {
-      skillCategories?.classList.remove('hidden');
-      renderSkillCategories(skills);
+    } finally {
+      state.skillsLoadingPromise = null;
     }
-  } catch (err) {
-    console.error('加载技能失败:', err);
-    skillLoading?.classList.add('hidden');
-    skillEmpty?.classList.remove('hidden');
-  }
+  })();
+
+  await state.skillsLoadingPromise;
 }
 
 // 技能分类定义
@@ -1175,7 +1307,7 @@ function renderSkillCard(skill, index) {
   return `
     <div class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-skill-id="${skill.id}">
       <div class="relative m-2 skill-card-cover">
-        <img alt="${escapeHtml(skill.name)}" class="transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" />
+        <img alt="${escapeHtml(skill.name)}" class="transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
         <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80"></div>
         <span class="absolute top-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-black/40 backdrop-blur-sm text-white border border-white/20">${skill.icon || '🔧'} ${categoryName}</span>
         <!-- 悬浮按钮 -->
@@ -1276,12 +1408,14 @@ let hireSelectedSummaryId = null;
 
 const HIRE_SUMMARY_STORAGE_KEY = 'hire_summary_v1';
 const HIRE_SUMMARY_LIMIT = 30;
-const PROCESSING_HIRE_STATUSES = new Set(['ACCEPTED', 'THINKING', 'CALLING_SKILL']);
+const PROCESSING_HIRE_STATUSES = new Set(['ACCEPTED', 'ANALYZING', 'THINKING', 'CALLING_SKILL', 'DELIVERING']);
 const HIRE_STATUS_LABELS = {
   IDLE: '空闲中',
   ACCEPTED: 'AI 已接单',
+  ANALYZING: '正在分析需求',
   THINKING: '正在思考中',
   CALLING_SKILL: '正在调用 skill',
+  DELIVERING: '正在交付中',
   COMPLETED: '已完成',
   FAILED: '执行失败'
 };
@@ -1558,6 +1692,27 @@ function resetHireResultView() {
   if (hireResultSkillName) hireResultSkillName.textContent = '';
 }
 
+function normalizeImageSrc(rawUrl) {
+  const url = String(rawUrl || '').trim();
+  if (!url) return '';
+  const lower = url.toLowerCase();
+  if (lower === 'null' || lower === 'undefined' || lower === '[object object]') return '';
+
+  if (/^https?:\/\//i.test(url) || /^data:image\//i.test(url) || /^blob:/i.test(url)) {
+    return url;
+  }
+  if (url.startsWith('/')) {
+    return url;
+  }
+  if (url.startsWith('./')) {
+    return `/${url.slice(2)}`;
+  }
+  if (url.startsWith('uploads/')) {
+    return `/${url}`;
+  }
+  return '';
+}
+
 function renderHireStyleOptions(skill) {
   if (!hireStyleSection || !hireStyleList) return;
 
@@ -1575,7 +1730,7 @@ function renderHireStyleOptions(skill) {
     const selectedClass = currentHireStyleId === style.id
       ? 'border-primary bg-primary/5'
       : 'border-gray-200 dark:border-gray-600 hover:border-primary/50';
-    const styleImage = style.image || style.coverImage || '';
+    const styleImage = normalizeImageSrc(style.image || style.coverImage || '');
 
     return `
       <button
@@ -1586,13 +1741,22 @@ function renderHireStyleOptions(skill) {
       >
         <div class="w-full aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden mb-1.5">
           ${styleImage
-            ? `<img src="${escapeHtml(styleImage)}" alt="${escapeHtml(style.name)}" class="w-full h-full object-cover" loading="lazy" />`
+            ? `<img src="${escapeHtml(styleImage)}" alt="${escapeHtml(style.name)}" class="w-full h-full object-cover hire-style-image" loading="lazy" />`
             : '<span class="text-xl">🎨</span>'}
         </div>
         <div class="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">${escapeHtml(style.name)}</div>
       </button>
     `;
   }).join('');
+
+  // 图片 URL 不可访问时回退到图标，避免显示破图占位符
+  hireStyleList.querySelectorAll('.hire-style-image').forEach((imgEl) => {
+    imgEl.addEventListener('error', () => {
+      const wrapper = imgEl.parentElement;
+      if (!wrapper) return;
+      wrapper.innerHTML = '<span class="text-xl">🎨</span>';
+    }, { once: true });
+  });
 
   hireStyleList.querySelectorAll('.hire-style-option').forEach((button) => {
     button.addEventListener('click', () => {
@@ -1678,15 +1842,21 @@ async function submitHire() {
 
   hireStatusTimers.push(setTimeout(() => {
     if (isHireProcessing()) {
-      setHireStatus('THINKING', '正在思考中', 'running');
+      setHireStatus('ANALYZING', '分析需求中', 'running');
     }
   }, 900));
 
   hireStatusTimers.push(setTimeout(() => {
     if (isHireProcessing()) {
-      setHireStatus('CALLING_SKILL', `调用 skill：${currentHireJob.skillName}`, 'running');
+      setHireStatus('THINKING', '思考方案中', 'running');
     }
   }, 2200));
+
+  hireStatusTimers.push(setTimeout(() => {
+    if (isHireProcessing()) {
+      setHireStatus('CALLING_SKILL', `调用 skill：${currentHireJob.skillName}`, 'running');
+    }
+  }, 3200));
 
   try {
     const result = await api('/api/skills/hire', {

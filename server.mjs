@@ -1010,6 +1010,8 @@ async function saveProfiles(workers) {
 
       if (error) {
         console.error('[saveProfiles] Supabase error:', error);
+      } else {
+        invalidatePublicSkillsCache();
       }
     } catch (err) {
       console.error('[saveProfiles] Error:', err);
@@ -1020,11 +1022,24 @@ async function saveProfiles(workers) {
   // 本地开发使用 JSON 文件
   await ensureDataFiles();
   await fs.writeFile(PROFILE_FILE, JSON.stringify(normalized, null, 2), 'utf8');
+  invalidatePublicSkillsCache();
 }
 
 // ===== 能力库 CRUD =====
 // Supabase 使用 kv_store 表存储 JSON 数据（键值存储模式）
 const ABILITIES_KEY = 'abilities';
+const PUBLIC_SKILLS_CACHE_TTL = 30 * 1000;
+let publicSkillsCache = {
+  expiresAt: 0,
+  data: null
+};
+
+function invalidatePublicSkillsCache() {
+  publicSkillsCache = {
+    expiresAt: 0,
+    data: null
+  };
+}
 
 async function loadAbilities() {
   // Supabase 环境使用数据库存储
@@ -1071,6 +1086,7 @@ async function saveAbilities(data) {
         console.error('Supabase saveAbilities error:', error);
         throw new AppError('保存能力失败，请稍后重试', 500);
       }
+      invalidatePublicSkillsCache();
       return;
     } catch (err) {
       if (err instanceof AppError) throw err;
@@ -1082,6 +1098,7 @@ async function saveAbilities(data) {
   // 本地环境使用文件存储
   await ensureDataFiles();
   await fs.writeFile(ABILITIES_FILE, JSON.stringify(data, null, 2), 'utf8');
+  invalidatePublicSkillsCache();
 }
 
 // ===== 交付历史 CRUD =====
@@ -1988,20 +2005,28 @@ async function callCustomApiImageGeneration({
     throw new AppError('图像生成提示词不能为空', 400);
   }
 
+  const isGeminiLike = /gemini/i.test(modelName) || /generativelanguage\.googleapis\.com/i.test(String(endpoint || ''));
+
   // 策略1: 先尝试 OpenAI 标准 /images/generations 端点
   const imagesUrl = buildCustomApiUrl(endpoint, '/images/generations');
-  const requestBody = {
+  const richBody = {
     model: modelName,
     prompt: String(prompt).trim(),
     n: Math.max(1, Math.min(4, n || 1)),
     response_format: 'b64_json'
   };
   if (String(size || '').trim() && !isNoLimitValue(size)) {
-    requestBody.size = String(size).trim();
+    richBody.size = String(size).trim();
   }
   if (String(quality || '').trim() && !isNoLimitValue(quality)) {
-    requestBody.quality = String(quality).trim();
+    richBody.quality = String(quality).trim();
   }
+  const minimalBody = {
+    model: modelName,
+    prompt: String(prompt).trim(),
+    n: Math.max(1, Math.min(4, n || 1)),
+    response_format: 'b64_json'
+  };
 
   const parseImagesFromPayload = (payload) => {
     const images = [];
@@ -2009,6 +2034,7 @@ async function callCustomApiImageGeneration({
     for (const item of dataItems) {
       if (item.url) images.push(item.url);
       else if (item.b64_json) images.push(`data:image/png;base64,${item.b64_json}`);
+      else if (item?.image_url?.url) images.push(item.image_url.url);
     }
     return images;
   };
@@ -2030,36 +2056,19 @@ async function callCustomApiImageGeneration({
   };
 
   console.log(`[图像生成] 尝试 /images/generations: ${imagesUrl}, model=${modelName}`);
-  let imageAttempt = await requestImagesGeneration(requestBody);
-
-  if (imageAttempt.response.ok) {
-    const images = parseImagesFromPayload(imageAttempt.payload);
-    if (images.length) {
-      console.log(`[图像生成] /images/generations 成功, ${images.length} 张图片`);
-      return { endpoint: imagesUrl, model: modelName, images };
+  const attempts = isGeminiLike ? [minimalBody, richBody] : [richBody, minimalBody];
+  let imageAttempt = null;
+  for (let i = 0; i < attempts.length; i += 1) {
+    const body = attempts[i];
+    const mode = body === minimalBody ? 'minimal' : 'rich';
+    if (i > 0) {
+      console.log(`[图像生成] /images/generations 第 ${i + 1} 次尝试 (${mode})`);
     }
-  }
-
-  // 某些 OpenAI 兼容服务（如 Gemini）不接受 size/quality，400 时改为最小参数重试
-  const firstErrorText = shortText(imageAttempt.text, 600).toLowerCase();
-  const shouldRetryMinimal = !imageAttempt.response.ok
-    && [400, 422].includes(imageAttempt.response.status)
-    && (firstErrorText.includes('size') || firstErrorText.includes('quality') || firstErrorText.includes('unknown field') || firstErrorText.includes('invalid argument'));
-
-  if (shouldRetryMinimal) {
-    const minimalBody = {
-      model: modelName,
-      prompt: String(prompt).trim(),
-      n: Math.max(1, Math.min(4, n || 1)),
-      response_format: 'b64_json'
-    };
-    console.log('[图像生成] /images/generations 首次失败，移除 size/quality 后重试');
-    imageAttempt = await requestImagesGeneration(minimalBody);
-
+    imageAttempt = await requestImagesGeneration(body);
     if (imageAttempt.response.ok) {
       const images = parseImagesFromPayload(imageAttempt.payload);
       if (images.length) {
-        console.log(`[图像生成] /images/generations 重试成功, ${images.length} 张图片`);
+        console.log(`[图像生成] /images/generations 成功, ${images.length} 张图片`);
         return { endpoint: imagesUrl, model: modelName, images };
       }
     }
@@ -2114,7 +2123,9 @@ async function callCustomApiImageGeneration({
   if (!images.length) {
     // 如果没提取到图片，但有文字内容，也许模型返回了描述而非图片
     const textContent = chatPayload?.choices?.[0]?.message?.content || '';
-    throw new AppError('图像生成未返回有效图片，模型可能不支持图像生成', 502, {
+    const imgErr = shortText(imageAttempt?.text || '', 200);
+    const suffix = imgErr ? `；/images 响应: ${imgErr}` : '';
+    throw new AppError(`图像生成未返回有效图片，模型可能不支持图像生成${suffix}`, 502, {
       endpoint: chatUrl,
       response: shortText(textContent, 500),
       imageGenerationError: {
@@ -2596,8 +2607,15 @@ async function handleApi(req, res, urlObj) {
 
   // ===== 公开技能列表（无需登录） =====
   if (method === 'GET' && pathname === '/api/skills/public') {
-    const allAbilities = await loadAbilities();
-    const profiles = await loadProfiles();
+    if (publicSkillsCache.data && Date.now() < publicSkillsCache.expiresAt) {
+      return json(res, 200, {
+        code: 0,
+        message: 'success',
+        data: publicSkillsCache.data
+      });
+    }
+
+    const [allAbilities, profiles] = await Promise.all([loadAbilities(), loadProfiles()]);
     const workerLookup = workersMap(profiles);
 
     const skills = [];
@@ -2630,6 +2648,11 @@ async function handleApi(req, res, urlObj) {
         });
       }
     }
+
+    publicSkillsCache = {
+      expiresAt: Date.now() + PUBLIC_SKILLS_CACHE_TTL,
+      data: skills
+    };
 
     return json(res, 200, {
       code: 0,
@@ -4088,10 +4111,14 @@ async function handleApi(req, res, urlObj) {
     const workerLookup = workersMap(await loadProfiles());
     const userAbilities = await getUserAbilities(session.user.userId);
     const selectedAbilityId = getTaskWorkerAbilityId(task, workerId);
-    const selectedAbility =
-      userAbilities.find((item) => item.id === selectedAbilityId) ||
-      userAbilities[0] ||
-      null;
+    const boundAbility = userAbilities.find((item) => item.id === selectedAbilityId) || null;
+    const imagePreferredAbility = userAbilities.find((item) => (
+      item
+      && item.enabled !== false
+      && item.useCustomApi
+      && item.abilityType === 'image'
+    )) || null;
+    const selectedAbility = boundAbility || imagePreferredAbility || userAbilities[0] || null;
     const delivery = await generateDelivery(task, brief, workerLookup, {
       ability: selectedAbility
     });
