@@ -2679,54 +2679,54 @@ async function sendChatMessage() {
 
 chatSendBtn?.addEventListener('click', sendChatMessage);
 
-// 提交需求（需求方在技能对话中正式下单）
+// 提交需求（需求方将聊天内容作为正式需求发送给技能方）
 chatSubmitDemandBtn?.addEventListener('click', async () => {
   const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
   if (!conv || conv.role !== 'demand') return;
   if (!canOperate()) { showToast('请先登录'); return; }
 
-  // 汇总聊天内容作为需求描述
   const chatTexts = conv.messages
     .filter(m => m.type === 'self' || m.type === 'peer')
-    .map(m => m.text)
-    .filter(Boolean);
-
-  const title = conv.title || '新需求';
-  const description = chatTexts.length > 0
-    ? chatTexts.join('\n')
-    : '（通过技能对话提交的需求）';
+    .map(m => m.text).filter(Boolean);
+  const requirement = chatTexts.length > 0 ? chatTexts.join('\n') : '（通过技能对话提交的需求）';
 
   chatSubmitDemandBtn.disabled = true;
   chatSubmitDemandBtn.textContent = '提交中...';
 
   try {
-    const result = await api('/api/tasks', {
+    // 通过后端对话 API 创建/获取对话并发送需求消息给技能方
+    const convResult = await api('/api/conversations', {
       method: 'POST',
-      body: { title, description }
+      body: {
+        refId: conv.refId, refType: 'skill',
+        receiverId: conv.peerId, receiverName: conv.peerName,
+        receiverAvatar: conv.peerAvatar || '', title: conv.title || ''
+      }
     });
+    const serverConvId = convResult.data?.id;
+    if (serverConvId) {
+      await api(`/api/conversations/${serverConvId}/messages`, {
+        method: 'POST',
+        body: { content: `📋 【正式需求】\n${requirement}`, type: 'demand' }
+      });
+    }
 
-    // 在对话中添加系统消息
     conv.messages.push({
       type: 'system',
-      text: '✅ 需求已提交，任务已发布到任务大厅！',
+      text: '✅ 需求已提交给对方，等待对方使用技能生成交付',
       time: new Date().toISOString()
     });
+    conv.demandSubmitted = true;
     conv.updatedAt = new Date().toISOString();
     persistConversations();
     renderChatMessages(conv);
     renderChatList();
-
-    // 刷新任务列表
-    const tasksRes = await api('/api/tasks');
-    state.tasks = tasksRes.data || tasksRes.tasks || [];
-    renderTasks();
-
-    showToast('🎉 需求已发布到任务大厅！');
+    showToast('需求已发送给对方！');
   } catch (err) {
     showToast(err.message || '提交失败');
   } finally {
     chatSubmitDemandBtn.disabled = false;
-    chatSubmitDemandBtn.innerHTML = '<span class="material-icons-round text-sm">rocket_launch</span> 提交需求，发布到任务大厅';
+    chatSubmitDemandBtn.innerHTML = '<span class="material-icons-round text-sm">send</span> 提交需求给对方';
   }
 });
 
