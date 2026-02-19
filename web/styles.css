@@ -1,8 +1,14 @@
 /* ===== iOS Safe Area ===== */
 :root {
-  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-top: 0px;
   --top-nav-base-height: 72px;
   --top-nav-height: calc(var(--top-nav-base-height) + var(--safe-area-inset-top));
+}
+
+@supports (top: env(safe-area-inset-top)) {
+  :root {
+    --safe-area-inset-top: env(safe-area-inset-top);
+  }
 }
 
 @supports (top: constant(safe-area-inset-top)) {
@@ -12,11 +18,11 @@
 }
 
 .safe-top-nav {
-  padding-top: calc(1rem + var(--safe-area-inset-top));
+  padding-top: calc(1rem + var(--safe-area-inset-top)) !important;
 }
 
 .safe-top-toolbar {
-  top: var(--top-nav-height);
+  top: var(--top-nav-height) !important;
 }
 
 /* ===== 保留的核心动效 ===== */

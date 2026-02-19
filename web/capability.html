@@ -40,7 +40,13 @@
   </script>
   <style>
     :root {
-      --safe-area-inset-top: env(safe-area-inset-top, 0px);
+      --safe-area-inset-top: 0px;
+    }
+
+    @supports (top: env(safe-area-inset-top)) {
+      :root {
+        --safe-area-inset-top: env(safe-area-inset-top);
+      }
     }
 
     @supports (top: constant(safe-area-inset-top)) {
@@ -50,7 +56,7 @@
     }
 
     .safe-top-nav-compact {
-      padding-top: calc(0.75rem + var(--safe-area-inset-top));
+      padding-top: calc(0.75rem + var(--safe-area-inset-top)) !important;
     }
 
     .grid-bg {
@@ -769,6 +775,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
+  <script src="/safe-area.js"></script>
   <script src="/capability.js"></script>
 </body>
 
