@@ -214,6 +214,25 @@ function statusClass(status) {
   }
 }
 
+function renderCardUserMeta(name, avatar, fallbackName = '匿名用户') {
+  const safeName = escapeHtml(name || fallbackName);
+  const safeAvatar = escapeHtml(avatar || '');
+  const fallbackInitial = escapeHtml((name || fallbackName || 'U').trim().charAt(0).toUpperCase());
+
+  const avatarNode = safeAvatar
+    ? `<img src="${safeAvatar}" alt="${safeName}" class="w-full h-full object-cover" loading="lazy" referrerpolicy="no-referrer" />`
+    : `<span class="text-[11px] font-bold text-gray-600 dark:text-gray-200">${fallbackInitial}</span>`;
+
+  return `
+    <div class="flex items-center gap-2.5 mt-3">
+      <div class="w-7 h-7 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center flex-shrink-0">
+        ${avatarNode}
+      </div>
+      <span class="text-sm text-gray-700 dark:text-gray-300 font-medium truncate">${safeName}</span>
+    </div>
+  `;
+}
+
 // ===== 渲染函数 =====
 function renderOverview() {
   const users = state.totalUsers || state.workers.length;
@@ -283,6 +302,8 @@ function renderTaskCard(task, index) {
   const imgClass = hasCustomCover
     ? 'w-full h-auto object-contain transform group-hover:scale-110 transition-transform duration-700 ease-in-out'
     : 'w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-in-out';
+  const publisherName = task.publisherName || task.requesterAi || '匿名用户';
+  const publisherMeta = renderCardUserMeta(publisherName, task.publisherAvatar, '匿名用户');
 
   // 按钮配置
   let actionBtn = '';
@@ -315,6 +336,7 @@ function renderTaskCard(task, index) {
       <div class="px-4 pb-4 pt-1 flex flex-col cursor-pointer" onclick="openDetailPanel('task', state.tasks.find(t=>t.id==='${task.id}'))">
         <h3 class="font-bold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors text-base mb-2" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</h3>
         <p class="text-xs text-subtext-light dark:text-subtext-dark line-clamp-3 mb-3 leading-relaxed">${escapeHtml(task.description)}</p>
+        ${publisherMeta}
       </div>
     </div>
   `;
@@ -1442,6 +1464,8 @@ function renderSkillCard(skill, index) {
   const categoryInfo = SKILL_CATEGORIES.find(c => c.id === category) || SKILL_CATEGORIES[4];
   const categoryName = categoryInfo.name.replace(categoryInfo.icon, '').trim();
   const coverImg = skill.coverImage || SKILL_COVER_IMAGES[index % SKILL_COVER_IMAGES.length];
+  const ownerName = skill.ownerName || '匿名用户';
+  const ownerMeta = renderCardUserMeta(ownerName, skill.ownerAvatar, '匿名用户');
 
   return `
     <div class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-skill-id="${skill.id}">
@@ -1463,6 +1487,7 @@ function renderSkillCard(skill, index) {
         <div class="flex flex-wrap gap-1.5">
           <span class="px-2 py-0.5 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-100 dark:border-gray-600">${categoryName}</span>
         </div>
+        ${ownerMeta}
       </div>
     </div>
   `;
