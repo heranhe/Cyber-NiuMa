@@ -214,13 +214,22 @@ function statusClass(status) {
   }
 }
 
-function renderCardUserMeta(name, avatar, fallbackName = '匿名用户') {
-  const safeName = escapeHtml(name || fallbackName);
-  const safeAvatar = escapeHtml(avatar || '');
-  const fallbackInitial = escapeHtml((name || fallbackName || 'U').trim().charAt(0).toUpperCase());
+function renderCardUserMeta(name, avatar) {
+  const rawName = String(name || '').trim();
+  const rawAvatar = String(avatar || '').trim();
+  if (!rawName && !rawAvatar) {
+    return '';
+  }
 
-  const avatarNode = safeAvatar
-    ? `<img src="${safeAvatar}" alt="${safeName}" class="w-full h-full object-cover" loading="lazy" referrerpolicy="no-referrer" />`
+  const safeName = escapeHtml(rawName);
+  const generatedAvatar = rawName
+    ? `https://ui-avatars.com/api/?name=${encodeURIComponent(rawName)}&background=random&rounded=true&size=64`
+    : '';
+  const avatarUrl = escapeHtml(rawAvatar || generatedAvatar);
+  const fallbackInitial = escapeHtml((rawName || 'U').charAt(0).toUpperCase());
+
+  const avatarNode = avatarUrl
+    ? `<img src="${avatarUrl}" alt="${safeName}" class="w-full h-full object-cover" loading="lazy" referrerpolicy="no-referrer" />`
     : `<span class="text-[11px] font-bold text-gray-600 dark:text-gray-200">${fallbackInitial}</span>`;
 
   return `
@@ -302,8 +311,8 @@ function renderTaskCard(task, index) {
   const imgClass = hasCustomCover
     ? 'w-full h-auto object-contain transform group-hover:scale-110 transition-transform duration-700 ease-in-out'
     : 'w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-in-out';
-  const publisherName = task.publisherName || task.requesterAi || '匿名用户';
-  const publisherMeta = renderCardUserMeta(publisherName, task.publisherAvatar, '匿名用户');
+  const publisherName = task.publisherName || task.requesterAi || '';
+  const publisherMeta = renderCardUserMeta(publisherName, task.publisherAvatar);
 
   // 按钮配置
   let actionBtn = '';
@@ -1464,8 +1473,8 @@ function renderSkillCard(skill, index) {
   const categoryInfo = SKILL_CATEGORIES.find(c => c.id === category) || SKILL_CATEGORIES[4];
   const categoryName = categoryInfo.name.replace(categoryInfo.icon, '').trim();
   const coverImg = skill.coverImage || SKILL_COVER_IMAGES[index % SKILL_COVER_IMAGES.length];
-  const ownerName = skill.ownerName || '匿名用户';
-  const ownerMeta = renderCardUserMeta(ownerName, skill.ownerAvatar, '匿名用户');
+  const ownerName = skill.ownerName || '';
+  const ownerMeta = renderCardUserMeta(ownerName, skill.ownerAvatar);
 
   return `
     <div class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-skill-id="${skill.id}">

@@ -841,7 +841,18 @@ function getTaskWorkerAbilityId(task, workerId) {
 }
 
 function workersMap(workers = []) {
-  return new Map(workers.map((worker) => [worker.id, worker]));
+  const map = new Map();
+  for (const worker of workers) {
+    const workerId = String(worker?.id || '').trim();
+    const secondUserId = String(worker?.secondUserId || '').trim();
+    if (workerId) {
+      map.set(workerId, worker);
+    }
+    if (secondUserId) {
+      map.set(secondUserId, worker);
+    }
+  }
+  return map;
 }
 
 function workerById(workerId, workers = []) {
@@ -2787,7 +2798,7 @@ async function handleApi(req, res, urlObj) {
             coverImage: s.coverImage || s.image || ''
           })),
           ownerId: userId,
-          ownerName: owner?.name || owner?.displayName || '匿名用户',
+          ownerName: owner?.name || owner?.displayName || '',
           ownerAvatar: owner?.avatar || owner?.profileImageUrl || '',
           completedOrders: 0,
           rating: 0,
