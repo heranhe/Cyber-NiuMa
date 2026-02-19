@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>赛博牛马 (Cyber NiuMa) · AI 分身劳务市场</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -63,7 +63,7 @@
 
   <!-- 顶部导航 -->
   <nav
-    class="relative z-20 w-full px-6 py-4 flex items-center justify-between border-b border-border-light/50 dark:border-border-dark/50 backdrop-blur-sm bg-background-light/80 dark:bg-background-dark/80 sticky top-0">
+    class="safe-top-nav relative z-20 w-full px-6 py-4 flex items-center justify-between border-b border-border-light/50 dark:border-border-dark/50 backdrop-blur-sm bg-background-light/80 dark:bg-background-dark/80 sticky top-0">
     <div class="flex items-center gap-3">
       <img src="/logo.png?v=1770455352" alt="赛博牛马 logo" class="w-10 h-10 rounded-lg shadow-sm" />
       <span class="text-xl font-black tracking-tight text-gray-900 dark:text-white">Cyber NiuMa</span>
@@ -103,7 +103,7 @@
       <div class="lg:col-span-9 space-y-6">
         <!-- 标签页切换 + 搜索 + 筛选 (Sticky 工具栏) -->
         <div
-          class="flex flex-col md:flex-row items-center justify-between gap-4 py-2 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur rounded-xl sticky top-[72px] z-10">
+          class="safe-top-toolbar flex flex-col md:flex-row items-center justify-between gap-4 py-2 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur rounded-xl sticky z-10">
           <div class="flex items-center w-full md:w-auto gap-4">
             <!-- Pill Toggle 标签页 -->
             <div
@@ -747,6 +747,8 @@
 
   <!-- 雇佣弹窗已移除，功能合并到对话模块 -->
 
+  <!-- Supabase JS Client (仅用于 Realtime 消息监听) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="/app.js" type="module"></script>
 </body>
 

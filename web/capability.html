@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>AI 能力管理 - Cyber NiuMa</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -39,6 +39,20 @@
     };
   </script>
   <style>
+    :root {
+      --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    }
+
+    @supports (top: constant(safe-area-inset-top)) {
+      :root {
+        --safe-area-inset-top: constant(safe-area-inset-top);
+      }
+    }
+
+    .safe-top-nav-compact {
+      padding-top: calc(0.75rem + var(--safe-area-inset-top));
+    }
+
     .grid-bg {
       background-size: 40px 40px;
     }
@@ -283,7 +297,8 @@
   <div class="fixed inset-0 pointer-events-none z-0 bg-grid-pattern grid-bg opacity-60"></div>
 
   <div class="relative z-10 h-screen flex flex-col">
-    <nav class="px-4 md:px-6 py-3 border-b border-border-light bg-background-light/90 backdrop-blur-md shrink-0">
+    <nav
+      class="safe-top-nav-compact px-4 md:px-6 py-3 border-b border-border-light bg-background-light/90 backdrop-blur-md shrink-0">
       <div class="max-w-[1600px] mx-auto flex items-center justify-between gap-3">
         <a href="/" class="flex items-center gap-3 min-w-0">
           <img src="/logo.png?v=1770455352" alt="logo" class="w-9 h-9 rounded-lg shadow-sm" />
