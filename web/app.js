@@ -100,6 +100,14 @@ const chatSkillDropdown = document.querySelector('#chat-skill-dropdown');
 const chatSelectedSkillCapsule = document.querySelector('#chat-selected-skill-capsule');
 const chatAutoSend = document.querySelector('#chat-auto-send');
 const chatDeliveryHint = document.querySelector('#chat-delivery-hint');
+const chatSubmitDemandBtn = document.querySelector('#chat-submit-demand-btn');
+
+// 详情面板元素
+const detailPanel = document.querySelector('#detail-panel');
+const detailBackBtn = document.querySelector('#detail-back-btn');
+const detailBody = document.querySelector('#detail-body');
+const detailActions = document.querySelector('#detail-actions');
+const detailStatusBadge = document.querySelector('#detail-status-badge');
 
 // 排行榜
 const rankingList = document.querySelector('#ranking-list');
@@ -304,7 +312,7 @@ function renderTaskCard(task, index) {
           ${actionBtn}
         </div>
       </div>
-      <div class="px-4 pb-4 pt-1 flex flex-col cursor-pointer" onclick="window.location.href='/task-detail.html?id=${task.id}'">
+      <div class="px-4 pb-4 pt-1 flex flex-col cursor-pointer" onclick="openDetailPanel('task', state.tasks.find(t=>t.id==='${task.id}'))">
         <h3 class="font-bold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors text-base mb-2" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</h3>
         <p class="text-xs text-subtext-light dark:text-subtext-dark line-clamp-3 mb-3 leading-relaxed">${escapeHtml(task.description)}</p>
       </div>
@@ -768,6 +776,102 @@ async function onTakeTaskSubmit(event) {
     showToast(err.message || '接单失败');
   }
 }
+
+// ===== 详情面板 =====
+const leftMainArea = document.querySelector('.lg\\:col-span-9.space-y-6');
+
+function openDetailPanel(type, data) {
+  if (!detailPanel || !leftMainArea) return;
+  leftMainArea.classList.add('hidden');
+  detailPanel.classList.remove('hidden');
+  if (type === 'task') renderTaskDetail(data);
+  else if (type === 'skill') renderSkillDetail(data);
+}
+
+function closeDetailPanel() {
+  if (!detailPanel || !leftMainArea) return;
+  detailPanel.classList.add('hidden');
+  leftMainArea.classList.remove('hidden');
+}
+
+detailBackBtn?.addEventListener('click', closeDetailPanel);
+
+function renderTaskDetail(task) {
+  const statusLabel = statusText(task.status);
+  const statusBg = task.status === 'DELIVERED' ? 'bg-green-100 text-green-700' : task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700';
+  if (detailStatusBadge) {
+    detailStatusBadge.textContent = statusLabel;
+    detailStatusBadge.className = `px-3 py-1 rounded-full text-xs font-bold ${statusBg}`;
+  }
+  const coverImg = task.coverImage || COVER_IMAGES[0];
+  detailBody.innerHTML = `
+    <div class="flex gap-4 items-start">
+      <img src="${coverImg}" alt="${escapeHtml(task.title)}" class="w-32 h-24 object-cover rounded-xl flex-shrink-0" />
+      <div class="flex-1 min-w-0">
+        <h2 class="text-xl font-black text-gray-900 dark:text-white mb-2">${escapeHtml(task.title)}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400">发布者：${escapeHtml(task.publisherName || task.requesterAi || '匿名')}</p>
+        ${task.budget ? `<span class="inline-flex items-center mt-2 px-2 py-1 bg-green-50 text-green-600 text-xs font-medium rounded-full"><span class="material-icons-round text-xs mr-1">toll</span>${escapeHtml(String(task.budget))} 积分</span>` : ''}
+      </div>
+    </div>
+    <div class="mt-4">
+      <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">需求描述</h3>
+      <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap">${escapeHtml(task.description)}</p>
+    </div>
+    ${task.delivery ? `
+    <div class="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800">
+      <h3 class="text-sm font-bold text-green-700 dark:text-green-400 mb-2 flex items-center gap-1"><span class="material-icons-round text-sm">check_circle</span> 交付结果</h3>
+      <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">${escapeHtml(task.delivery?.content || '')}</p>
+      ${(task.delivery?.images?.length > 0) ? `<div class="grid grid-cols-2 gap-2 mt-2">${task.delivery.images.map(img => `<img src="${img}" class="rounded-lg" />`).join('')}</div>` : ''}
+    </div>` : ''}
+  `;
+  let actionsHtml = '';
+  if ((task.status === 'OPEN' || task.status === 'IN_PROGRESS') && canOperate()) {
+    actionsHtml = `<button class="detail-action-btn px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-amber-700 transition-colors flex items-center gap-1.5" data-action="join-chat" data-task-id="${task.id}"><span class="material-icons-round text-sm">forum</span> 加入对话</button>`;
+  }
+  if (detailActions) detailActions.innerHTML = actionsHtml;
+}
+
+function renderSkillDetail(skill) {
+  if (detailStatusBadge) {
+    detailStatusBadge.textContent = '技能';
+    detailStatusBadge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700';
+  }
+  const coverImg = skill.coverImage || SKILL_COVER_IMAGES?.[0] || COVER_IMAGES[0];
+  detailBody.innerHTML = `
+    <div class="flex gap-4 items-start">
+      <img src="${coverImg}" alt="${escapeHtml(skill.name)}" class="w-32 h-24 object-cover rounded-xl flex-shrink-0" />
+      <div class="flex-1 min-w-0">
+        <h2 class="text-xl font-black text-gray-900 dark:text-white mb-2">${skill.icon || '🔧'} ${escapeHtml(skill.name)}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400">提供者：${escapeHtml(skill.ownerName || '匿名')}</p>
+      </div>
+    </div>
+    <div class="mt-4">
+      <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">技能简介</h3>
+      <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">${escapeHtml(skill.description || '这个 AI 分身很懒，还没写简介…')}</p>
+    </div>
+  `;
+  let actionsHtml = '';
+  if (canOperate()) {
+    actionsHtml = `<button class="detail-action-btn px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-amber-700 transition-colors flex items-center gap-1.5" data-action="join-chat" data-skill-id="${skill.id}"><span class="material-icons-round text-sm">forum</span> 加入对话</button>`;
+  }
+  if (detailActions) detailActions.innerHTML = actionsHtml;
+}
+
+// 详情面板操作按钮事件委托
+detailActions?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.detail-action-btn');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const taskId = btn.dataset.taskId;
+  const skillId = btn.dataset.skillId;
+  if (action === 'join-chat' && taskId) {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (task) openConversation('worker', task);
+  } else if (action === 'join-chat' && skillId) {
+    const skill = state.skills.find(s => s.id === skillId);
+    if (skill) openConversation('demand', skill);
+  }
+});
 
 // ===== 任务操作 =====
 async function onTaskActionClick(event) {
@@ -1353,7 +1457,7 @@ function renderSkillCard(skill, index) {
           </button>
         </div>
       </div>
-      <div class="px-4 pb-4 pt-1 flex flex-col">
+      <div class="px-4 pb-4 pt-1 flex flex-col cursor-pointer" onclick="openDetailPanel('skill', state.skills.find(s=>s.id==='${skill.id}'))">
         <h3 class="font-bold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors text-base mb-2" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</h3>
         <p class="text-xs text-subtext-light dark:text-subtext-dark line-clamp-3 mb-3 leading-relaxed">${escapeHtml(skill.description || '这个 AI 分身很懒，还没写简介…')}</p>
         <div class="flex flex-wrap gap-1.5">
@@ -2167,15 +2271,17 @@ function renderChatDialog() {
     if (chatSkillLabel) chatSkillLabel.textContent = '选择我的技能';
   }
 
-  // 如果 role 是 demand，技能选择器不需要显示
+  // 根据角色显示不同操作
   if (conv.role === 'demand') {
     if (chatSkillSelector) chatSkillSelector.style.display = 'none';
     if (chatDeliveryHint) chatDeliveryHint.classList.add('hidden');
+    if (chatSubmitDemandBtn) chatSubmitDemandBtn.classList.remove('hidden');
   } else {
     if (chatSkillSelector) chatSkillSelector.style.display = '';
     if (chatDeliveryHint) {
       chatDeliveryHint.classList.toggle('hidden', !chatState.selectedSkill);
     }
+    if (chatSubmitDemandBtn) chatSubmitDemandBtn.classList.add('hidden');
   }
 }
 
@@ -2329,6 +2435,7 @@ function backToChatList() {
   chatState.selectedSkill = null;
   chatState.skillDropdownOpen = false;
   chatSkillDropdown?.classList.add('hidden');
+  if (chatSubmitDemandBtn) chatSubmitDemandBtn.classList.add('hidden');
 
   if (chatDialogView) chatDialogView.classList.add('hidden');
   if (chatListView) chatListView.classList.remove('hidden');
@@ -2546,6 +2653,57 @@ async function sendChatMessage() {
 }
 
 chatSendBtn?.addEventListener('click', sendChatMessage);
+
+// 提交需求（需求方在技能对话中正式下单）
+chatSubmitDemandBtn?.addEventListener('click', async () => {
+  const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
+  if (!conv || conv.role !== 'demand') return;
+  if (!canOperate()) { showToast('请先登录'); return; }
+
+  // 汇总聊天内容作为需求描述
+  const chatTexts = conv.messages
+    .filter(m => m.type === 'self' || m.type === 'peer')
+    .map(m => m.text)
+    .filter(Boolean);
+
+  const title = conv.title || '新需求';
+  const description = chatTexts.length > 0
+    ? chatTexts.join('\n')
+    : '（通过技能对话提交的需求）';
+
+  chatSubmitDemandBtn.disabled = true;
+  chatSubmitDemandBtn.textContent = '提交中...';
+
+  try {
+    const result = await api('/api/tasks', {
+      method: 'POST',
+      body: { title, description }
+    });
+
+    // 在对话中添加系统消息
+    conv.messages.push({
+      type: 'system',
+      text: '✅ 需求已提交，任务已发布到任务大厅！',
+      time: new Date().toISOString()
+    });
+    conv.updatedAt = new Date().toISOString();
+    persistConversations();
+    renderChatMessages(conv);
+    renderChatList();
+
+    // 刷新任务列表
+    const tasksRes = await api('/api/tasks');
+    state.tasks = tasksRes.data || tasksRes.tasks || [];
+    renderTasks();
+
+    showToast('🎉 需求已发布到任务大厅！');
+  } catch (err) {
+    showToast(err.message || '提交失败');
+  } finally {
+    chatSubmitDemandBtn.disabled = false;
+    chatSubmitDemandBtn.innerHTML = '<span class="material-icons-round text-sm">rocket_launch</span> 提交需求，发布到任务大厅';
+  }
+});
 
 // Enter 发送（Shift+Enter 换行）
 chatInput?.addEventListener('keydown', (e) => {

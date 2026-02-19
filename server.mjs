@@ -3518,6 +3518,382 @@ async function handleApi(req, res, urlObj) {
     });
   }
 
+  // ===== 对话 API =====
+
+  // 创建对话
+  if (method === 'POST' && pathname === '/api/conversations') {
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+    if (!supabase) {
+      return json(res, 503, { code: 503, message: '数据库未配置' });
+    }
+
+    let body;
+    try { body = await readBody(req); } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') return badRequest(res, '请求体不是合法 JSON');
+      throw error;
+    }
+
+    const refId = String(body.refId || '').trim();
+    const refType = String(body.refType || 'skill').trim();
+    const receiverId = String(body.receiverId || '').trim();
+    const receiverName = String(body.receiverName || '').trim();
+    const receiverAvatar = String(body.receiverAvatar || '').trim();
+    const title = String(body.title || '').trim();
+
+    if (!refId || !receiverId) {
+      return badRequest(res, 'refId 和 receiverId 不能为空');
+    }
+
+    const myId = String(session.user.userId);
+    const myName = session.user.name || session.user.displayName || '匿名用户';
+    const myAvatar = session.user.avatar || session.user.profileImageUrl || '';
+
+    // 不能和自己对话
+    if (myId === receiverId) {
+      return badRequest(res, '不能和自己发起对话');
+    }
+
+    // 查重：同一 ref + 双方 ID（不区分发起方/接收方顺序）
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('ref_id', refId)
+      .eq('ref_type', refType)
+      .or(`and(initiator_id.eq.${myId},receiver_id.eq.${receiverId}),and(initiator_id.eq.${receiverId},receiver_id.eq.${myId})`);
+
+    if (existing && existing.length > 0) {
+      // 已有对话，直接返回
+      return json(res, 200, { code: 0, message: '对话已存在', data: existing[0] });
+    }
+
+    // 创建新对话
+    const { data: conv, error: convErr } = await supabase
+      .from('conversations')
+      .insert({
+        ref_id: refId,
+        ref_type: refType,
+        initiator_id: myId,
+        initiator_name: myName,
+        initiator_avatar: myAvatar,
+        receiver_id: receiverId,
+        receiver_name: receiverName,
+        receiver_avatar: receiverAvatar,
+        title,
+        last_message: ''
+      })
+      .select()
+      .single();
+
+    if (convErr) {
+      console.error('创建对话失败:', convErr);
+      throw new AppError('创建对话失败', 500, convErr);
+    }
+
+    // 插入系统消息
+    await supabase.from('messages').insert({
+      conversation_id: conv.id,
+      sender_id: myId,
+      sender_name: myName,
+      type: 'system',
+      content: `${myName} 发起了对话`
+    });
+
+    return json(res, 200, { code: 0, message: '对话已创建', data: conv });
+  }
+
+  // 获取当前用户的对话列表
+  if (method === 'GET' && pathname === '/api/conversations') {
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+    if (!supabase) {
+      return json(res, 503, { code: 503, message: '数据库未配置' });
+    }
+
+    const myId = String(session.user.userId);
+
+    const { data, error: fetchErr } = await supabase
+      .from('conversations')
+      .select('*')
+      .or(`initiator_id.eq.${myId},receiver_id.eq.${myId}`)
+      .order('updated_at', { ascending: false });
+
+    if (fetchErr) {
+      console.error('获取对话列表失败:', fetchErr);
+      throw new AppError('获取对话列表失败', 500, fetchErr);
+    }
+
+    return json(res, 200, { code: 0, message: 'success', data: data || [] });
+  }
+
+  // 获取对话消息
+  const convMessagesMatch = pathname.match(/^\/api\/conversations\/([^/]+)\/messages$/);
+  if (method === 'GET' && convMessagesMatch) {
+    const convId = decodeURIComponent(convMessagesMatch[1]);
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+    if (!supabase) {
+      return json(res, 503, { code: 503, message: '数据库未配置' });
+    }
+
+    const myId = String(session.user.userId);
+
+    // 验证用户是对话参与方
+    const { data: conv } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('id', convId)
+      .single();
+
+    if (!conv) {
+      return json(res, 404, { code: 404, message: '对话不存在' });
+    }
+    if (conv.initiator_id !== myId && conv.receiver_id !== myId) {
+      return json(res, 403, { code: 403, message: '无权访问此对话' });
+    }
+
+    const { data: messages, error: msgErr } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', convId)
+      .order('created_at', { ascending: true });
+
+    if (msgErr) {
+      console.error('获取消息失败:', msgErr);
+      throw new AppError('获取消息失败', 500, msgErr);
+    }
+
+    return json(res, 200, { code: 0, message: 'success', data: messages || [] });
+  }
+
+  // 发送消息
+  if (method === 'POST' && convMessagesMatch) {
+    const convId = decodeURIComponent(convMessagesMatch[1]);
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+    if (!supabase) {
+      return json(res, 503, { code: 503, message: '数据库未配置' });
+    }
+
+    let body;
+    try { body = await readBody(req); } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') return badRequest(res, '请求体不是合法 JSON');
+      throw error;
+    }
+
+    const myId = String(session.user.userId);
+    const myName = session.user.name || session.user.displayName || '匿名用户';
+
+    // 验证用户是对话参与方
+    const { data: conv } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('id', convId)
+      .single();
+
+    if (!conv) {
+      return json(res, 404, { code: 404, message: '对话不存在' });
+    }
+    if (conv.initiator_id !== myId && conv.receiver_id !== myId) {
+      return json(res, 403, { code: 403, message: '无权访问此对话' });
+    }
+
+    const content = String(body.content || '').trim();
+    const type = String(body.type || 'text').trim();
+    const metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
+
+    if (!content && type === 'text') {
+      return badRequest(res, '消息内容不能为空');
+    }
+
+    const { data: msg, error: msgErr } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: convId,
+        sender_id: myId,
+        sender_name: myName,
+        type,
+        content,
+        metadata
+      })
+      .select()
+      .single();
+
+    if (msgErr) {
+      console.error('发送消息失败:', msgErr);
+      throw new AppError('发送消息失败', 500, msgErr);
+    }
+
+    // 更新对话的 last_message 和 updated_at
+    await supabase
+      .from('conversations')
+      .update({
+        last_message: type === 'delivery' ? '🎉 交付结果' : content.slice(0, 50),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', convId);
+
+    return json(res, 200, { code: 0, message: 'success', data: msg });
+  }
+
+  // 对话中的交付（调用技能生成结果并存为 delivery 消息）
+  const convDeliverMatch = pathname.match(/^\/api\/conversations\/([^/]+)\/deliver$/);
+  if (method === 'POST' && convDeliverMatch) {
+    const convId = decodeURIComponent(convDeliverMatch[1]);
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录' });
+    }
+    if (!supabase) {
+      return json(res, 503, { code: 503, message: '数据库未配置' });
+    }
+
+    let body;
+    try { body = await readBody(req); } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') return badRequest(res, '请求体不是合法 JSON');
+      throw error;
+    }
+
+    const myId = String(session.user.userId);
+    const myName = session.user.name || session.user.displayName || '匿名用户';
+
+    // 验证用户是对话参与方
+    const { data: conv } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('id', convId)
+      .single();
+
+    if (!conv) {
+      return json(res, 404, { code: 404, message: '对话不存在' });
+    }
+    if (conv.initiator_id !== myId && conv.receiver_id !== myId) {
+      return json(res, 403, { code: 403, message: '无权访问此对话' });
+    }
+
+    const skillId = String(body.skillId || '').trim();
+    const requirement = String(body.requirement || '').trim();
+    const selectedStyleId = String(body.selectedStyleId || '').trim();
+
+    if (!skillId) {
+      return badRequest(res, 'skillId 不能为空');
+    }
+
+    // 先发一条系统消息：正在生成交付
+    await supabase.from('messages').insert({
+      conversation_id: convId,
+      sender_id: myId,
+      sender_name: myName,
+      type: 'system',
+      content: '正在生成交付…'
+    });
+
+    // 调用交付引擎（与 /api/skills/hire 相同逻辑）
+    try {
+      const allAbilities = await loadAbilities();
+      let foundAbility = null;
+      let abilityOwnerId = null;
+
+      for (const [userId, abilities] of Object.entries(allAbilities)) {
+        if (!Array.isArray(abilities)) continue;
+        const match = abilities.find(a => a.id === skillId);
+        if (match) {
+          foundAbility = normalizeStoredAbility(match);
+          abilityOwnerId = userId;
+          break;
+        }
+      }
+
+      if (!foundAbility) {
+        throw new AppError('技能不存在或已下架', 404);
+      }
+
+      const workerLookup = workersMap(await loadProfiles());
+
+      // 构建临时任务对象
+      const tempTask = {
+        id: uid('hire'),
+        title: `雇佣: ${foundAbility.name}`,
+        description: requirement,
+        laborType: foundAbility.abilityType === 'image' ? 'studio-retouch' : 'custom:general',
+        laborTypeName: foundAbility.name,
+        requirements: requirement,
+        selectedStyleId: selectedStyleId || null,
+        status: 'IN_PROGRESS',
+        requesterAi: myName,
+        publisherId: myId,
+        assigneeId: myId,
+        budget: '',
+        deadline: '',
+        participants: [myId],
+        updates: [],
+        sync: { events: [], secondMeSessionId: null },
+        createdAt: nowIso(),
+        updatedAt: nowIso()
+      };
+
+      const delivery = await generateDelivery(tempTask, requirement, workerLookup, {
+        ability: foundAbility
+      });
+
+      const deliveryContent = delivery?.content || '交付完成';
+      const deliveryImages = delivery?.images || [];
+
+      // 存交付消息
+      const { data: deliveryMsg } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: convId,
+          sender_id: myId,
+          sender_name: myName,
+          type: 'delivery',
+          content: deliveryContent,
+          metadata: {
+            skillId,
+            skillName: foundAbility.name || '',
+            skillIcon: foundAbility.icon || '🔧',
+            images: deliveryImages
+          }
+        })
+        .select()
+        .single();
+
+      // 更新对话
+      await supabase.from('conversations').update({
+        last_message: '🎉 交付结果',
+        updated_at: new Date().toISOString()
+      }).eq('id', convId);
+
+      return json(res, 200, {
+        code: 0,
+        message: '交付成功',
+        data: deliveryMsg
+      });
+    } catch (err) {
+      // 发送错误消息
+      await supabase.from('messages').insert({
+        conversation_id: convId,
+        sender_id: myId,
+        sender_name: myName,
+        type: 'system',
+        content: `❌ 交付失败：${err.message || '未知错误'}`
+      });
+
+      return json(res, err.statusCode || 500, {
+        code: err.statusCode || 500,
+        message: err.message || '交付失败'
+      });
+    }
+  }
+
   if (method === 'GET' && pathname === '/api/tasks') {
     const tasks = await loadTasks();
     const workers = await loadProfiles();
