@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { promises as fs } from 'node:fs';
+import { promises as fs, createWriteStream } from 'node:fs';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,16 @@ const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 const WEB_DIR = path.join(__dirname, 'web');
 const IS_VERCEL = Boolean(process.env.VERCEL);
+
+// ── API 调用日志 ──────────────────────────────────────────────
+const API_LOG_FILE = path.join(__dirname, 'api_debug.log');
+const _apiLogStream = createWriteStream(API_LOG_FILE, { flags: 'a' });
+function apiLog(tag, data) {
+  const line = `[${new Date().toISOString()}] [${tag}] ${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}\n`;
+  process.stdout.write(line);
+  _apiLogStream.write(line);
+}
+// ─────────────────────────────────────────────────────────────
 const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'ai-labor-market') : path.join(__dirname, 'data');
 const LEGACY_UPLOADS_DIR = path.join(WEB_DIR, 'uploads');
 const UPLOADS_DIR = IS_VERCEL ? path.join(DATA_DIR, 'uploads') : LEGACY_UPLOADS_DIR;
@@ -2067,6 +2077,7 @@ async function callCustomApiImageGeneration({
   };
 
   const requestImagesGeneration = async (body) => {
+    apiLog('IMG_REQ', { url: imagesUrl, body: { ...body, prompt: body.prompt?.slice(0, 50) } });
     const response = await fetch(imagesUrl, {
       method: 'POST',
       headers: {
@@ -2079,23 +2090,22 @@ async function callCustomApiImageGeneration({
     const text = await response.text();
     let payload = {};
     try { payload = text ? JSON.parse(text) : {}; } catch { payload = {}; }
+    apiLog('IMG_RES', { url: imagesUrl, status: response.status, body: text.slice(0, 500) });
     return { response, text, payload };
   };
 
-  console.log(`[图像生成] 尝试 /images/generations: ${imagesUrl}, model=${modelName}`);
+  apiLog('IMG_START', { endpoint, model: modelName, isGeminiLike });
   const attempts = isGeminiLike ? [minimalBody, richBody] : [richBody, minimalBody];
   let imageAttempt = null;
   for (let i = 0; i < attempts.length; i += 1) {
     const body = attempts[i];
     const mode = body === minimalBody ? 'minimal' : 'rich';
-    if (i > 0) {
-      console.log(`[图像生成] /images/generations 第 ${i + 1} 次尝试 (${mode})`);
-    }
+    apiLog('IMG_ATTEMPT', { round: i + 1, mode });
     imageAttempt = await requestImagesGeneration(body);
     if (imageAttempt.response.ok) {
       const images = parseImagesFromPayload(imageAttempt.payload);
       if (images.length) {
-        console.log(`[图像生成] /images/generations 成功, ${images.length} 张图片`);
+        apiLog('IMG_SUCCESS', { endpoint: imagesUrl, imageCount: images.length });
         return { endpoint: imagesUrl, model: modelName, images };
       }
     }
@@ -2121,7 +2131,7 @@ async function callCustomApiImageGeneration({
   }
 
   let responsesAttempt = null;
-  console.log(`[图像生成] 尝试 /responses: ${responsesUrl}`);
+  apiLog('RESP_REQ', { url: responsesUrl, model: modelName });
   try {
     const response = await fetch(responsesUrl, {
       method: 'POST',
@@ -2135,11 +2145,12 @@ async function callCustomApiImageGeneration({
     let payload = {};
     try { payload = text ? JSON.parse(text) : {}; } catch { payload = {}; }
     responsesAttempt = { response, text, payload };
+    apiLog('RESP_RES', { url: responsesUrl, status: response.status, body: text.slice(0, 500) });
 
     if (responsesAttempt.response.ok) {
       const responseImages = extractImagesFromResponsesPayload(responsesAttempt.payload);
       if (responseImages.length) {
-        console.log(`[图像生成] /responses 成功, ${responseImages.length} 张图片`);
+        apiLog('RESP_SUCCESS', { imageCount: responseImages.length });
         return { endpoint: responsesUrl, model: modelName, images: responseImages };
       }
     }
@@ -2149,11 +2160,12 @@ async function callCustomApiImageGeneration({
       text: String(error?.message || 'request_failed'),
       payload: {}
     };
+    apiLog('RESP_ERROR', { error: error?.message });
   }
 
   // 策略3: 回退到 /chat/completions（Gemini 等多模态模型通过 chat 接口生成图片）
   const chatUrl = buildCustomApiUrl(endpoint, '/chat/completions');
-  console.log(`[图像生成] /images/generations 失败(${imageAttempt.response.status}), 回退 /chat/completions: ${chatUrl}`);
+  apiLog('CHAT_REQ', { url: chatUrl, imgStatus: imageAttempt.response.status });
 
   const chatBody = {
     model: modelName,
@@ -2179,10 +2191,10 @@ async function callCustomApiImageGeneration({
   });
 
   const chatText = await chatResponse.text();
-  let chatPayload = {};
-  try { chatPayload = chatText ? JSON.parse(chatText) : {}; } catch { chatPayload = {}; }
+  apiLog('CHAT_RES', { url: chatUrl, status: chatResponse.status, body: chatText.slice(0, 800) });
 
   if (!chatResponse.ok) {
+    apiLog('CHAT_FAIL', { status: chatResponse.status, imgStatus: imageAttempt.response.status, respStatus: responsesAttempt?.response?.status });
     throw new AppError(`图像生成 API 调用失败 (${chatResponse.status})`, 502, {
       endpoint: chatUrl,
       body: shortText(chatText, 800),
@@ -2199,17 +2211,49 @@ async function callCustomApiImageGeneration({
     });
   }
 
+  // 检测是否为 SSE 流式响应（content-type: text/event-stream 或以 "data: " 开头）
+  const chatContentType = chatResponse.headers.get('content-type') || '';
+  const isSseResponse = chatContentType.includes('text/event-stream') || chatText.trimStart().startsWith('data: ');
+
+  let chatPayload = {};
+  if (isSseResponse) {
+    // 解析 SSE chunks，拼接 content 并尝试从流中提取图片
+    apiLog('CHAT_SSE', { url: chatUrl, length: chatText.length });
+    let assembledContent = '';
+    for (const line of chatText.split('\n')) {
+      if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+      try {
+        const chunk = JSON.parse(line.slice(6));
+        const delta = chunk.choices?.[0]?.delta;
+        if (delta?.content) assembledContent += delta.content;
+      } catch { /* ignore malformed chunks */ }
+    }
+    // 将拼接好的内容包装成标准 chat 格式，复用现有提取逻辑
+    chatPayload = {
+      choices: [{
+        message: { role: 'assistant', content: assembledContent || null }
+      }]
+    };
+    apiLog('CHAT_SSE_ASSEMBLED', { contentLength: assembledContent.length });
+  } else {
+    try { chatPayload = chatText ? JSON.parse(chatText) : {}; } catch { chatPayload = {}; }
+  }
+
   // 从 chat/completions 响应中提取图片
   const images = extractImagesFromChatResponse(chatPayload);
 
   if (!images.length) {
-    // 如果没提取到图片，但有文字内容，也许模型返回了描述而非图片
-    const textContent = chatPayload?.choices?.[0]?.message?.content || '';
+    // content 为 null 可能是服务端错误（如模型容量不足），而非模型不支持图像生成
+    const rawContent = chatPayload?.choices?.[0]?.message?.content;
+    const contentSnippet = rawContent ? shortText(String(rawContent), 300) : '(empty)';
     const imgErr = shortText(imageAttempt?.text || '', 200);
     const suffix = imgErr ? `；/images 响应: ${imgErr}` : '';
-    throw new AppError(`图像生成未返回有效图片，模型可能不支持图像生成${suffix}`, 502, {
+    const reason = rawContent === null
+      ? '服务端返回内容为空，可能是模型容量不足或服务暂时不可用'
+      : '模型未返回图片数据，可能不支持图像生成';
+    throw new AppError(`图像生成失败：${reason}${suffix}`, 502, {
       endpoint: chatUrl,
-      response: shortText(textContent, 500),
+      response: contentSnippet,
       imageGenerationError: {
         endpoint: imagesUrl,
         status: imageAttempt.response.status,

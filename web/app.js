@@ -1245,10 +1245,22 @@ async function refreshEverything() {
 }
 
 // ===== 初始化 =====
-function bootstrap() {
-  refreshEverything();
-  // 默认加载技能大厅数据
+let chatPollTimer = null;
+async function bootstrap() {
+  await refreshEverything();
   loadSkillHall();
+  // 登录后同步后端对话
+  syncConversationsFromServer();
+  // 轮询新消息（每 10 秒）
+  if (chatPollTimer) clearInterval(chatPollTimer);
+  chatPollTimer = setInterval(async () => {
+    if (!canOperate()) return;
+    const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
+    if (conv) {
+      await fetchServerMessages(conv);
+      if (chatState.activeConversationId === conv.id) renderChatMessages(conv);
+    }
+  }, 10000);
 }
 
 // 事件绑定
@@ -2192,6 +2204,70 @@ function persistConversations() {
 
 loadConversations();
 
+// 从后端拉取对话列表并合并到本地
+async function syncConversationsFromServer() {
+  if (!canOperate()) return;
+  try {
+    const res = await api('/api/conversations');
+    const serverConvs = res.data || [];
+    for (const sc of serverConvs) {
+      // 用 serverConvId 或 ref_id 匹配本地对话
+      let local = chatState.conversations.find(c => c.serverConvId === sc.id)
+        || chatState.conversations.find(c => c.refId === sc.ref_id);
+      if (local) {
+        local.serverConvId = sc.id;
+      } else {
+        // 后端有但本地没有 — 是对方发起的对话，创建本地记录
+        const myId = String(state.me?.userId || state.me?.id || '');
+        const iAmInitiator = sc.initiator_id === myId;
+        chatState.conversations.unshift({
+          id: `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          serverConvId: sc.id,
+          role: iAmInitiator ? 'demand' : 'worker',
+          refId: sc.ref_id,
+          peerId: iAmInitiator ? sc.receiver_id : sc.initiator_id,
+          peerName: iAmInitiator ? sc.receiver_name : sc.initiator_name,
+          peerAvatar: iAmInitiator ? (sc.receiver_avatar || '') : (sc.initiator_avatar || ''),
+          title: sc.title || '对话',
+          desc: '',
+          messages: [],
+          createdAt: sc.created_at,
+          updatedAt: sc.updated_at
+        });
+      }
+    }
+    persistConversations();
+    renderChatList();
+  } catch (e) { console.warn('拉取后端对话失败', e); }
+}
+
+// 从后端拉取对话消息并合并
+async function fetchServerMessages(conv) {
+  if (!conv.serverConvId || !canOperate()) return;
+  try {
+    const res = await api(`/api/conversations/${conv.serverConvId}/messages`);
+    const serverMsgs = res.data || [];
+    if (!serverMsgs.length) return;
+    const myId = String(state.me?.userId || state.me?.id || '');
+    // 转换后端消息格式为本地格式
+    const converted = serverMsgs.map(m => ({
+      type: m.type === 'system' ? 'system' : (m.sender_id === myId ? 'self' : 'peer'),
+      text: m.content,
+      time: m.created_at,
+      serverId: m.id
+    }));
+    // 合并：用 serverId 去重，保留本地独有消息
+    const existingServerIds = new Set(conv.messages.filter(m => m.serverId).map(m => m.serverId));
+    const newMsgs = converted.filter(m => !existingServerIds.has(m.serverId));
+    if (newMsgs.length) {
+      conv.messages.push(...newMsgs);
+      conv.messages.sort((a, b) => new Date(a.time) - new Date(b.time));
+      conv.updatedAt = new Date().toISOString();
+      persistConversations();
+    }
+  } catch (e) { console.warn('拉取消息失败', e); }
+}
+
 // 折叠/展开
 function toggleChatModule() {
   chatState.collapsed = !chatState.collapsed;
@@ -2461,6 +2537,14 @@ function switchConversation(convId) {
 
   renderChatDialog();
   renderChatList();
+
+  // 异步拉取后端消息
+  const conv = chatState.conversations.find(c => c.id === convId);
+  if (conv) {
+    fetchServerMessages(conv).then(() => {
+      if (chatState.activeConversationId === convId) renderChatMessages(conv);
+    });
+  }
 }
 
 // 返回列表
@@ -2488,7 +2572,7 @@ chatListEl?.addEventListener('click', (e) => {
 });
 
 // 打开/创建对话（统一入口）
-function openConversation(role, data) {
+async function openConversation(role, data) {
   // role: 'demand' | 'worker'
   // data: skill 或 task 对象
 
@@ -2523,6 +2607,24 @@ function openConversation(role, data) {
     };
     chatState.conversations.unshift(conv);
     persistConversations();
+  }
+
+  // 同步到后端（已登录时）
+  if (canOperate() && !conv.serverConvId) {
+    try {
+      const result = await api('/api/conversations', {
+        method: 'POST',
+        body: {
+          refId, refType: isDemand ? 'skill' : 'task',
+          receiverId: peerId, receiverName: peerName,
+          receiverAvatar: peerAvatar, title
+        }
+      });
+      if (result.data?.id) {
+        conv.serverConvId = result.data.id;
+        persistConversations();
+      }
+    } catch (e) { console.warn('同步对话到后端失败', e); }
   }
 
   // 确保模块展开
@@ -2564,6 +2666,14 @@ async function sendChatMessage() {
 
   renderChatMessages(conv);
   persistConversations();
+
+  // 同步消息到后端
+  if (canOperate() && conv.serverConvId) {
+    api(`/api/conversations/${conv.serverConvId}/messages`, {
+      method: 'POST',
+      body: { content: userMsg.text, type: skill ? 'skill_request' : 'text' }
+    }).catch(e => console.warn('同步消息失败', e));
+  }
 
   // 如果选择了技能，调用 API 生成交付
   if (skill && conv.role === 'worker') {
