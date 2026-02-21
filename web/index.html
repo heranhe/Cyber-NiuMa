@@ -19,16 +19,16 @@
       theme: {
         extend: {
           colors: {
-            primary: "#D97706",
-            "background-light": "#FDFBF7",
-            "background-dark": "#1F1F1F",
+            primary: "#D97706", // Brighter, more energetic orange
+            "background-light": "#FDFBF7", // Warmer off-white matching the mockups
+            "background-dark": "#121212", // Deeper dark mode
             "surface-light": "#FFFFFF",
-            "surface-dark": "#2D2D2D",
-            "border-light": "#E5E7EB",
-            "border-dark": "#404040",
-            "text-light": "#1F2937",
+            "surface-dark": "#1E1E1E", // Slightly elevated dark surface
+            "border-light": "#E5E7EB", // Soft borders for light mode
+            "border-dark": "#2D2D2D",
+            "text-light": "#1F2937", // Main text
             "text-dark": "#F3F4F6",
-            "subtext-light": "#6B7280",
+            "subtext-light": "#6B7280", // Secondary text (timestamps, descriptions)
             "subtext-dark": "#9CA3AF",
           },
           fontFamily: {
@@ -101,76 +101,80 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
       <!-- 左侧主区域 -->
       <div id="hall-panel" class="lg:col-span-9 space-y-6">
-        <!-- 标签页切换 + 搜索 + 筛选 (Sticky 工具栏) -->
+        <!-- 移动端优先: 标签页切换 + 搜索 + 筛选 (Sticky 工具栏) -->
         <div
-          class="safe-top-toolbar flex flex-col md:flex-row items-center justify-between gap-4 py-2 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur rounded-xl sticky z-10">
-          <div class="flex items-center w-full md:w-auto gap-2">
-            <!-- Pill Toggle 标签页 -->
-            <div
-              class="flex bg-white dark:bg-surface-dark p-1 rounded-xl shadow-sm border border-gray-100 dark:border-border-dark w-full md:w-auto">
-              <button
-                class="main-tab is-active flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-2 rounded-lg text-sm font-bold bg-gray-900 dark:bg-white text-white dark:text-black shadow-md transition-all"
-                data-tab="skill-hall">
-                <span class="material-icons-round text-lg">school</span>
-                技能大厅
-              </button>
-              <button
-                class="main-tab flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-2 rounded-lg text-sm font-medium text-subtext-light dark:text-subtext-dark hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white transition-all"
-                data-tab="task-hall">
-                <span class="material-icons-round text-lg">storefront</span>
-                任务大厅
-              </button>
-            </div>
-            <!-- 搜索框（桌面端显示） -->
-            <div class="hidden md:flex relative group flex-grow max-w-md w-64">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span class="material-icons-round text-gray-400 text-lg">search</span>
+          class="safe-top-toolbar sticky top-0 z-40 bg-background-light dark:bg-background-dark/95 backdrop-blur-md pt-[env(safe-area-inset-top,0px)] pb-2 shadow-sm -mx-4 px-4 sm:mx-0 sm:px-0 sm:rounded-xl">
+          <div class="flex flex-col gap-3 pt-3">
+
+            <!-- 第一行：搜索框与通知 -->
+            <div class="flex items-center gap-3">
+              <div class="relative flex-1">
+                <span
+                  class="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
+                <input id="search-input" type="text" placeholder="探索 AI 技能与数字服务..."
+                  class="w-full h-10 pl-10 pr-4 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-full text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm transition-all text-gray-900 dark:text-white placeholder-gray-400">
               </div>
-              <input id="search-input"
-                class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder-gray-400"
-                placeholder="搜索任务需求..." type="text" />
-            </div>
-            <!-- 搜索图标（手机端，点击展开搜索框） -->
-            <button id="mobile-search-toggle"
-              class="md:hidden flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark shadow-sm text-gray-500 hover:text-primary transition-colors"
-              aria-label="搜索">
-              <span class="material-icons-round text-lg">search</span>
-            </button>
-          </div>
-          <!-- 手机端搜索框展开区 (默认隐藏) -->
-          <div id="mobile-search-bar" class="hidden md:hidden w-full px-0 pb-1">
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span class="material-icons-round text-gray-400 text-lg">search</span>
-              </div>
-              <input id="search-input-mobile"
-                class="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder-gray-400"
-                placeholder="搜索任务或技能..." type="text" />
-              <button id="mobile-search-close"
-                class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
-                <span class="material-icons-round text-lg">close</span>
+              <button
+                class="relative w-10 h-10 rounded-full bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark flex items-center justify-center flex-shrink-0 shadow-sm text-gray-600 dark:text-gray-300 hover:text-primary transition-colors">
+                <span class="material-icons-round text-[20px]">notifications_none</span>
+                <span
+                  class="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-red-500 border border-white dark:border-surface-dark"></span>
               </button>
             </div>
-          </div>
-          <!-- 状态筛选标签 -->
-          <div class="filter-scroll-wrap w-full md:w-auto">
-            <div id="status-filters" class="flex space-x-2 overflow-x-auto no-scrollbar pb-1 md:pb-0">
+
+            <!-- 第二行：分段控制器 (技能/需求大厅) -->
+            <div class="flex p-1 bg-gray-100 dark:bg-surface-dark rounded-[16px]">
               <button
-                class="filter is-active whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20"
-                data-status="ALL">全部</button>
+                class="main-tab is-active flex-1 h-9 text-[13px] font-bold rounded-xl text-gray-900 dark:text-gray-900 bg-white shadow-sm transition-all"
+                data-tab="skill-hall">技能大厅</button>
               <button
-                class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-                data-status="OPEN">待接单</button>
-              <button
-                class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-                data-status="IN_PROGRESS">进行中</button>
-              <button
-                class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-                data-status="DELIVERED">已交付</button>
-              <button
-                class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-                data-status="MY_PUBLISHED">我的派发</button>
+                class="main-tab flex-1 h-9 text-[13px] font-medium rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all flex items-center justify-center gap-1"
+                data-tab="task-hall"><span class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>需求大厅</button>
             </div>
+
+            <!-- 第三行：横向滚动筛选标签 -->
+            <!-- 技能大厅的子分类 -->
+            <div id="skill-categories-container" class="filter-scroll-wrap -mx-4 px-4 overflow-hidden mt-1">
+              <div id="skill-category-filters" class="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                <button
+                  class="skill-category-filter is-active px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap bg-gray-900 text-white dark:bg-primary dark:text-white"
+                  data-category="all">推荐</button>
+                <button
+                  class="skill-category-filter px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark text-gray-600 dark:text-gray-300"
+                  data-category="image">AIGC</button>
+                <button
+                  class="skill-category-filter px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark text-gray-600 dark:text-gray-300"
+                  data-category="program">程序开发</button>
+                <button
+                  class="skill-category-filter px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark text-gray-600 dark:text-gray-300"
+                  data-category="writing">文案</button>
+                <button
+                  class="skill-category-filter px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark text-gray-600 dark:text-gray-300"
+                  data-category="other">翻译</button>
+              </div>
+            </div>
+
+            <!-- 需求大厅的状态筛选 -->
+            <div id="task-status-container" class="filter-scroll-wrap -mx-4 px-4 overflow-hidden mt-1 hidden">
+              <div id="status-filters" class="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                <button
+                  class="filter is-active px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap bg-gray-900 text-white dark:bg-primary dark:text-white border border-transparent"
+                  data-status="ALL">全部</button>
+                <button
+                  class="filter px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                  data-status="OPEN">待接单</button>
+                <button
+                  class="filter px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                  data-status="IN_PROGRESS">进行中</button>
+                <button
+                  class="filter px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                  data-status="DELIVERED">已交付</button>
+                <button
+                  class="filter px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                  data-status="MY_PUBLISHED">我的派发</button>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -360,40 +364,58 @@
               </div>
             </div>
 
-            <!-- 对话框（默认隐藏） -->
+            <!-- 会话详情页（默认隐藏） -->
             <div id="chat-dialog-view" class="hidden flex flex-col" style="max-height: 80vh;">
-              <!-- 对话头部 -->
+              <!-- 新版对话头部 (包含 BUYER/SELLER 标识和任务标题) -->
               <div id="chat-header"
-                class="px-4 py-3 border-b border-gray-100 dark:border-border-dark bg-gray-50/50 dark:bg-gray-800/50">
+                class="px-4 py-3 border-b border-gray-100 dark:border-border-dark bg-white dark:bg-surface-dark">
                 <div class="flex items-center gap-3">
                   <button id="chat-back-btn" type="button"
-                    class="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 transition-colors flex-shrink-0">
+                    class="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 transition-colors flex-shrink-0">
                     <span class="material-icons-round text-lg">arrow_back</span>
                   </button>
                   <img id="chat-peer-avatar" src="" alt=""
-                    class="w-9 h-9 rounded-full border border-gray-200 dark:border-gray-600 flex-shrink-0" />
+                    class="w-10 h-10 rounded-full border-2 border-gray-100 dark:border-border-dark flex-shrink-0 object-cover" />
                   <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1.5">
                       <span id="chat-peer-name"
-                        class="text-sm font-bold text-gray-900 dark:text-white truncate">对方名称</span>
-                      <span id="chat-role-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold">提需求</span>
+                        class="text-[15px] font-black text-gray-900 dark:text-white truncate">对方名称</span>
+                      <!-- 角色标识：BUYER / SELLER -->
+                      <span id="chat-role-badge"
+                        class="px-2 py-0.5 rounded text-[10px] font-black flex-shrink-0 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">BUYER</span>
                     </div>
                     <p id="chat-peer-title"
-                      class="text-[11px] text-subtext-light dark:text-subtext-dark truncate mt-0.5">技能/任务标题</p>
+                      class="text-[12px] text-subtext-light dark:text-subtext-dark truncate mt-0.5 font-medium">技能/任务标题
+                    </p>
+                  </div>
+                  <!-- 右侧操作按钮组 -->
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      class="w-8 h-8 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 transition-colors">
+                      <span class="material-icons-round text-[18px]">more_horiz</span>
+                    </button>
                   </div>
                 </div>
               </div>
 
               <!-- 消息流 -->
-              <div id="chat-messages" class="flex-1 overflow-y-auto px-4 py-3 space-y-3 no-scrollbar"
+              <div id="chat-messages"
+                class="flex-1 overflow-y-auto px-4 py-4 space-y-3 no-scrollbar bg-gray-50/30 dark:bg-background-dark/30"
                 style="min-height: 200px; max-height: 50vh;">
                 <!-- 消息气泡由 JS 动态渲染 -->
               </div>
 
               <!-- 输入区域 -->
-              <div id="chat-input-area" class="border-t border-gray-100 dark:border-border-dark p-3 space-y-2">
-                <!-- 技能选择器 -->
-                <div class="relative">
+              <div id="chat-input-area"
+                class="border-t border-gray-100 dark:border-border-dark bg-white dark:bg-surface-dark space-y-2">
+
+                <!-- 技能快捷列表 (Available Skills) - 仅接单方可见 -->
+                <div id="available-skills-strip" class="hidden px-3 pt-3 overflow-x-auto no-scrollbar flex gap-2 pb-1">
+                  <!-- JS 动态渲染各个快捷技能片居 -->
+                </div>
+
+                <!-- 技能选择器 (Worker角色下) -->
+                <div class="relative px-3 pt-2" id="chat-skill-selector-wrapper">
                   <button id="chat-skill-selector" type="button"
                     class="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 hover:border-primary/50 transition-colors">
                     <div class="flex items-center gap-2 min-w-0">
@@ -405,7 +427,7 @@
                   </button>
                   <!-- 技能下拉列表 -->
                   <div id="chat-skill-dropdown"
-                    class="hidden absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark rounded-xl shadow-lg overflow-hidden z-20">
+                    class="hidden absolute bottom-full left-3 right-3 mb-1 bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark rounded-xl shadow-lg overflow-hidden z-20">
                     <div class="max-h-48 overflow-y-auto no-scrollbar py-1">
                       <!-- 技能列表由 JS 动态渲染 -->
                     </div>
@@ -413,36 +435,36 @@
                 </div>
 
                 <!-- 选中的技能胶囊 -->
-                <div id="chat-selected-skill-capsule" class="hidden">
+                <div id="chat-selected-skill-capsule" class="hidden px-3">
                   <!-- 由 JS 渲染 -->
                 </div>
 
-                <!-- 输入框和发送 -->
-                <div class="flex gap-2 items-end">
+                <!-- 输入框和发送按钮 -->
+                <div class="flex gap-2 items-end px-3 pb-2">
                   <textarea id="chat-input"
-                    class="flex-1 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 resize-none focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                    class="flex-1 px-3 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 resize-none focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                     placeholder="输入消息…" rows="2"></textarea>
                   <button id="chat-send-btn" type="button"
-                    class="flex-shrink-0 w-10 h-10 rounded-xl bg-primary hover:bg-amber-700 text-white flex items-center justify-center transition-colors shadow-sm">
+                    class="flex-shrink-0 w-10 h-10 rounded-2xl bg-primary hover:bg-amber-700 text-white flex items-center justify-center transition-colors shadow-sm">
                     <span class="material-icons-round text-lg">send</span>
                   </button>
                 </div>
 
-                <!-- 提交需求按钮（仅需求方可见） -->
+                <!-- 发送正式需求书 CTA 按钮（仅需求方可见） -->
                 <button id="chat-submit-demand-btn" type="button"
-                  class="hidden w-full py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl text-sm font-bold hover:from-orange-600 hover:to-amber-700 transition-all flex items-center justify-center gap-1.5 shadow-sm">
-                  <span class="material-icons-round text-sm">send</span>
-                  提交需求给对方
+                  class="hidden mx-3 mb-3 w-[calc(100%-24px)] py-3.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl text-[14px] font-black tracking-tight hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-md">
+                  <span class="material-icons-round text-[18px]">description</span>
+                  发送正式需求书
                 </button>
 
                 <!-- 发送选项 -->
-                <div class="flex items-center justify-between text-[11px]">
+                <div class="flex items-center justify-between px-3 pb-2 text-[11px]">
                   <label class="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 cursor-pointer">
                     <input id="chat-auto-send" type="checkbox"
                       class="form-checkbox w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary" />
                     生成后自动发送
                   </label>
-                  <span id="chat-delivery-hint" class="text-gray-400 dark:text-gray-500 hidden">将调用技能生成交付</span>
+                  <span id="chat-delivery-hint" class="text-primary hidden font-medium">将调用技能生成交付</span>
                 </div>
               </div>
             </div>
@@ -823,8 +845,93 @@
     <div id="m-chat-container"></div>
   </div>
 
-  <div id="m-tab-me" class="mobile-tab-panel lg:hidden hidden pt-4 px-4 space-y-4">
-    <!-- 我的 Tab：JS 会将 AI分身卡、发布按钮、工作台挪到这里 -->
+  <div id="m-tab-me" class="mobile-tab-panel lg:hidden hidden pt-4 px-4 space-y-4 pb-20">
+    <!-- 顶部状态栏及操作按钮 -->
+    <div class="flex justify-between items-center px-2">
+      <h2 class="text-xl font-black text-gray-900 dark:text-white">Me</h2>
+      <div class="flex gap-2">
+        <button
+          class="w-8 h-8 rounded-full bg-gray-100 dark:bg-surface-dark flex items-center justify-center text-gray-600 dark:text-gray-300">
+          <span class="material-icons-round text-[18px]">settings</span>
+        </button>
+        <button
+          class="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
+          <span class="material-icons-round text-[18px]">smart_toy</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 个人信息与头像 -->
+    <div class="flex flex-col items-center mt-2 relative">
+      <div class="relative">
+        <img id="m-me-avatar" src="https://ui-avatars.com/api/?name=User&background=random"
+          class="w-24 h-24 rounded-full border-4 border-white dark:border-background-dark shadow-sm object-cover"
+          alt="User Avatar">
+        <button
+          class="absolute bottom-0 right-0 w-7 h-7 bg-primary text-white rounded-full flex items-center justify-center border-2 border-white dark:border-background-dark shadow-sm">
+          <span class="material-icons-round text-[14px]">edit</span>
+        </button>
+      </div>
+      <h3 id="m-me-name" class="mt-3 text-2xl font-black text-gray-900 dark:text-white">小布 AI</h3>
+      <p id="m-me-title" class="text-sm font-medium text-subtext-light dark:text-subtext-dark mt-1">Full Stack AI
+        Developer & Prompt Engineer</p>
+
+      <!-- 徽章区域 -->
+      <div class="flex items-center gap-2 mt-2">
+        <span
+          class="px-2.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-[11px] font-bold">Lv.
+          8</span>
+        <span
+          class="px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[11px] font-bold">Pro</span>
+      </div>
+    </div>
+
+    <!-- 统记数据卡片 -->
+    <div
+      class="bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-border-light dark:border-border-dark p-4 mt-4">
+      <div class="grid grid-cols-3 divide-x divide-gray-100 dark:divide-border-dark">
+        <div class="text-center">
+          <div id="m-stat-projects" class="text-xl font-black text-gray-900 dark:text-white">128</div>
+          <div class="text-[10px] font-bold text-subtext-light dark:text-subtext-dark mt-1 uppercase tracking-wider">
+            PROJECTS</div>
+        </div>
+        <div class="text-center">
+          <div id="m-stat-likes" class="text-xl font-black text-gray-900 dark:text-white">2.4k</div>
+          <div class="text-[10px] font-bold text-subtext-light dark:text-subtext-dark mt-1 uppercase tracking-wider">
+            LIKES</div>
+        </div>
+        <div class="text-center">
+          <div id="m-stat-skills" class="text-xl font-black text-gray-900 dark:text-white">56</div>
+          <div class="text-[10px] font-bold text-subtext-light dark:text-subtext-dark mt-1 uppercase tracking-wider">
+            SKILLS</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 已配置的 AI 能力列表 -->
+    <div class="mt-6">
+      <h3 class="flex items-center gap-2 text-base font-bold text-gray-900 dark:text-white mb-3">
+        <span class="material-icons-round text-primary text-xl">psychology</span>
+        Active AI Capabilities
+      </h3>
+
+      <div id="m-active-capabilities-list" class="space-y-3">
+        <!-- JS 动态渲染的列表项将放在这里 -->
+
+        <!-- 空状态占位 -->
+        <div id="m-capabilities-empty" class="text-center py-6 hidden">
+          <span class="material-icons-round text-3xl text-gray-300 dark:text-gray-600 mb-2">extension</span>
+          <p class="text-sm text-subtext-light dark:text-subtext-dark">尚未开启任何 AI 分身能力</p>
+        </div>
+      </div>
+
+      <!-- 添加新能力按钮 -->
+      <button onclick="openAbilityModal()"
+        class="w-full mt-4 py-3 border-2 border-dashed border-border-light dark:border-border-dark rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-subtext-light hover:text-primary hover:border-primary/50 hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-colors">
+        <span class="material-icons-round text-lg">add</span>
+        Add New Capability
+      </button>
+    </div>
   </div>
 
   <!-- ===== 手机端底部 Tab Bar (lg:hidden) ===== -->
@@ -857,6 +964,23 @@
       <span class="tab-label">我的</span>
     </button>
   </nav>
+
+  <!-- ===== 交付技能控制面板 (Delivery Bottom Sheet) ===== -->
+  <div id="delivery-sheet-overlay" class="bottom-sheet-overlay" onclick="window.closeDeliverySheet()"></div>
+
+  <div id="delivery-bottom-sheet" class="bottom-sheet">
+    <!-- 拖动把 -->
+    <div class="bottom-sheet-handle"></div>
+
+    <!-- 可滚动内容区 -->
+    <div id="delivery-sheet-content" class="flex-1 overflow-y-auto">
+      <!-- JS 动态填充 -->
+      <div class="p-6 text-center text-gray-400">
+        <span class="material-icons-round text-3xl mb-2 text-gray-300">psychology</span>
+        <p class="text-sm">请选择一个技能开始交付</p>
+      </div>
+    </div>
+  </div>
 
   <!-- Supabase JS Client (仅用于 Realtime 消息监听) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>

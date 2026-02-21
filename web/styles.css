@@ -169,19 +169,21 @@
   border-radius: 20px;
 }
 
-/* ===== 隐藏滚动条 ===== */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
 /* ===== 筛选栏右侧渐变遮罩（提示还有更多可横滑） ===== */
 .filter-scroll-wrap {
   position: relative;
+}
+
+.filter-scroll-wrap::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1rem;
+  background: linear-gradient(to left, transparent, var(--filter-fade-color, #FDFBF7));
+  pointer-events: none;
+  z-index: 2;
 }
 
 .filter-scroll-wrap::after {
@@ -196,8 +198,143 @@
   z-index: 2;
 }
 
-.dark .filter-scroll-wrap::after {
-  --filter-fade-color: #1F1F1F;
+.dark .filter-scroll-wrap::after,
+.dark .filter-scroll-wrap::before {
+  --filter-fade-color: #121212;
+}
+
+/* ===== iOS Style Toggle Switch ===== */
+.ios-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.ios-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #E5E7EB;
+  transition: .3s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+input:checked+.toggle-slider {
+  background-color: #D97706;
+  /* Primary Color */
+}
+
+input:checked+.toggle-slider:before {
+  transform: translateX(20px);
+}
+
+/* ===== Bottom Sheet Modal ===== */
+.bottom-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.bottom-sheet-overlay.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #FFFFFF;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  transform: translateY(100%);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 101;
+  max-height: 90vh;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.dark .bottom-sheet {
+  background: #1E1E1E;
+  /* surface-dark */
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.bottom-sheet.show {
+  transform: translateY(0);
+}
+
+.bottom-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: #E5E7EB;
+  border-radius: 4px;
+  margin: 12px auto;
+}
+
+.dark .bottom-sheet-handle {
+  background: #4B5563;
+}
+
+/* Glass Pannel for PROMPT POLISH inside bottom sheet */
+.prompt-polish-card {
+  background: rgba(249, 250, 251, 0.8);
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.dark .prompt-polish-card {
+  background: rgba(31, 41, 55, 0.7);
+  border-color: #374151;
+}
+
+/* Tag style for tags inside sheet e.g. #FilmLook */
+.tag-pill {
+  font-size: 10px;
+  font-weight: 500;
+  color: #6B7280;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 4px 8px;
+  background: #FFFFFF;
+}
+
+.dark .tag-pill {
+  background: #374151;
+  color: #D1D5DB;
+  border-color: #4B5563;
 }
 
 /* ===== 能力标签悬浮提示 ===== */

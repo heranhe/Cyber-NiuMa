@@ -305,47 +305,52 @@ function renderTaskCard(task, index) {
 
   // 优先使用任务自带封面图，否则用随机封面
   const coverImg = task.coverImage || COVER_IMAGES[index % COVER_IMAGES.length];
-  // 有自定义封面时不强制比例，让图片高度自适应；无自定义封面用随机比例
-  const hasCustomCover = !!task.coverImage;
-  const aspectRatio = hasCustomCover ? '' : ASPECT_RATIOS[index % ASPECT_RATIOS.length];
-  const imgClass = hasCustomCover
-    ? 'w-full h-auto object-contain transform group-hover:scale-110 transition-transform duration-700 ease-in-out'
-    : 'w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-in-out';
   const publisherName = task.publisherName || task.requesterAi || '';
-  const publisherMeta = renderCardUserMeta(publisherName, task.publisherAvatar);
-
-  // 按钮配置
-  let actionBtn = '';
-  if (task.status === 'OPEN' && canOperate()) {
-    actionBtn = `<button class="task-action flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="join-chat" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">forum</span> 加入对话</button>`;
-  } else if (task.status === 'IN_PROGRESS' && canOperate()) {
-    actionBtn = `<button class="task-action flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="join-chat" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">forum</span> 加入对话</button>`;
-  } else if (task.status === 'DELIVERED') {
-    actionBtn = `<button class="task-action flex-1 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1" data-action="view" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">visibility</span> 查看</button>`;
-  } else {
-    actionBtn = `<button class="task-action flex-1 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1" data-action="view" data-task-id="${task.id}"><span class="material-symbols-outlined text-[16px]">visibility</span> 查看</button>`;
-  }
+  const publisherAvatar = task.publisherAvatar ? task.publisherAvatar : `https://ui-avatars.com/api/?name=${encodeURIComponent(publisherName || 'U')}&background=random&size=64`;
 
   return `
-    <div class="masonry-item bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-task-id="${task.id}">
-      <div class="relative m-2 rounded-xl overflow-hidden ${aspectRatio}">
-        <img alt="${escapeHtml(task.title)}" class="${imgClass}" src="${coverImg}" />
-        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80"></div>
-        ${task.budget ? `<span class="absolute top-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-black/40 backdrop-blur-sm text-white border border-white/20">¥ ${escapeHtml(String(task.budget))}</span>` : ''}
-        <span class="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] font-bold ${statusBg} ${statusTextColor} shadow-sm z-10">${statusLabel}</span>
-        <!-- 悬浮按钮：hover 时显示在封面底部 -->
-        <div class="card-hover-gradient"></div>
-        <div class="card-hover-buttons">
-          <button class="task-action flex-1 py-2 rounded-lg text-[11px] font-bold bg-white text-gray-800 hover:bg-gray-100 shadow-sm transition-all flex items-center justify-center gap-1" data-action="view" data-task-id="${task.id}">
-            <span class="material-symbols-outlined text-[16px]">forum</span> 讨论
-          </button>
-          ${actionBtn}
+    <div class="masonry-item mb-4 group cursor-pointer" onclick="openDetailPanel('task', state.tasks.find(t=>t.id==='${task.id}'))">
+      <div class="bg-white dark:bg-surface-dark rounded-[24px] shadow-sm border border-border-light dark:border-border-dark overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg">
+        
+        <!-- 左上角徽章 (Lv.9专家等模拟数据) -->
+        <div class="absolute top-3 left-3 z-10 flex gap-1.5">
+          <span class="px-2.5 py-1 rounded-[8px] bg-black/60 backdrop-blur-md text-white text-[10px] font-bold">Lv. ${8 + (index % 2)}</span>
+          <span class="px-2.5 py-1 text-primary text-[10px] font-bold shadow-sm rounded-[8px] ${index % 2 === 0 ? 'bg-white/80 backdrop-blur-md' : 'hidden'}">官方认证</span>
         </div>
-      </div>
-      <div class="px-4 pb-4 pt-1 flex flex-col cursor-pointer" onclick="openDetailPanel('task', state.tasks.find(t=>t.id==='${task.id}'))">
-        <h3 class="font-bold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors text-base mb-2" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</h3>
-        <p class="text-xs text-subtext-light dark:text-subtext-dark line-clamp-3 mb-3 leading-relaxed">${escapeHtml(task.description)}</p>
-        ${publisherMeta}
+
+        <!-- 封面图 -->
+        <div class="aspect-[4/3] w-full relative overflow-hidden bg-gray-100 dark:bg-gray-800">
+          <img src="${coverImg}" class="w-full h-full object-cover transition-transform duration-700 ease-in-out group-hover:scale-105" alt="Cover" loading="lazy">
+        </div>
+        
+        <div class="p-3.5 flex flex-col flex-1 divide-y divide-gray-100 dark:divide-border-dark/50">
+          <!-- 上半部：内容与用户信息 -->
+          <div class="pb-3 px-0.5">
+            <h3 class="text-[15px] font-black leading-[1.3] text-gray-900 dark:text-white line-clamp-2 mb-2">
+              ${escapeHtml(task.title)}
+            </h3>
+            
+            <div class="flex items-center gap-2 mt-2">
+              <img src="${publisherAvatar}" class="w-[18px] h-[18px] rounded-full object-cover border border-gray-100 dark:border-border-dark">
+              <span class="text-[12px] text-subtext-light dark:text-subtext-dark font-medium line-clamp-1">${escapeHtml(publisherName || 'Anonymous')}</span>
+            </div>
+          </div>
+
+          <!-- 下半部：价格与操作 -->
+          <div class="pt-2.5 px-0.5 flex justify-between items-end mt-auto">
+             <div>
+                <div class="text-[9px] text-gray-400 font-bold mb-0.5 uppercase tracking-wider">STARTING AT</div>
+                <div class="text-[16px] font-black text-gray-900 dark:text-white tracking-tight">
+                  <span class="text-[12px] font-bold mr-[1px]">¥</span>${typeof task.price === 'number' ? task.price : (task.price || '800')}
+                </div>
+             </div>
+             
+             <!-- 发布方/接单方 的按钮区分 -->
+             <button class="w-8 h-8 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-primary hover:text-white transition-colors" data-action="view" data-task-id="${task.id}" onclick="event.stopPropagation(); window.openDetailPanel('task', state.tasks.find(t=>t.id==='${task.id}'))">
+                <span class="material-icons-round text-[18px]">${state.filter === 'MY_PUBLISHED' ? 'arrow_forward' : 'add'}</span>
+             </button>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -466,7 +471,76 @@ function renderAIAvatar() {
 function renderWorkerProfile() {
   renderSkillsList();
   renderAIAvatar();
+  renderMobileMePage(); // Render the new mobile Me tab
 }
+
+function renderMobileMePage() {
+  const mAvatar = document.querySelector('#m-me-avatar');
+  const mName = document.querySelector('#m-me-name');
+  const capList = document.querySelector('#m-active-capabilities-list');
+  const emptyHint = document.querySelector('#m-capabilities-empty');
+  const statSkills = document.querySelector('#m-stat-skills');
+  const statProjects = document.querySelector('#m-stat-projects');
+
+  if (!state.me) {
+    // Not logged in fallback
+    if (mName) mName.textContent = '游客访客';
+    if (emptyHint) emptyHint.classList.remove('hidden');
+    if (capList) capList.innerHTML = '';
+    return;
+  }
+
+  // Populate Header
+  if (mAvatar) mAvatar.src = state.me.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(state.me.name || 'User')}&background=random`;
+  if (mName) mName.textContent = state.me.name || '小布 AI';
+
+  // Populate Stats (using existing completed orders as projects, abilities length as skills)
+  if (statSkills) statSkills.textContent = state.abilities.length;
+  if (statProjects) statProjects.textContent = state.meWorker?.completedOrders || 0;
+
+  // Render Capabilities with toggle switches
+  if (capList) {
+    if (state.abilities.length === 0) {
+      emptyHint?.classList.remove('hidden');
+      capList.innerHTML = '';
+    } else {
+      emptyHint?.classList.add('hidden');
+      capList.innerHTML = state.abilities.map((ability, idx) => {
+        // Mock icons and sub-data if absent to match the rich design
+        const bgColors = ['bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600', 'bg-green-50 dark:bg-green-900/20 text-green-600', 'bg-pink-50 dark:bg-pink-900/20 text-pink-500'];
+        const iconBg = bgColors[idx % bgColors.length];
+        const isLegacy = idx % 3 === 2; // Arbitrary condition to show mock 'legacy' styling for variance
+
+        return `
+        <div class="flex items-center p-3 bg-white dark:bg-surface-dark rounded-2xl shadow-sm border border-border-light dark:border-border-dark ${isLegacy ? 'opacity-60' : ''}">
+          <div class="w-10 h-10 ${iconBg} rounded-xl flex items-center justify-center flex-shrink-0">
+            <span class="text-xl">${ability.icon || '🤖'}</span>
+          </div>
+          <div class="ml-3 flex-1 min-w-0">
+            <div class="text-sm font-bold text-gray-900 dark:text-white truncate">${escapeHtml(ability.name)}</div>
+            <div class="text-[11px] text-subtext-light dark:text-subtext-dark mt-0.5 truncate">
+              ${isLegacy ? 'Deprecated model' : `v3.12 • ${(90 + (idx * 2))}% Success`}
+            </div>
+          </div>
+          <div class="flex items-center gap-3 pl-2">
+            <button onclick='openAbilityModal(${JSON.stringify(ability).replace(/'/g, "\\'")})' class="text-gray-400 hover:text-primary transition-colors">
+              <span class="material-icons-round text-sm">edit</span>
+            </button>
+            <label class="ios-toggle">
+              <input type="checkbox" onchange="toggleAbilityStatus('${ability.id}', this.checked)" ${!isLegacy ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      `}).join('');
+    }
+  }
+}
+
+// Dummy handler for the toggles in mobile UI
+window.toggleAbilityStatus = function (abilityId, isEnabled) {
+  showToast(isEnabled ? '核心能力已挂载' : '处理节点已休眠');
+};
 
 function setIntegrationView(sessionInfo) {
   state.secondMeConnected = !!sessionInfo?.connected;
@@ -2294,10 +2368,15 @@ function chatTimeLabel(dateStr) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+// ========== 聊天列表过滤状态 ==========
+chatState.roleFilter = 'demand'; // 默认查看需求对话
+
 // 渲染聊天列表
 function renderChatList() {
   if (!chatListEl) return;
-  const convs = chatState.conversations;
+
+  // 过滤当前在移动端选择的对话类型
+  const convs = chatState.conversations.filter(c => c.role === chatState.roleFilter);
   const statusCount = convs.length;
 
   // 更新状态文字
@@ -2324,46 +2403,96 @@ function renderChatList() {
     const preview = lastMsg ? (lastMsg.type === 'delivery' ? '🎉 交付结果' : (lastMsg.text || '').slice(0, 30)) : '暂无消息';
     const time = chatTimeLabel(conv.updatedAt || conv.createdAt);
     const isActive = conv.id === chatState.activeConversationId;
-    const roleEmoji = conv.role === 'demand' ? '🟠' : '🟢';
-    const avatarFallback = conv.peerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.peerName?.[0] || 'AI')}&background=random&rounded=true&size=36`;
+
+    // UI Enhancements
+    const shortId = `#${conv.id.substring(0, 4).toUpperCase()}`;
+    const avatarFallback = conv.peerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.peerName?.[0] || 'AI')}&background=random&rounded=true&size=48`;
+    // Simulate unread for demo based on index or active state
+    const hasUnread = !isActive && Math.random() > 0.7;
 
     html += `
-      <div class="chat-list-item ${isActive ? 'active' : ''}" data-conv-id="${conv.id}">
-        <img src="${avatarFallback}" alt="${escapeHtml(conv.peerName)}" class="chat-list-item-avatar" />
-        <div class="chat-list-item-info">
-          <div class="chat-list-item-name">${roleEmoji} ${escapeHtml(conv.peerName || '对方')}</div>
-          <div class="chat-list-item-preview">${escapeHtml(preview)}</div>
+      <div class="flex items-center p-3 mb-2 bg-white dark:bg-surface-dark rounded-2xl border border-transparent hover:border-gray-100 dark:hover:border-border-dark shadow-sm transition-all cursor-pointer ${isActive ? 'bg-orange-50/50 dark:bg-orange-900/10 border-orange-100 dark:border-primary/20' : ''}" data-conv-id="${conv.id}">
+        <!-- Avatar Area -->
+        <div class="relative w-12 h-12 flex-shrink-0">
+          <img src="${avatarFallback}" alt="${escapeHtml(conv.peerName)}" class="w-full h-full rounded-full object-cover border border-gray-100 dark:border-border-dark" />
+          ${hasUnread ? `<span class="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-white dark:border-surface-dark rounded-full"></span>` : ''}
         </div>
-        <span class="chat-list-item-time">${time}</span>
+        
+        <!-- Content Area -->
+        <div class="ml-3 flex-1 min-w-0 flex flex-col justify-center">
+          <div class="flex items-center justify-between mb-0.5">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="text-[15px] font-black text-gray-900 dark:text-white truncate">${escapeHtml(conv.title || '未命名任务')}</span>
+              <span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-subtext-light dark:text-gray-400 text-[9px] font-bold rounded flex-shrink-0">${shortId}</span>
+            </div>
+            <span class="text-[11px] font-medium text-gray-400 whitespace-nowrap ml-2">${time}</span>
+          </div>
+          
+          <div class="flex items-center gap-1.5">
+            <span class="text-[10px] font-bold px-1.5 rounded ${conv.role === 'demand' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}">
+              ${conv.role === 'demand' ? 'BUYER' : 'SELLER'}
+            </span>
+            <span class="text-[12px] text-subtext-light dark:text-subtext-dark truncate flex-1">${escapeHtml(preview)}</span>
+          </div>
+        </div>
       </div>
     `;
   }
 
-  // 只替换列表项内容，保留 empty 节点
-  const existingItems = chatListEl.querySelectorAll('.chat-list-item');
-  existingItems.forEach(i => i.remove());
-  chatListEl.insertAdjacentHTML('beforeend', html);
+  // 渲染到特定的移动端容器或桌面端容器
+  const mChatContainer = document.querySelector('#m-chat-container');
+  if (mChatContainer) {
+    mChatContainer.innerHTML = html;
+  }
+
+  if (chatListEl) {
+    const existingItems = chatListEl.querySelectorAll('.chat-list-item');
+    existingItems.forEach(i => i.remove());
+    chatListEl.insertAdjacentHTML('beforeend', html);
+  }
 }
+
+// 绑定移动端子 Tab 切换事件
+document.addEventListener('DOMContentLoaded', () => {
+  const subTabs = document.querySelectorAll('.chat-sub-tab');
+  subTabs.forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      subTabs.forEach(t => {
+        t.classList.remove('is-active', 'bg-white', 'dark:bg-gray-700', 'shadow-sm', 'text-gray-900', 'dark:text-white');
+        t.classList.add('text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400');
+      });
+      const target = e.currentTarget;
+      target.classList.add('is-active', 'bg-white', 'dark:bg-gray-700', 'shadow-sm', 'text-gray-900', 'dark:text-white');
+      target.classList.remove('text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400');
+
+      chatState.roleFilter = target.getAttribute('data-role');
+      renderChatList();
+    });
+  });
+});
+
 
 // 渲染对话
 function renderChatDialog() {
   const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
   if (!conv) return;
 
-  // 头部
+  // 头部信息
   const avatarFallback = conv.peerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.peerName?.[0] || 'AI')}&background=random&rounded=true&size=36`;
   if (chatPeerAvatar) chatPeerAvatar.src = avatarFallback;
   if (chatPeerName) chatPeerName.textContent = conv.peerName || '对方';
   if (chatPeerTitle) chatPeerTitle.textContent = conv.title || '';
 
-  // 角色标识
+  // 角色标识（新版: BUYER / SELLER 标签）
   if (chatRoleBadge) {
     if (conv.role === 'demand') {
-      chatRoleBadge.textContent = '🟠 提需求';
-      chatRoleBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold chat-role-demand';
+      // 需求方：我是 BUYER
+      chatRoleBadge.textContent = 'BUYER';
+      chatRoleBadge.className = 'px-2 py-0.5 rounded text-[10px] font-black bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
     } else {
-      chatRoleBadge.textContent = '🟢 接活';
-      chatRoleBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold chat-role-worker';
+      // 接单方：对方是 BUYER
+      chatRoleBadge.textContent = 'BUYER';
+      chatRoleBadge.className = 'px-2 py-0.5 rounded text-[10px] font-black bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
     }
   }
 
@@ -2383,17 +2512,165 @@ function renderChatDialog() {
 
   // 根据角色显示不同操作
   if (conv.role === 'demand') {
-    if (chatSkillSelector) chatSkillSelector.style.display = 'none';
+    // 需求方：隐藏技能选择器，显示需求书按钮
+    if (chatSkillSelector) chatSkillSelector.closest('#chat-skill-selector-wrapper')?.classList.add('hidden');
     if (chatDeliveryHint) chatDeliveryHint.classList.add('hidden');
     if (chatSubmitDemandBtn) chatSubmitDemandBtn.classList.remove('hidden');
+
+    // 隐藏技能快捷栏
+    const skillsStrip = document.querySelector('#available-skills-strip');
+    if (skillsStrip) skillsStrip.classList.add('hidden');
   } else {
-    if (chatSkillSelector) chatSkillSelector.style.display = '';
+    // 接单方：显示技能选择器，隐藏需求书按钮
+    if (chatSkillSelector) chatSkillSelector.closest('#chat-skill-selector-wrapper')?.classList.remove('hidden');
     if (chatDeliveryHint) {
       chatDeliveryHint.classList.toggle('hidden', !chatState.selectedSkill);
     }
     if (chatSubmitDemandBtn) chatSubmitDemandBtn.classList.add('hidden');
+
+    // 显示技能快捷栏
+    renderAvailableSkillsStrip();
   }
 }
+
+// 渲染可用技能快捷栏
+function renderAvailableSkillsStrip() {
+  const strip = document.querySelector('#available-skills-strip');
+  if (!strip) return;
+
+  if (!state.abilities || state.abilities.length === 0) {
+    strip.classList.add('hidden');
+    return;
+  }
+
+  strip.classList.remove('hidden');
+  strip.innerHTML = state.abilities.slice(0, 6).map(ability => `
+    <button onclick="openDeliverySheet('${escapeHtml(ability.id)}')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark text-[11px] font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap hover:border-primary/50 hover:text-primary transition-colors shadow-sm flex-shrink-0">
+      <span class="text-sm">${ability.icon || '🤖'}</span>
+      ${escapeHtml(ability.name)}
+    </button>
+  `).join('');
+}
+
+// 打开交付控制面板 (Bottom Sheet)
+window.openDeliverySheet = function (abilityId) {
+  const ability = state.abilities?.find(a => a.id === abilityId);
+  if (!ability) {
+    showToast('请先选择一个技能');
+    return;
+  }
+
+  // 加载内容到 Sheet
+  const sheetContent = document.querySelector('#delivery-sheet-content');
+  if (sheetContent) {
+    const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
+    const msgContext = conv?.messages.slice(-5).map(m => m.text).filter(Boolean).join(' ');
+
+    // 模拟自动生成的 Prompt 标签
+    const autoTags = ['#FilmLook', '#瀑动色调', '#肖像清晰', '#躺景居中'];
+
+    sheetContent.innerHTML = `
+      <div class="p-5">
+        <!-- 技能头部 -->
+        <div class="flex items-center justify-between mb-5">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center text-2xl">${ability.icon || '🤖'}</div>
+            <div>
+              <div class="text-[16px] font-black text-gray-900 dark:text-white">${escapeHtml(ability.name)}</div>
+              <div class="text-[11px] text-subtext-light dark:text-subtext-dark font-medium">AI 技能调用</div>
+            </div>
+          </div>
+          <button class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-2.5 py-1 rounded-lg hover:opacity-80 transition-opacity">换一个</button>
+        </div>
+
+        <!-- PROMPT POLISH 区块 -->
+        <div class="prompt-polish-card mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Prompt Polish</span>
+            <button class="text-gray-400 hover:text-primary transition-colors">
+              <span class="material-icons-round text-[16px]">refresh</span>
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-1.5 mb-2">
+            ${autoTags.map(tag => `<span class="tag-pill">${tag}</span>`).join('')}
+          </div>
+          <textarea class="w-full text-[13px] text-gray-700 dark:text-gray-300 bg-transparent border-none outline-none resize-none" rows="3" placeholder="描述您想要的效果...">${msgContext ? msgContext.substring(0, 120) : '用户要求：' + escapeHtml(ability.description || '')}</textarea>
+        </div>
+
+        <!-- 参数配置 -->
+        <div class="flex gap-3 mb-6">
+          <div class="flex-1 bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+            <div class="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-1">强度</div>
+            <div class="flex items-center gap-2">
+              <input type="range" min="0" max="100" value="85" class="flex-1 accent-[#D97706]">
+              <span class="text-[13px] font-black text-gray-900 dark:text-white w-8">85%</span>
+            </div>
+          </div>
+          <div class="flex-1 bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+            <div class="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-1">参考图</div>
+            <div class="flex items-center gap-2">
+              <span class="text-[22px] font-black text-gray-900 dark:text-white">3</span>
+              <div class="flex flex-col">
+                <button class="text-gray-400 text-lg leading-none">&#9650;</button>
+                <button class="text-gray-400 text-lg leading-none">&#9660;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Run AI 主按钮 -->
+        <button onclick="window.dispatchEvent(new CustomEvent('run-ai-deliver', {detail: {abilityId: '${escapeHtml(abilityId)}'}}))" class="w-full h-14 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl text-[15px] font-black flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg">
+          <span class="material-icons-round">bolt</span>
+          Run AI &amp; Deliver
+        </button>
+      </div>
+    `;
+  }
+
+  const overlay = document.querySelector('#delivery-sheet-overlay');
+  const sheet = document.querySelector('#delivery-bottom-sheet');
+  overlay?.classList.add('show');
+  sheet?.classList.add('show');
+};
+
+// 关闭 Bottom Sheet
+window.closeDeliverySheet = function () {
+  const overlay = document.querySelector('#delivery-sheet-overlay');
+  const sheet = document.querySelector('#delivery-bottom-sheet');
+  overlay?.classList.remove('show');
+  sheet?.classList.remove('show');
+};
+
+// 监听 Run AI 事件
+window.addEventListener('run-ai-deliver', (e) => {
+  const { abilityId } = e.detail;
+  const ability = state.abilities?.find(a => a.id === abilityId);
+
+  // 关闭窗口
+  window.closeDeliverySheet();
+
+  // 在聊天流中插入加载状态
+  const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
+  if (conv) {
+    conv.messages.push({ type: 'loading', time: new Date().toISOString() });
+    renderChatMessages(conv);
+
+    // 模拟 AI 运行延迟 (3s)
+    setTimeout(() => {
+      conv.messages.pop(); // 移除 loading
+      conv.messages.push({
+        type: 'delivery',
+        skillName: ability?.name || 'AI 技能',
+        content: `已根据您的要求完成出图，请查收！`,
+        images: [],
+        time: new Date().toISOString()
+      });
+      persistConversations();
+      renderChatMessages(conv);
+      showToast('🎉 AI 运行完成！成果已发送给客户');
+    }, 3000);
+  }
+});
 
 // 渲染消息流
 function renderChatMessages(conv) {
