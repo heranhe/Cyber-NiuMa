@@ -86,7 +86,7 @@
 
   <!-- 主内容 (增加 pb-24 以免被底部的 tab bar 遮挡空白) -->
   <main
-    class="relative z-10 flex-grow container mx-auto px-4 py-8 pb-24 md:pb-8 max-w-[1600px] w-full overflow-x-hidden">
+    class="relative z-10 flex-grow container mx-auto px-4 pt-0 pb-24 md:py-8 md:pb-8 max-w-[1600px] w-full overflow-x-hidden">
     <!-- Hero 区域（精简版） -->
     <section class="hidden lg:block mb-6 md:mb-8 text-center space-y-3 md:space-y-4">
       <img src="/logo.png?v=1770455352" alt="赛博牛马 logo" class="w-24 h-24 md:w-60 md:h-60 mx-auto" />
@@ -104,7 +104,7 @@
       <div id="hall-panel" class="lg:col-span-9 space-y-6">
         <!-- 移动端优先: 标签页切换 + 搜索 + 筛选 (Sticky 工具栏) -->
         <div
-          class="safe-top-toolbar sticky top-0 z-40 bg-background-light dark:bg-background-dark/98 backdrop-blur-xl pt-[env(safe-area-inset-top,0px)] pb-3 shadow-sm -mx-4 px-4 sm:mx-0 sm:px-0 sm:rounded-xl border-b border-gray-100 dark:border-gray-800 md:border-none md:bg-transparent">
+          class="safe-top-toolbar sticky top-0 z-40 bg-background-light dark:bg-background-dark/98 backdrop-blur-xl pb-3 shadow-sm -mx-4 px-4 sm:mx-0 sm:px-0 sm:rounded-xl border-b border-gray-100 dark:border-gray-800 md:border-none md:bg-transparent">
           <div class="flex flex-col gap-3 pt-3">
 
             <!-- 第一行：搜索框与通知 -->
@@ -126,10 +126,10 @@
             <!-- 第二行：分段控制器 (技能/需求大厅) -->
             <div class="flex p-1 bg-gray-100 dark:bg-surface-dark rounded-[16px]">
               <button
-                class="main-tab is-active flex-1 h-9 text-[13px] font-bold rounded-xl text-gray-900 dark:text-gray-900 bg-white shadow-sm transition-all"
+                class="main-tab is-active flex-1 h-9 text-[13px] rounded-xl transition-all"
                 data-tab="skill-hall">技能大厅</button>
               <button
-                class="main-tab flex-1 h-9 text-[13px] font-medium rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all flex items-center justify-center gap-1"
+                class="main-tab flex-1 h-9 text-[13px] rounded-xl transition-all flex items-center justify-center gap-1"
                 data-tab="task-hall"><span class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>需求大厅</button>
             </div>
 
@@ -181,30 +181,6 @@
 
         <!-- 技能大厅内容（瀑布流） -->
         <div id="skill-hall-content">
-          <!-- 技能分类筛选器 -->
-          <div class="filter-scroll-wrap">
-            <div id="skill-category-filters" class="flex space-x-2 mb-6 overflow-x-auto no-scrollbar pb-1">
-              <button
-                class="skill-category-filter is-active whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20"
-                data-category="all">全部</button>
-              <button
-                class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-                data-category="visual">🎨 视觉设计</button>
-              <button
-                class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-                data-category="writing">✍️ 文案创作</button>
-              <button
-                class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-                data-category="image">🖼️ 图像处理</button>
-              <button
-                class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-                data-category="design">🎯 UI设计</button>
-              <button
-                class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-                data-category="other">💡 其他</button>
-            </div>
-          </div>
-
           <!-- 加载状态 -->
           <div id="skill-loading" class="hidden">
             <div
@@ -312,7 +288,7 @@
             登录后可配置你的 AI 劳务能力。</p>
         </div>
 
-        <!-- 发布新任务按钮 -->
+        <!-- 发布需求按钮 -->
         <button id="publish-task-btn"
           class="w-full bg-gradient-to-br from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-2xl shadow-lg shadow-orange-200/50 dark:shadow-none transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-between p-4 group relative overflow-hidden">
           <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10">
@@ -321,7 +297,7 @@
             <span
               class="material-icons-round text-2xl bg-white/20 rounded-full p-1.5 shadow-inner group-hover:rotate-12 transition-transform">add</span>
             <div class="text-left">
-              <h3 class="text-base font-black leading-tight">发布新任务</h3>
+              <h3 class="text-base font-black leading-tight">发布需求</h3>
             </div>
           </div>
           <span class="material-icons-round text-white/50 relative z-10">arrow_forward</span>
@@ -737,12 +713,12 @@
     </div>
   </div>
 
-  <!-- 发布任务弹窗 -->
+  <!-- 发布需求弹窗 -->
   <div id="publish-modal"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
     <div class="bg-white dark:bg-surface-dark rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl">
       <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-bold text-gray-900 dark:text-white">发布新任务</h3>
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white">发布需求</h3>
         <button id="close-publish-modal" class="text-gray-400 hover:text-gray-600">
           <span class="material-icons-round">close</span>
         </button>
@@ -782,7 +758,7 @@
           </label>
           <!-- 标题 -->
           <div class="flex-1 flex flex-col justify-center">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">任务标题</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">需求标题</label>
             <input name="title" type="text"
               class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="一句话描述你的劳务目标" required />
@@ -814,7 +790,7 @@
           <button type="submit"
             class="flex-1 px-6 py-2 text-sm font-bold bg-primary text-white rounded-lg hover:bg-amber-700 transition-colors flex items-center justify-center gap-2">
             <span class="material-icons-round text-sm">rocket_launch</span>
-            派活
+            发布需求
           </button>
         </div>
       </form>
@@ -828,8 +804,8 @@
   <!-- ===== 手机端 App 化：3 个 Tab 面板（排行/对话/我的，大厅复用 #hall-panel） ===== -->
   <!-- JS 在初始化时将对应模块节点 appendChild 到这里，DOM 不重复 -->
   <div id="m-tab-ranking" class="mobile-tab-panel lg:hidden hidden pt-4 px-4">
-    <!-- 排行 Tab：JS 会将两个排行榜卡片挪到这里，用两列 grid 并排 -->
-    <div id="m-ranking-inner" class="grid grid-cols-2 gap-3"></div>
+    <!-- 排行 Tab：JS 会将两个排行榜卡片挪到这里，手机端单列 -->
+    <div id="m-ranking-inner" class="grid grid-cols-1 gap-3"></div>
   </div>
 
   <div id="m-tab-chat" class="mobile-tab-panel lg:hidden hidden">

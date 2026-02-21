@@ -523,9 +523,9 @@ function renderMobileMePage() {
             </div>
           </div>
           <div class="flex items-center gap-3 pl-2">
-            <button onclick='openAbilityModal(${JSON.stringify(ability).replace(/'/g, "\\'")})' class="text-gray-400 hover:text-primary transition-colors">
+            <a href="/edit-skill.html?id=${encodeURIComponent(ability.id)}" class="text-gray-400 hover:text-primary transition-colors cursor-pointer">
               <span class="material-icons-round text-sm">edit</span>
-            </button>
+            </a>
             <label class="ios-toggle">
               <input type="checkbox" onchange="toggleAbilityStatus('${ability.id}', this.checked)" ${!isLegacy ? 'checked' : ''}>
               <span class="toggle-slider"></span>
@@ -613,6 +613,11 @@ async function saveAbility(event) {
     }
     closeAbilityModalFn();
     renderWorkerProfile();
+    state.skillsLoaded = false;
+    state.skillsLoadedAt = 0;
+    if (state.mainTab === 'skill-hall') {
+      loadSkillHall();
+    }
   } catch (err) {
     showToast(err.message || '保存失败');
   }
@@ -630,6 +635,11 @@ async function deleteAbility() {
     showToast('能力已删除');
     closeAbilityModalFn();
     renderWorkerProfile();
+    state.skillsLoaded = false;
+    state.skillsLoadedAt = 0;
+    if (state.mainTab === 'skill-hall') {
+      loadSkillHall();
+    }
   } catch (err) {
     showToast(err.message || '删除失败');
   }
@@ -1407,13 +1417,7 @@ function switchMainTab(tabName) {
 
   // 更新标签页激活状态（pill toggle 样式）
   mainTabs.forEach(tab => {
-    if (tab.dataset.tab === tabName) {
-      tab.classList.add('is-active', 'bg-gray-900', 'dark:bg-white', 'text-white', 'dark:text-black', 'shadow-md', 'font-bold');
-      tab.classList.remove('text-subtext-light', 'dark:text-subtext-dark', 'font-medium');
-    } else {
-      tab.classList.remove('is-active', 'bg-gray-900', 'dark:bg-white', 'text-white', 'dark:text-black', 'shadow-md', 'font-bold');
-      tab.classList.add('text-subtext-light', 'dark:text-subtext-dark', 'font-medium');
-    }
+    tab.classList.toggle('is-active', tab.dataset.tab === tabName);
   });
 
   // 切换内容显示
@@ -3367,4 +3371,3 @@ function initMobileTabBar() {
 
 // 在 DOM 加载完毕后的下一个 tick 运行（确保所有渲染函数已注册）
 setTimeout(initMobileTabBar, 0);
-
