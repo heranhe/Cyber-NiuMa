@@ -546,6 +546,7 @@ function setIntegrationView(sessionInfo) {
   state.secondMeConnected = !!sessionInfo?.connected;
   state.me = sessionInfo?.user || null;
 
+  // 桌面端登录/退出按钮
   loginButtons.forEach((btn) => {
     btn.hidden = state.secondMeConnected;
   });
@@ -553,6 +554,12 @@ function setIntegrationView(sessionInfo) {
   if (topLogout) {
     topLogout.hidden = !state.secondMeConnected;
   }
+
+  // 移动端「我的」页面的登录/退出按钮
+  const mLoginBtn = document.querySelector('#m-me-login-btn');
+  const mLogoutBtn = document.querySelector('#m-me-logout-btn');
+  if (mLoginBtn) mLoginBtn.classList.toggle('hidden', state.secondMeConnected);
+  if (mLogoutBtn) mLogoutBtn.classList.toggle('hidden', !state.secondMeConnected);
 
   renderWorkerProfile();
   renderHireWorkbench();
@@ -1350,6 +1357,10 @@ async function bootstrap() {
 // 事件绑定
 loginButtons.forEach((btn) => btn.addEventListener('click', onLoginClick));
 if (topLogout) topLogout.addEventListener('click', onLogoutClick);
+
+// 移动端「我的」页面退出按钮
+const mMeLogoutBtn = document.querySelector('#m-me-logout-btn');
+if (mMeLogoutBtn) mMeLogoutBtn.addEventListener('click', onLogoutClick);
 
 if (statusFilters) {
   statusFilters.addEventListener('click', (e) => {
