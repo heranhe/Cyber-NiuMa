@@ -22,7 +22,13 @@
 }
 
 .safe-top-toolbar {
-  top: var(--top-nav-height) !important;
+  top: 0 !important;
+}
+
+@media (min-width: 768px) {
+  .safe-top-toolbar {
+    top: var(--top-nav-height) !important;
+  }
 }
 
 /* ===== 保留的核心动效 ===== */
@@ -127,6 +133,28 @@
 }
 
 /* ===== 筛选按钮激活态 ===== */
+.main-tab {
+  color: #6B7280;
+  font-weight: 600;
+  background: transparent;
+}
+
+.dark .main-tab {
+  color: #9CA3AF;
+}
+
+.main-tab.is-active {
+  background: #0F172A;
+  color: #FFFFFF;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+}
+
+.dark .main-tab.is-active {
+  background: #FFFFFF;
+  color: #111827;
+}
+
 .filter.is-active {
   background: rgba(217, 119, 6, 0.1) !important;
   color: #D97706 !important;
@@ -454,16 +482,8 @@ input:checked+.toggle-slider:before {
 
 /* ===== 瀑布流布局（任务大厅专用） ===== */
 .masonry-grid {
-  column-count: 1;
+  column-count: 2;
   column-gap: 1rem;
-}
-
-/* 手机端大屏（≥480px）就显示2列，提升利用率 */
-@media (min-width: 480px) {
-  .masonry-grid {
-    column-count: 2;
-    column-gap: 1rem;
-  }
 }
 
 @media (min-width: 768px) {
@@ -494,15 +514,8 @@ input:checked+.toggle-slider:before {
 /* ===== 网格布局（技能大厅专用） ===== */
 .skill-grid {
   display: grid;
-  grid-template-columns: repeat(1, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
-}
-
-/* 手机端大屏（≥480px）就显示2列 */
-@media (min-width: 480px) {
-  .skill-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (min-width: 768px) {
@@ -1102,6 +1115,11 @@ input:checked+.toggle-slider:before {
   /* 底部留白，防止内容被 Tab Bar 遮挡 */
   main {
     padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  /* 排行页固定单列 */
+  #m-ranking-inner {
+    grid-template-columns: 1fr !important;
   }
 
   /* 大厅面板隐藏（切换到其他 Tab 时 JS 加此 class） */

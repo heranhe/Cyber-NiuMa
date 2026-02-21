@@ -3224,7 +3224,7 @@ function initMobileTabBar() {
     if (el && target) target.appendChild(el);
   };
 
-  // 排行 Tab：两个排行榜卡并排（grid grid-cols-2 已在 HTML 中）
+  // 排行 Tab：手机端单列展示排行榜卡片
   const rankingInner = document.getElementById('m-ranking-inner');
   const skillCard = document.getElementById('skill-leaderboard-card');
   const userCard = document.getElementById('user-leaderboard-card');
@@ -3236,14 +3236,12 @@ function initMobileTabBar() {
   const chatModule = document.getElementById('chat-module');
   if (chatContainer && chatModule) chatContainer.appendChild(chatModule);
 
-  // 我的 Tab：AI分身卡、发布按钮、工作台依次移入
+  // 我的 Tab：AI 分身卡、工作台依次移入（发布需求仅保留底部 + 按钮）
   const meTab = document.getElementById('m-tab-me');
   const aiCard = document.getElementById('ai-profile-card');
-  const publishBtn = document.getElementById('publish-task-btn');
   const workbench = document.getElementById('hire-fab-wrapper');
   if (meTab) {
     if (aiCard) meTab.appendChild(aiCard);
-    if (publishBtn) meTab.appendChild(publishBtn);
     if (workbench) meTab.appendChild(workbench);
   }
 
@@ -3294,9 +3292,9 @@ function initMobileTabBar() {
     btn.addEventListener('click', () => switchMobileTab(btn.dataset.mobileTab));
   });
 
-  // 中间 FAB 点击 = 发布任务
+  // 中间 FAB 点击 = 发布需求
   document.getElementById('mobile-publish-fab')?.addEventListener('click', () => {
-    document.getElementById('publish-task-btn')?.click();
+    openPublishModal();
   });
 
   // ---- 3. 对话子 Tab（需求对话 / 接单对话）过滤 ----
