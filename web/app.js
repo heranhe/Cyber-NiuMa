@@ -2407,52 +2407,23 @@ function renderChatList() {
     const preview = lastMsg ? (lastMsg.type === 'delivery' ? '🎉 交付结果' : (lastMsg.text || '').slice(0, 30)) : '暂无消息';
     const time = chatTimeLabel(conv.updatedAt || conv.createdAt);
     const isActive = conv.id === chatState.activeConversationId;
-
-    // UI Enhancements
     const shortId = `#${conv.id.substring(0, 4).toUpperCase()}`;
     const avatarFallback = conv.peerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.peerName?.[0] || 'AI')}&background=random&rounded=true&size=48`;
-    // Simulate unread for demo based on index or active state
     const hasUnread = !isActive && Math.random() > 0.7;
-
-    html += `
-      <div class="flex items-center p-3 mb-2 bg-white dark:bg-surface-dark rounded-2xl border border-transparent hover:border-gray-100 dark:hover:border-border-dark shadow-sm transition-all cursor-pointer ${isActive ? 'bg-orange-50/50 dark:bg-orange-900/10 border-orange-100 dark:border-primary/20' : ''}" data-conv-id="${conv.id}">
-        <!-- Avatar Area -->
-        <div class="relative w-12 h-12 flex-shrink-0">
-          <img src="${avatarFallback}" alt="${escapeHtml(conv.peerName)}" class="w-full h-full rounded-full object-cover border border-gray-100 dark:border-border-dark" />
-          ${hasUnread ? `<span class="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-white dark:border-surface-dark rounded-full"></span>` : ''}
-        </div>
-        
-        <!-- Content Area -->
-        <div class="ml-3 flex-1 min-w-0 flex flex-col justify-center">
-          <div class="flex items-center justify-between mb-0.5">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <span class="text-[15px] font-black text-gray-900 dark:text-white truncate">${escapeHtml(conv.title || '未命名任务')}</span>
-              <span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-subtext-light dark:text-gray-400 text-[9px] font-bold rounded flex-shrink-0">${shortId}</span>
-            </div>
-            <span class="text-[11px] font-medium text-gray-400 whitespace-nowrap ml-2">${time}</span>
-          </div>
-          
-          <div class="flex items-center gap-1.5">
-            <span class="text-[10px] font-bold px-1.5 rounded ${conv.role === 'demand' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}">
-              ${conv.role === 'demand' ? 'BUYER' : 'SELLER'}
-            </span>
-            <span class="text-[12px] text-subtext-light dark:text-subtext-dark truncate flex-1">${escapeHtml(preview)}</span>
-          </div>
-        </div>
-      </div>
-    `;
+    const activeClass = isActive ? 'bg-orange-50/50 dark:bg-orange-900/10 border-orange-100 dark:border-primary/20' : 'border-transparent';
+    const roleBadgeClass = conv.role === 'demand'
+      ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+    const roleLabel = conv.role === 'demand' ? 'BUYER' : 'SELLER';
+    html += `<div class="chat-list-item flex items-center p-3 mb-2 bg-white dark:bg-surface-dark rounded-2xl border ${activeClass} hover:border-gray-100 dark:hover:border-border-dark shadow-sm transition-all cursor-pointer" data-conv-id="${conv.id}"><div class="relative w-12 h-12 flex-shrink-0"><img src="${avatarFallback}" alt="${escapeHtml(conv.peerName)}" class="w-full h-full rounded-full object-cover border border-gray-100 dark:border-border-dark" />${hasUnread ? '<span class="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-white dark:border-surface-dark rounded-full"></span>' : ''}</div><div class="ml-3 flex-1 min-w-0 flex flex-col justify-center"><div class="flex items-center justify-between mb-0.5"><div class="flex items-center gap-1.5 min-w-0"><span class="text-[15px] font-black text-gray-900 dark:text-white truncate">${escapeHtml(conv.title || '未命名任务')}</span><span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-subtext-light dark:text-gray-400 text-[9px] font-bold rounded flex-shrink-0">${shortId}</span></div><span class="text-[11px] font-medium text-gray-400 whitespace-nowrap ml-2">${time}</span></div><div class="flex items-center gap-1.5"><span class="text-[10px] font-bold px-1.5 rounded ${roleBadgeClass}">${roleLabel}</span><span class="text-[12px] text-subtext-light dark:text-subtext-dark truncate flex-1">${escapeHtml(preview)}</span></div></div></div>`;
   }
 
-  // 渲染到特定的移动端容器或桌面端容器
+  // 优先渲染到移动端容器，fallback 到桌面端 — 只写一次，避免重复渲染
   const mChatContainer = document.querySelector('#m-chat-container');
   if (mChatContainer) {
     mChatContainer.innerHTML = html;
-  }
-
-  if (chatListEl) {
-    const existingItems = chatListEl.querySelectorAll('.chat-list-item');
-    existingItems.forEach(i => i.remove());
-    chatListEl.insertAdjacentHTML('beforeend', html);
+  } else if (chatListEl) {
+    chatListEl.innerHTML = html;
   }
 }
 
