@@ -61,9 +61,9 @@
     class="fixed top-0 left-0 right-0 h-96 bg-gradient-to-b from-orange-100/40 via-transparent to-transparent dark:from-orange-900/10 dark:via-transparent dark:to-transparent pointer-events-none z-0">
   </div>
 
-  <!-- 顶部导航 -->
+  <!-- 顶部导航 (取消 fixed/sticky 以避免与下方的大厅 toolbar 冲突，仅作为单纯的 header 返回顶部可见) -->
   <nav
-    class="safe-top-nav relative z-20 w-full px-6 py-4 flex items-center justify-between border-b border-border-light/50 dark:border-border-dark/50 backdrop-blur-sm bg-background-light/80 dark:bg-background-dark/80 sticky top-0">
+    class="safe-top-nav relative z-20 w-full px-6 py-4 flex items-center justify-between border-b border-border-light/50 dark:border-border-dark/50 bg-background-light dark:bg-background-dark hidden md:flex">
     <div class="flex items-center gap-3">
       <img src="/logo.png?v=1770455352" alt="赛博牛马 logo" class="w-10 h-10 rounded-lg shadow-sm" />
       <span class="text-xl font-black tracking-tight text-gray-900 dark:text-white">Cyber NiuMa</span>
@@ -84,8 +84,9 @@
     </div>
   </nav>
 
-  <!-- 主内容 -->
-  <main class="relative z-10 flex-grow container mx-auto px-4 py-8 max-w-[1600px]">
+  <!-- 主内容 (增加 pb-24 以免被底部的 tab bar 遮挡空白) -->
+  <main
+    class="relative z-10 flex-grow container mx-auto px-4 py-8 pb-24 md:pb-8 max-w-[1600px] w-full overflow-x-hidden">
     <!-- Hero 区域（精简版） -->
     <section class="hidden lg:block mb-6 md:mb-8 text-center space-y-3 md:space-y-4">
       <img src="/logo.png?v=1770455352" alt="赛博牛马 logo" class="w-24 h-24 md:w-60 md:h-60 mx-auto" />
@@ -97,13 +98,13 @@
       </p>
     </section>
 
-    <!-- 主布局 -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <!-- 主布局 (增加 w-full 避免横向重排溢出) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full">
       <!-- 左侧主区域 -->
       <div id="hall-panel" class="lg:col-span-9 space-y-6">
         <!-- 移动端优先: 标签页切换 + 搜索 + 筛选 (Sticky 工具栏) -->
         <div
-          class="safe-top-toolbar sticky top-0 z-40 bg-background-light dark:bg-background-dark/95 backdrop-blur-md pt-[env(safe-area-inset-top,0px)] pb-2 shadow-sm -mx-4 px-4 sm:mx-0 sm:px-0 sm:rounded-xl">
+          class="safe-top-toolbar sticky top-0 z-40 bg-background-light dark:bg-background-dark/98 backdrop-blur-xl pt-[env(safe-area-inset-top,0px)] pb-3 shadow-sm -mx-4 px-4 sm:mx-0 sm:px-0 sm:rounded-xl border-b border-gray-100 dark:border-gray-800 md:border-none md:bg-transparent">
           <div class="flex flex-col gap-3 pt-3">
 
             <!-- 第一行：搜索框与通知 -->
