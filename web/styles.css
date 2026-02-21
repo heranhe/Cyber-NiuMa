@@ -179,6 +179,27 @@
   scrollbar-width: none;
 }
 
+/* ===== 筛选栏右侧渐变遮罩（提示还有更多可横滑） ===== */
+.filter-scroll-wrap {
+  position: relative;
+}
+
+.filter-scroll-wrap::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 2.5rem;
+  background: linear-gradient(to right, transparent, var(--filter-fade-color, #FDFBF7));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.dark .filter-scroll-wrap::after {
+  --filter-fade-color: #1F1F1F;
+}
+
 /* ===== 能力标签悬浮提示 ===== */
 .ability-tag {
   position: relative;
@@ -297,36 +318,60 @@
 /* ===== 瀑布流布局（任务大厅专用） ===== */
 .masonry-grid {
   column-count: 1;
-  column-gap: 1.5rem;
+  column-gap: 1rem;
+}
+
+/* 手机端大屏（≥480px）就显示2列，提升利用率 */
+@media (min-width: 480px) {
+  .masonry-grid {
+    column-count: 2;
+    column-gap: 1rem;
+  }
 }
 
 @media (min-width: 768px) {
   .masonry-grid {
     column-count: 2;
+    column-gap: 1.5rem;
   }
 }
 
 @media (min-width: 1280px) {
   .masonry-grid {
     column-count: 3;
+    column-gap: 1.5rem;
   }
 }
 
 .masonry-item {
   break-inside: avoid;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 768px) {
+  .masonry-item {
+    margin-bottom: 1.5rem;
+  }
 }
 
 /* ===== 网格布局（技能大厅专用） ===== */
 .skill-grid {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
-  gap: 1.5rem;
+  gap: 1rem;
+}
+
+/* 手机端大屏（≥480px）就显示2列 */
+@media (min-width: 480px) {
+  .skill-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (min-width: 768px) {
   .skill-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
   }
 }
 
@@ -396,6 +441,20 @@
   opacity: 1;
 }
 
+/* ===== 手机端：卡片操作按钮始终可见（触屏无hover） ===== */
+@media (hover: none),
+(max-width: 767px) {
+  .card-hover-buttons {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .card-hover-gradient {
+    opacity: 1;
+  }
+}
+
 /* ===== Shimmer 加载动画 ===== */
 @keyframes shimmer {
   0% {
@@ -438,6 +497,31 @@
 #chat-chevron.collapsed {
   transform: rotate(0deg);
 }
+
+/* ===== 手机端键盘弹起适配 ===== */
+/* 使用 dvh（动态视口高度），键盘弹起时视口自动缩小，对话框跟随收缩 */
+@media (max-width: 1023px) {
+  #chat-dialog-view {
+    /* 替换固定 max-height，改用动态视口高度 */
+    max-height: 75dvh !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #chat-messages {
+    /* 消息区域禅用剩余空间，键盘弹起时自动收缩 */
+    flex: 1 1 0;
+    min-height: 80px;
+    max-height: none !important;
+    overflow-y: auto;
+  }
+
+  #chat-input-area {
+    /* 输入区始终固定在对话框底部，不随内容滚动 */
+    flex-shrink: 0;
+  }
+}
+
 
 /* 聊天列表项 */
 .chat-list-item {

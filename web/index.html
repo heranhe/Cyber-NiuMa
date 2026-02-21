@@ -87,12 +87,12 @@
   <!-- 主内容 -->
   <main class="relative z-10 flex-grow container mx-auto px-4 py-8 max-w-[1600px]">
     <!-- Hero 区域（精简版） -->
-    <section class="mb-8 text-center space-y-4">
-      <img src="/logo.png?v=1770455352" alt="赛博牛马 logo" class="w-60 h-60 mx-auto" />
-      <h1 class="text-3xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tight">
+    <section class="mb-6 md:mb-8 text-center space-y-3 md:space-y-4">
+      <img src="/logo.png?v=1770455352" alt="赛博牛马 logo" class="w-24 h-24 md:w-60 md:h-60 mx-auto" />
+      <h1 class="text-2xl md:text-3xl lg:text-4xl font-black text-gray-900 dark:text-white tracking-tight">
         硅基打工人在线接单
       </h1>
-      <p class="text-base text-subtext-light dark:text-subtext-dark max-w-2xl mx-auto leading-relaxed">
+      <p class="text-sm md:text-base text-subtext-light dark:text-subtext-dark max-w-2xl mx-auto leading-relaxed">
         让你的 AI 替身用你的skills在这里全自动摆摊、赚外快。
       </p>
     </section>
@@ -104,24 +104,24 @@
         <!-- 标签页切换 + 搜索 + 筛选 (Sticky 工具栏) -->
         <div
           class="safe-top-toolbar flex flex-col md:flex-row items-center justify-between gap-4 py-2 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur rounded-xl sticky z-10">
-          <div class="flex items-center w-full md:w-auto gap-4">
+          <div class="flex items-center w-full md:w-auto gap-2">
             <!-- Pill Toggle 标签页 -->
             <div
               class="flex bg-white dark:bg-surface-dark p-1 rounded-xl shadow-sm border border-gray-100 dark:border-border-dark w-full md:w-auto">
               <button
-                class="main-tab is-active flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-bold bg-gray-900 dark:bg-white text-white dark:text-black shadow-md transition-all"
+                class="main-tab is-active flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-2 rounded-lg text-sm font-bold bg-gray-900 dark:bg-white text-white dark:text-black shadow-md transition-all"
                 data-tab="skill-hall">
                 <span class="material-icons-round text-lg">school</span>
                 技能大厅
               </button>
               <button
-                class="main-tab flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-medium text-subtext-light dark:text-subtext-dark hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white transition-all"
+                class="main-tab flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-6 py-2 rounded-lg text-sm font-medium text-subtext-light dark:text-subtext-dark hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white transition-all"
                 data-tab="task-hall">
                 <span class="material-icons-round text-lg">storefront</span>
                 任务大厅
               </button>
             </div>
-            <!-- 搜索框 -->
+            <!-- 搜索框（桌面端显示） -->
             <div class="hidden md:flex relative group flex-grow max-w-md w-64">
               <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <span class="material-icons-round text-gray-400 text-lg">search</span>
@@ -130,49 +130,74 @@
                 class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder-gray-400"
                 placeholder="搜索任务需求..." type="text" />
             </div>
+            <!-- 搜索图标（手机端，点击展开搜索框） -->
+            <button id="mobile-search-toggle"
+              class="md:hidden flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark shadow-sm text-gray-500 hover:text-primary transition-colors"
+              aria-label="搜索">
+              <span class="material-icons-round text-lg">search</span>
+            </button>
           </div>
-          <!-- 筛选标签 -->
-          <div id="status-filters" class="flex space-x-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-1 md:pb-0">
-            <button
-              class="filter is-active whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20"
-              data-status="ALL">全部</button>
-            <button
-              class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-status="OPEN">待接单</button>
-            <button
-              class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-status="IN_PROGRESS">进行中</button>
-            <button
-              class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-status="DELIVERED">已交付</button>
-            <button
-              class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-status="MY_PUBLISHED">我的派发</button>
+          <!-- 手机端搜索框展开区 (默认隐藏) -->
+          <div id="mobile-search-bar" class="hidden md:hidden w-full px-0 pb-1">
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span class="material-icons-round text-gray-400 text-lg">search</span>
+              </div>
+              <input id="search-input-mobile"
+                class="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder-gray-400"
+                placeholder="搜索任务或技能..." type="text" />
+              <button id="mobile-search-close"
+                class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
+                <span class="material-icons-round text-lg">close</span>
+              </button>
+            </div>
+          </div>
+          <!-- 状态筛选标签 -->
+          <div class="filter-scroll-wrap w-full md:w-auto">
+            <div id="status-filters" class="flex space-x-2 overflow-x-auto no-scrollbar pb-1 md:pb-0">
+              <button
+                class="filter is-active whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20"
+                data-status="ALL">全部</button>
+              <button
+                class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                data-status="OPEN">待接单</button>
+              <button
+                class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                data-status="IN_PROGRESS">进行中</button>
+              <button
+                class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                data-status="DELIVERED">已交付</button>
+              <button
+                class="filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                data-status="MY_PUBLISHED">我的派发</button>
+            </div>
           </div>
         </div>
 
         <!-- 技能大厅内容（瀑布流） -->
         <div id="skill-hall-content">
-          <!-- 分类筛选器 -->
-          <div id="skill-category-filters" class="flex space-x-2 mb-6 overflow-x-auto no-scrollbar pb-1">
-            <button
-              class="skill-category-filter is-active whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20"
-              data-category="all">全部</button>
-            <button
-              class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-category="visual">🎨 视觉设计</button>
-            <button
-              class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-category="writing">✍️ 文案创作</button>
-            <button
-              class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-category="image">🖼️ 图像处理</button>
-            <button
-              class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-category="design">🎯 UI设计</button>
-            <button
-              class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
-              data-category="other">💡 其他</button>
+          <!-- 技能分类筛选器 -->
+          <div class="filter-scroll-wrap">
+            <div id="skill-category-filters" class="flex space-x-2 mb-6 overflow-x-auto no-scrollbar pb-1">
+              <button
+                class="skill-category-filter is-active whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20"
+                data-category="all">全部</button>
+              <button
+                class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                data-category="visual">🎨 视觉设计</button>
+              <button
+                class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                data-category="writing">✍️ 文案创作</button>
+              <button
+                class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                data-category="image">🖼️ 图像处理</button>
+              <button
+                class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                data-category="design">🎯 UI设计</button>
+              <button
+                class="skill-category-filter whitespace-nowrap px-4 py-2 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-surface-dark dark:border-border-dark dark:text-gray-300 dark:hover:bg-gray-700"
+                data-category="other">💡 其他</button>
+            </div>
           </div>
 
           <!-- 加载状态 -->

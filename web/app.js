@@ -2634,6 +2634,20 @@ async function openConversation(role, data) {
   switchConversation(conv.id);
 
   showToast(`💬 已进入对话`);
+
+  // 手机端：自动滚动到对话框并高亮提示（桌面端对话框始终在视口内右侧边栏）
+  if (window.innerWidth < 1024) {
+    setTimeout(() => {
+      const chatEl = document.querySelector('#chat-module');
+      if (chatEl) {
+        chatEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // 短暂高亮边框，引导用户视线
+        chatEl.style.transition = 'box-shadow 0.3s ease';
+        chatEl.style.boxShadow = '0 0 0 3px rgba(217, 119, 6, 0.5)';
+        setTimeout(() => { chatEl.style.boxShadow = ''; }, 1800);
+      }
+    }, 150);
+  }
 }
 
 // 发送消息
@@ -2856,6 +2870,45 @@ chatInput?.addEventListener('keydown', (e) => {
     sendChatMessage();
   }
 });
+
+// ===== 手机端搜索框展开/关闭 =====
+(function initMobileSearch() {
+  const toggleBtn = document.querySelector('#mobile-search-toggle');
+  const searchBar = document.querySelector('#mobile-search-bar');
+  const closeBtn = document.querySelector('#mobile-search-close');
+  const mobileInput = document.querySelector('#search-input-mobile');
+  const desktopInput = document.querySelector('#search-input');
+
+  if (!toggleBtn || !searchBar) return;
+
+  // 点击放大镜图标展开搜索框
+  toggleBtn.addEventListener('click', () => {
+    searchBar.classList.remove('hidden');
+    toggleBtn.classList.add('hidden');
+    mobileInput?.focus();
+  });
+
+  // 点击关闭按钮收起搜索框
+  closeBtn?.addEventListener('click', () => {
+    searchBar.classList.add('hidden');
+    toggleBtn.classList.remove('hidden');
+    if (mobileInput) mobileInput.value = '';
+    // 清空桌面搜索框并触发重新渲染
+    if (desktopInput) {
+      desktopInput.value = '';
+      desktopInput.dispatchEvent(new Event('input'));
+    }
+  });
+
+  // 手机搜索框 input 同步到桌面搜索框（共享过滤逻辑）
+  mobileInput?.addEventListener('input', () => {
+    if (desktopInput) {
+      desktopInput.value = mobileInput.value;
+      desktopInput.dispatchEvent(new Event('input'));
+    }
+  });
+})();
+
 
 // 点击外部关闭技能下拉
 document.addEventListener('click', (e) => {

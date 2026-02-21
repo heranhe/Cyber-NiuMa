@@ -4841,44 +4841,34 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
   const stateFromCookie = String(ctx?.oauthState || '').trim();
 
   if (stateFromCookie && stateFromCookie !== state) {
-    const content = `<!doctype html>
-<html lang="zh-CN">
-  <head><meta charset="UTF-8" /><title>OAuth 回调失败</title></head>
-  <body style="font-family: ui-sans-serif,system-ui; padding: 24px;">
-    <h2>OAuth 回调失败</h2>
-    <p><strong>error:</strong> state 校验失败（可能重复打开或会话已变化）</p>
-    <p><strong>state(query):</strong> ${escapeHtmlText(state)}</p>
-    <p><strong>state(cookie):</strong> ${escapeHtmlText(stateFromCookie)}</p>
-  </body>
-</html>`;
+    const content = buildCallbackPage({
+      success: false,
+      title: '登录验证失败',
+      message: '安全状态校验不通过（可能重复打开或会话已变化），请重新发起登录。',
+      redirectTarget: null
+    });
     res.setHeader('Set-Cookie', clearCookie(OAUTH_COOKIE_STATE));
     return html(res, 400, content);
   }
 
   if (error) {
-    const content = `<!doctype html>
-<html lang="zh-CN">
-  <head><meta charset="UTF-8" /><title>OAuth 回调失败</title></head>
-  <body style="font-family: ui-sans-serif,system-ui; padding: 24px;">
-    <h2>OAuth 回调失败</h2>
-    <p><strong>error:</strong> ${escapeHtmlText(error)}</p>
-    <p><strong>error_description:</strong> ${escapeHtmlText(errorDescription || '无')}</p>
-    <p><strong>state:</strong> ${escapeHtmlText(state || '无')}</p>
-  </body>
-</html>`;
+    const content = buildCallbackPage({
+      success: false,
+      title: '登录被拒绝',
+      message: `授权失败：${escapeHtmlText(errorDescription || error)}。请返回重试。`,
+      redirectTarget: null
+    });
     res.setHeader('Set-Cookie', clearCookie(OAUTH_COOKIE_STATE));
     return html(res, 400, content);
   }
 
   if (!code) {
-    const content = `<!doctype html>
-<html lang="zh-CN">
-  <head><meta charset="UTF-8" /><title>OAuth 回调</title></head>
-  <body style="font-family: ui-sans-serif,system-ui; padding: 24px;">
-    <h2>OAuth 回调</h2>
-    <p>未检测到授权码 <code>code</code>。</p>
-  </body>
-</html>`;
+    const content = buildCallbackPage({
+      success: false,
+      title: '登录参数缺失',
+      message: '未检测到授权码，请重新发起登录。',
+      redirectTarget: null
+    });
     res.setHeader('Set-Cookie', clearCookie(OAUTH_COOKIE_STATE));
     return html(res, 400, content);
   }
@@ -4890,8 +4880,7 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
 
   const redirectUri = matchedRedirectUri || OAUTH_REDIRECT_URI || `${absoluteBaseUrl(req)}${urlObj.pathname}`;
   let exchanged = false;
-  let exchangeMessage = '尚未执行 code 换 token';
-  let exchangePayload = null;
+  let exchangeErrorMsg = '';
 
   if (OAUTH_CLIENT_ID && OAUTH_CLIENT_SECRET) {
     try {
@@ -4909,14 +4898,12 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
       res.setHeader('Set-Cookie', setCookies);
       setRuntimeAuthTokens(tokenResponse.data, 'oauth-callback');
       exchanged = true;
-      exchangeMessage = 'code 换 token 成功，已写入当前浏览器会话';
-      exchangePayload = tokenResponse.data;
     } catch (errorObj) {
       exchanged = false;
-      exchangeMessage = errorObj instanceof Error ? errorObj.message : String(errorObj);
+      exchangeErrorMsg = errorObj instanceof Error ? errorObj.message : String(errorObj);
     }
   } else {
-    exchangeMessage = '未配置 SECONDME_CLIENT_ID / SECONDME_CLIENT_SECRET，未自动换 token';
+    exchangeErrorMsg = '服务器未配置 OAuth 参数，请联系管理员。';
   }
   if (!exchanged) {
     res.setHeader('Set-Cookie', clearCookie(OAUTH_COOKIE_STATE));
@@ -4924,40 +4911,73 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
 
   const redirectTarget = '/';
   const redirectDelayMs = 1200;
-  const autoRedirectScript = exchanged
-    ? `<script>
-      setTimeout(() => {
-        window.location.replace(${JSON.stringify(redirectTarget)});
-      }, ${redirectDelayMs});
-    </script>`
-    : '';
 
-  const content = `<!doctype html>
-<html lang="zh-CN">
-  <head><meta charset="UTF-8" /><title>OAuth 回调结果</title>${autoRedirectScript}</head>
-  <body style="font-family: ui-sans-serif,system-ui; padding: 24px; line-height: 1.6;">
-    <h2>OAuth 回调成功</h2>
-    <p><strong>code:</strong> ${escapeHtmlText(maskToken(code))}</p>
-    <p><strong>state:</strong> ${escapeHtmlText(state || '无')}</p>
-    <p><strong>自动换 token:</strong> ${exchanged ? '成功' : '未成功'}</p>
-    <p><strong>说明:</strong> ${escapeHtmlText(exchangeMessage)}</p>
-    <p><strong>下一步:</strong> ${exchanged ? `即将自动跳转到首页（约 ${Math.round(redirectDelayMs / 1000)} 秒）` : '请检查错误并重试登录。'}</p>
-    <p><a href="${redirectTarget}" style="display:inline-block; margin: 6px 0;">返回首页</a></p>
-    <pre style="background:#f6f8fa; padding: 12px; border-radius: 8px;">${escapeHtmlText(
-    JSON.stringify(
-      {
-        redirectUri,
-        runtime: oauthTokenSnapshot(),
-        token: exchangePayload
-      },
-      null,
-      2
-    )
-  )}</pre>
-  </body>
-</html>`;
+  const content = exchanged
+    ? buildCallbackPage({ success: true, title: '登录成功', message: '正在进入...', redirectTarget, redirectDelayMs })
+    : buildCallbackPage({ success: false, title: '登录失败', message: exchangeErrorMsg || '获取登录凭证失败，请重试。', redirectTarget: null });
 
   return html(res, exchanged ? 200 : 400, content);
+}
+
+/** 生成美观的 OAuth 回调页（成功/失败通用） */
+function buildCallbackPage({ success, title, message, redirectTarget, redirectDelayMs = 1200 }) {
+  const autoRedirect = success && redirectTarget
+    ? `<script>setTimeout(()=>{window.location.replace(${JSON.stringify(redirectTarget)});},${redirectDelayMs});</script>`
+    : '';
+
+  const iconHtml = success
+    ? `<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;box-shadow:0 8px 24px rgba(217,119,6,0.3);">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>`
+    : `<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;box-shadow:0 8px 24px rgba(239,68,68,0.3);">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </div>`;
+
+  const spinnerHtml = success
+    ? `<div style="display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:1.5rem;color:#9ca3af;font-size:0.875rem;">
+        <div style="width:16px;height:16px;border:2px solid #e5e7eb;border-top-color:#d97706;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+        正在跳转首页...
+      </div>`
+    : `<a href="/" style="display:inline-flex;align-items:center;gap:0.5rem;margin-top:1.5rem;padding:0.625rem 1.5rem;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border-radius:0.75rem;text-decoration:none;font-weight:600;font-size:0.875rem;box-shadow:0 4px 12px rgba(217,119,6,0.3);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        返回重试
+      </a>`;
+
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>${success ? '登录成功' : '登录失败'} · Cyber NiuMa</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  ${autoRedirect}
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:"Noto Sans SC",ui-sans-serif,system-ui,sans-serif;background:#fdfbf7;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;}
+    body::before{content:'';position:fixed;inset:0;background:linear-gradient(135deg,rgba(255,169,109,0.15) 0%,rgba(114,198,193,0.1) 100%);pointer-events:none;}
+    .card{position:relative;background:white;border-radius:1.5rem;padding:2.5rem 2rem;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.08),0 4px 16px rgba(0,0,0,0.04);border:1px solid rgba(255,255,255,0.8);}
+    .logo{display:flex;align-items:center;justify-content:center;gap:0.625rem;margin-bottom:2rem;}
+    .logo img{width:36px;height:36px;border-radius:0.625rem;}
+    .logo span{font-size:1rem;font-weight:900;color:#111827;letter-spacing:-0.02em;}
+    h1{font-size:1.25rem;font-weight:700;color:#111827;margin-bottom:0.625rem;}
+    p{font-size:0.875rem;color:#6b7280;line-height:1.6;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <img src="/logo.png" alt="logo" onerror="this.style.display='none'" />
+      <span>Cyber NiuMa</span>
+    </div>
+    ${iconHtml}
+    <h1>${escapeHtmlText(title)}</h1>
+    <p>${escapeHtmlText(message)}</p>
+    ${spinnerHtml}
+  </div>
+</body>
+</html>`;
+
 }
 
 async function serveStatic(req, res, urlObj) {
