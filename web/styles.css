@@ -834,3 +834,179 @@
     opacity: 1;
   }
 }
+
+/* ============================================================
+   手机端 App 化底部导航栏
+   只在 max-width: 1023px 生效，桌面端通过 lg:hidden 隐藏 HTML
+   ============================================================ */
+
+/* 底部 Tab Bar 容器 */
+.mobile-tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-top: 0.5rem;
+  padding-bottom: max(0.625rem, env(safe-area-inset-bottom));
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  z-index: 40;
+}
+
+.dark .mobile-tab-bar {
+  background: #2D2D2D;
+  border-color: #404040;
+}
+
+/* Tab 按钮 */
+.mobile-tab-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 14px;
+  border-radius: 10px;
+  color: #9ca3af;
+  background: none;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+  position: relative;
+}
+
+.mobile-tab-btn.is-active {
+  color: #D97706;
+}
+
+.mobile-tab-btn .tab-icon {
+  font-size: 22px;
+  line-height: 1;
+  transition: transform 0.15s;
+}
+
+.mobile-tab-btn.is-active .tab-icon {
+  transform: scale(1.1);
+}
+
+.mobile-tab-btn .tab-label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.mobile-tab-btn.is-active .tab-label {
+  font-weight: 700;
+}
+
+.dark .mobile-tab-btn {
+  color: #6b7280;
+}
+
+.dark .mobile-tab-btn.is-active {
+  color: #fbbf24;
+}
+
+/* 未读红点（对话 Tab 上方） */
+.mobile-tab-unread {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  display: none;
+}
+
+.mobile-tab-unread.visible {
+  display: block;
+}
+
+/* 中间发布 FAB */
+.mobile-fab-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-fab {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(217, 119, 6, 0.4), 0 0 0 4px white;
+  margin-top: -18px;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.dark .mobile-fab {
+  box-shadow: 0 4px 16px rgba(217, 119, 6, 0.4), 0 0 0 4px #2D2D2D;
+}
+
+.mobile-fab:active {
+  transform: scale(0.9);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.3);
+}
+
+/* ===== 手机端内容区适配 ===== */
+@media (max-width: 1023px) {
+
+  /* 底部留白，防止内容被 Tab Bar 遮挡 */
+  main {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  /* 大厅面板隐藏（切换到其他 Tab 时 JS 加此 class） */
+  #hall-panel.mobile-tab-hidden,
+  #detail-panel.mobile-tab-hidden {
+    display: none !important;
+  }
+}
+
+/* 手机端 Tab 面板基础样式 */
+.mobile-tab-panel {
+  min-height: 40vh;
+}
+
+/* 对话 Tab：去除 chat-module 的圆角和阴影（全屏沉浸） */
+#m-tab-chat #chat-module {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  box-shadow: none;
+  border-top: none;
+}
+
+/* 对话 Tab：列表不限高，自然展开 */
+#m-tab-chat #chat-list {
+  max-height: none;
+}
+
+/* 排行 Tab：两栏并列时不限制卡片高度 */
+#m-tab-ranking .leaderboard-card {
+  height: auto;
+  min-height: 0;
+}
+
+/* 我的 Tab：各模块间距 */
+#m-tab-me {
+  padding-bottom: 1rem;
+}
+
+/* 手机端搜索图标：排行 Tab 激活时隐藏搜索（排行无需搜索） */
+@media (max-width: 1023px) {
+  #mobile-search-toggle.tab-hidden {
+    display: none;
+  }
+}

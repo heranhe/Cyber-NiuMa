@@ -87,7 +87,7 @@
   <!-- 主内容 -->
   <main class="relative z-10 flex-grow container mx-auto px-4 py-8 max-w-[1600px]">
     <!-- Hero 区域（精简版） -->
-    <section class="mb-6 md:mb-8 text-center space-y-3 md:space-y-4">
+    <section class="hidden lg:block mb-6 md:mb-8 text-center space-y-3 md:space-y-4">
       <img src="/logo.png?v=1770455352" alt="赛博牛马 logo" class="w-24 h-24 md:w-60 md:h-60 mx-auto" />
       <h1 class="text-2xl md:text-3xl lg:text-4xl font-black text-gray-900 dark:text-white tracking-tight">
         硅基打工人在线接单
@@ -100,7 +100,7 @@
     <!-- 主布局 -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
       <!-- 左侧主区域 -->
-      <div class="lg:col-span-9 space-y-6">
+      <div id="hall-panel" class="lg:col-span-9 space-y-6">
         <!-- 标签页切换 + 搜索 + 筛选 (Sticky 工具栏) -->
         <div
           class="safe-top-toolbar flex flex-col md:flex-row items-center justify-between gap-4 py-2 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur rounded-xl sticky z-10">
@@ -232,10 +232,12 @@
 
       <!-- 详情面板（覆盖左侧区域） -->
       <div id="detail-panel" class="lg:col-span-9 hidden">
-        <div class="bg-white dark:bg-surface-dark rounded-2xl shadow-lg border border-gray-100 dark:border-border-dark overflow-hidden">
+        <div
+          class="bg-white dark:bg-surface-dark rounded-2xl shadow-lg border border-gray-100 dark:border-border-dark overflow-hidden">
           <!-- 详情头部 -->
           <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-            <button id="detail-back-btn" type="button" class="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-primary transition-colors">
+            <button id="detail-back-btn" type="button"
+              class="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-primary transition-colors">
               <span class="material-icons-round">arrow_back</span>
               <span class="text-sm font-medium">返回列表</span>
             </button>
@@ -245,15 +247,16 @@
           <div id="detail-body" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           </div>
           <!-- 操作按钮 -->
-          <div id="detail-actions" class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex gap-3 justify-end">
+          <div id="detail-actions"
+            class="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex gap-3 justify-end">
           </div>
         </div>
       </div>
 
       <!-- 右侧边栏 -->
-      <aside class="lg:col-span-3 flex flex-col gap-6">
+      <aside id="desktop-sidebar" class="hidden lg:flex lg:col-span-3 flex-col gap-6">
         <!-- 我的 AI 分身 -->
-        <div
+        <div id="ai-profile-card"
           class="bg-white dark:bg-surface-dark rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-border-dark flex flex-col justify-between group cursor-pointer hover:border-primary/50 transition-colors">
 
           <!-- AI 分身容器（登录后显示） -->
@@ -530,8 +533,8 @@
         </section>
 
         <!-- 技能排行榜 -->
-        <div
-          class="bg-white dark:bg-surface-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-border-dark flex flex-col h-[24rem] overflow-hidden">
+        <div id="skill-leaderboard-card"
+          class="leaderboard-card bg-white dark:bg-surface-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-border-dark flex flex-col h-[24rem] overflow-hidden">
           <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <span class="material-icons-round text-purple-500 text-2xl">auto_awesome</span>
@@ -641,8 +644,8 @@
         </div>
 
         <!-- 用户排行 -->
-        <div
-          class="bg-white dark:bg-surface-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-border-dark flex flex-col h-[24rem] overflow-hidden">
+        <div id="user-leaderboard-card"
+          class="leaderboard-card bg-white dark:bg-surface-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-border-dark flex flex-col h-[24rem] overflow-hidden">
           <div class="flex justify-between items-center mb-4">
             <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <span class="material-icons-round text-yellow-500 text-2xl">emoji_events</span>
@@ -798,6 +801,62 @@
   <!-- 接单弹窗已移除，功能合并到对话模块 -->
 
   <!-- 雇佣弹窗已移除，功能合并到对话模块 -->
+
+  <!-- ===== 手机端 App 化：3 个 Tab 面板（排行/对话/我的，大厅复用 #hall-panel） ===== -->
+  <!-- JS 在初始化时将对应模块节点 appendChild 到这里，DOM 不重复 -->
+  <div id="m-tab-ranking" class="mobile-tab-panel lg:hidden hidden pt-4 px-4">
+    <!-- 排行 Tab：JS 会将两个排行榜卡片挪到这里，用两列 grid 并排 -->
+    <div id="m-ranking-inner" class="grid grid-cols-2 gap-3"></div>
+  </div>
+
+  <div id="m-tab-chat" class="mobile-tab-panel lg:hidden hidden">
+    <!-- 对话 Tab：JS 会将 #chat-module 挪到这里 -->
+    <!-- 子 Tab 切换（需求/接单对话） -->
+    <div class="flex gap-1 p-2 bg-gray-100 dark:bg-surface-dark">
+      <button
+        class="chat-sub-tab is-active flex-1 py-1.5 text-xs font-bold rounded-lg bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white transition-all"
+        data-role="demand">📋 需求对话</button>
+      <button
+        class="chat-sub-tab flex-1 py-1.5 text-xs font-medium rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 transition-all"
+        data-role="worker">⚡ 接单对话</button>
+    </div>
+    <div id="m-chat-container"></div>
+  </div>
+
+  <div id="m-tab-me" class="mobile-tab-panel lg:hidden hidden pt-4 px-4 space-y-4">
+    <!-- 我的 Tab：JS 会将 AI分身卡、发布按钮、工作台挪到这里 -->
+  </div>
+
+  <!-- ===== 手机端底部 Tab Bar (lg:hidden) ===== -->
+  <nav id="mobile-tab-bar" class="mobile-tab-bar lg:hidden">
+    <button class="mobile-tab-btn" data-mobile-tab="ranking">
+      <span class="material-icons-round tab-icon">emoji_events</span>
+      <span class="tab-label">排行</span>
+    </button>
+
+    <button class="mobile-tab-btn is-active" data-mobile-tab="hall">
+      <span class="material-icons-round tab-icon">storefront</span>
+      <span class="tab-label">大厅</span>
+    </button>
+
+    <!-- 中间悬浮发布按钮 -->
+    <div class="mobile-fab-wrap">
+      <button id="mobile-publish-fab" class="mobile-fab" aria-label="发布任务">
+        <span class="material-icons-round" style="font-size:26px">add</span>
+      </button>
+    </div>
+
+    <button class="mobile-tab-btn" data-mobile-tab="chat">
+      <span class="material-icons-round tab-icon">chat_bubble</span>
+      <span class="tab-label">对话</span>
+      <span id="m-chat-unread" class="mobile-tab-unread"></span>
+    </button>
+
+    <button class="mobile-tab-btn" data-mobile-tab="me">
+      <span class="material-icons-round tab-icon">person</span>
+      <span class="tab-label">我的</span>
+    </button>
+  </nav>
 
   <!-- Supabase JS Client (仅用于 Realtime 消息监听) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>

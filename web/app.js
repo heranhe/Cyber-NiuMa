@@ -2635,18 +2635,23 @@ async function openConversation(role, data) {
 
   showToast(`💬 已进入对话`);
 
-  // 手机端：自动滚动到对话框并高亮提示（桌面端对话框始终在视口内右侧边栏）
+  // 手机端导航：优先切换到对话 Tab（App 模式）；回退到 scrollIntoView（旧逻辑）
   if (window.innerWidth < 1024) {
-    setTimeout(() => {
-      const chatEl = document.querySelector('#chat-module');
-      if (chatEl) {
-        chatEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        // 短暂高亮边框，引导用户视线
-        chatEl.style.transition = 'box-shadow 0.3s ease';
-        chatEl.style.boxShadow = '0 0 0 3px rgba(217, 119, 6, 0.5)';
-        setTimeout(() => { chatEl.style.boxShadow = ''; }, 1800);
-      }
-    }, 150);
+    if (typeof window._mobileTabSwitchToChat === 'function') {
+      // App 化模式：直接切换到对话 Tab
+      setTimeout(() => window._mobileTabSwitchToChat(), 80);
+    } else {
+      // 回退：滚动到对话模块并高亮
+      setTimeout(() => {
+        const chatEl = document.querySelector('#chat-module');
+        if (chatEl) {
+          chatEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          chatEl.style.transition = 'box-shadow 0.3s ease';
+          chatEl.style.boxShadow = '0 0 0 3px rgba(217, 119, 6, 0.5)';
+          setTimeout(() => { chatEl.style.boxShadow = ''; }, 1800);
+        }
+      }, 150);
+    }
   }
 }
 
@@ -2923,3 +2928,166 @@ document.addEventListener('click', (e) => {
 renderChatList();
 
 bootstrap();
+
+// ============================================================
+// 手机端 App 化 Tab Bar 初始化
+// 在手机端将侧边栏模块迁移到对应 Tab 面板；桌面端不执行任何操作
+// ============================================================
+function initMobileTabBar() {
+  if (window.innerWidth >= 1024) return; // 桌面端跳过
+
+  // ---- 1. DOM 迁移：将侧边栏各模块 appendChild 到对应 Tab 面板 ----
+  const moveEl = (id, targetId) => {
+    const el = document.getElementById(id);
+    const target = document.getElementById(targetId);
+    if (el && target) target.appendChild(el);
+  };
+
+  // 排行 Tab：两个排行榜卡并排（grid grid-cols-2 已在 HTML 中）
+  const rankingInner = document.getElementById('m-ranking-inner');
+  const skillCard = document.getElementById('skill-leaderboard-card');
+  const userCard = document.getElementById('user-leaderboard-card');
+  if (rankingInner && skillCard) rankingInner.appendChild(skillCard);
+  if (rankingInner && userCard) rankingInner.appendChild(userCard);
+
+  // 对话 Tab：chat-module 移到 m-chat-container
+  const chatContainer = document.getElementById('m-chat-container');
+  const chatModule = document.getElementById('chat-module');
+  if (chatContainer && chatModule) chatContainer.appendChild(chatModule);
+
+  // 我的 Tab：AI分身卡、发布按钮、工作台依次移入
+  const meTab = document.getElementById('m-tab-me');
+  const aiCard = document.getElementById('ai-profile-card');
+  const publishBtn = document.getElementById('publish-task-btn');
+  const workbench = document.getElementById('hire-fab-wrapper');
+  if (meTab) {
+    if (aiCard) meTab.appendChild(aiCard);
+    if (publishBtn) meTab.appendChild(publishBtn);
+    if (workbench) meTab.appendChild(workbench);
+  }
+
+  // ---- 2. Tab 切换逻辑 ----
+  const hallPanel = document.getElementById('hall-panel');
+  const detailPanel = document.getElementById('detail-panel');
+  const tabPanels = {
+    ranking: document.getElementById('m-tab-ranking'),
+    hall: null, // 大厅复用 hallPanel
+    chat: document.getElementById('m-tab-chat'),
+    me: document.getElementById('m-tab-me'),
+  };
+  let currentTab = 'hall';
+
+  function switchMobileTab(tab) {
+    if (tab === currentTab) return;
+    currentTab = tab;
+
+    // 更新底部 Tab 按钮激活状态
+    document.querySelectorAll('[data-mobile-tab]').forEach(btn => {
+      btn.classList.toggle('is-active', btn.dataset.mobileTab === tab);
+    });
+
+    // 控制大厅面板显隐
+    const isHall = tab === 'hall';
+    hallPanel?.classList.toggle('mobile-tab-hidden', !isHall);
+    detailPanel?.classList.toggle('mobile-tab-hidden', !isHall);
+
+    // 控制排行/对话/我的 面板显隐
+    Object.entries(tabPanels).forEach(([key, el]) => {
+      if (!el) return; // hall 的 el 为 null，由 hallPanel 控制
+      el.classList.toggle('hidden', key !== tab);
+    });
+
+    // 切换到对话 Tab 时刷新渲染
+    if (tab === 'chat') {
+      renderChatList();
+      syncChatSubTab(); // 同步子 Tab 过滤
+    }
+    // 切换到我的 Tab 时刷新 AI 分身
+    if (tab === 'me') {
+      renderAIAvatar?.();
+    }
+  }
+
+  // 绑定 Tab Bar 按钮点击
+  document.querySelectorAll('[data-mobile-tab]').forEach(btn => {
+    btn.addEventListener('click', () => switchMobileTab(btn.dataset.mobileTab));
+  });
+
+  // 中间 FAB 点击 = 发布任务
+  document.getElementById('mobile-publish-fab')?.addEventListener('click', () => {
+    document.getElementById('publish-task-btn')?.click();
+  });
+
+  // ---- 3. 对话子 Tab（需求对话 / 接单对话）过滤 ----
+  let chatSubRole = 'demand'; // 当前过滤的 role
+
+  function syncChatSubTab() {
+    // 根据 chatSubRole 过滤对话列表项显示
+    document.querySelectorAll('#chat-list .chat-list-item').forEach(item => {
+      const role = item.dataset.role || 'demand';
+      item.style.display = (role === chatSubRole) ? '' : 'none';
+    });
+    // 同步空状态提示
+    const visibleItems = document.querySelectorAll(
+      '#chat-list .chat-list-item[style=""]'
+    );
+    const emptyEl = document.getElementById('chat-list-empty');
+    if (emptyEl) emptyEl.classList.toggle('hidden', visibleItems.length > 0);
+  }
+
+  document.querySelectorAll('.chat-sub-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      chatSubRole = btn.dataset.role;
+      // 更新激活样式
+      document.querySelectorAll('.chat-sub-tab').forEach(b => {
+        const isActive = b === btn;
+        b.classList.toggle('is-active', isActive);
+        b.classList.toggle('bg-white', isActive);
+        b.classList.toggle('dark:bg-gray-700', isActive);
+        b.classList.toggle('font-bold', isActive);
+        b.classList.toggle('shadow-sm', isActive);
+        b.classList.toggle('text-gray-900', isActive);
+        b.classList.toggle('dark:text-white', isActive);
+        b.classList.toggle('font-medium', !isActive);
+        b.classList.toggle('text-gray-500', !isActive);
+      });
+      syncChatSubTab();
+    });
+  });
+
+  // ---- 4. 未读红点同步 ----
+  function updateMobileChatUnread() {
+    const hasUnread = document.getElementById('chat-unread-dot')?.classList.contains('hidden') === false;
+    const dot = document.getElementById('m-chat-unread');
+    if (dot) dot.classList.toggle('visible', hasUnread);
+  }
+
+  // 监听 chat-unread-dot 变化
+  const unreadDot = document.getElementById('chat-unread-dot');
+  if (unreadDot) {
+    new MutationObserver(updateMobileChatUnread).observe(unreadDot, { attributes: true });
+  }
+
+  // ---- 5. openConversation 手机端改为切换 Tab ----
+  // 覆盖之前添加的 scrollIntoView 行为
+  window._mobileTabSwitchToChat = () => {
+    switchMobileTab('chat');
+    // 高亮 chat module 边框
+    const chatEl = document.getElementById('chat-module');
+    if (chatEl) {
+      chatEl.style.transition = 'box-shadow 0.3s ease';
+      chatEl.style.boxShadow = '0 0 0 3px rgba(217, 119, 6, 0.5)';
+      setTimeout(() => { chatEl.style.boxShadow = ''; }, 1800);
+    }
+  };
+
+  // 默认激活大厅 Tab（hall-panel 显示）
+  hallPanel?.classList.remove('mobile-tab-hidden');
+  tabPanels.ranking?.classList.add('hidden');
+  tabPanels.chat?.classList.add('hidden');
+  tabPanels.me?.classList.add('hidden');
+}
+
+// 在 DOM 加载完毕后的下一个 tick 运行（确保所有渲染函数已注册）
+setTimeout(initMobileTabBar, 0);
+
