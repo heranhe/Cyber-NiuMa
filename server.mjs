@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { promises as fs, createWriteStream } from 'node:fs';
+import { promises as fs } from 'node:fs';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,12 +20,9 @@ const WEB_DIR = path.join(__dirname, 'web');
 const IS_VERCEL = Boolean(process.env.VERCEL);
 
 // ── API 调用日志 ──────────────────────────────────────────────
-const API_LOG_FILE = path.join(__dirname, 'api_debug.log');
-const _apiLogStream = createWriteStream(API_LOG_FILE, { flags: 'a' });
 function apiLog(tag, data) {
-  const line = `[${new Date().toISOString()}] [${tag}] ${typeof data === 'string' ? data : JSON.stringify(data, null, 2)}\n`;
-  process.stdout.write(line);
-  _apiLogStream.write(line);
+  const line = `[${new Date().toISOString()}] [${tag}] ${typeof data === 'string' ? data : JSON.stringify(data)}`;
+  console.log(line);
 }
 // ─────────────────────────────────────────────────────────────
 const DATA_DIR = IS_VERCEL ? path.join('/tmp', 'ai-labor-market') : path.join(__dirname, 'data');
