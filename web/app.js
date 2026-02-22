@@ -946,82 +946,315 @@ async function onTakeTaskSubmit(event) {
 
 // ===== 详情面板 =====
 const leftMainArea = document.querySelector('.lg\\:col-span-9.space-y-6');
+let detailModalCloseTimer = null;
 
 function openDetailPanel(type, data) {
-  if (!detailPanel || !leftMainArea) return;
-  leftMainArea.classList.add('hidden');
-  detailPanel.classList.remove('hidden');
+  if (!data) return;
+  // 旧侧栏详情面板保留，当前统一走独立弹窗
+  if (detailPanel && leftMainArea) {
+    detailPanel.classList.add('hidden');
+    leftMainArea.classList.remove('hidden');
+  }
+  if (!detailModal) return;
+  if (detailModalCloseTimer) {
+    clearTimeout(detailModalCloseTimer);
+    detailModalCloseTimer = null;
+  }
+  detailModal.classList.remove('hidden');
+  detailModal.setAttribute('aria-hidden', 'false');
+  requestAnimationFrame(() => detailModal.classList.add('is-open'));
+  document.body.classList.add('overflow-hidden');
   if (type === 'task') renderTaskDetail(data);
   else if (type === 'skill') renderSkillDetail(data);
 }
 
 function closeDetailPanel() {
-  if (!detailPanel || !leftMainArea) return;
-  detailPanel.classList.add('hidden');
-  leftMainArea.classList.remove('hidden');
+  closeDetailModal();
 }
 
 detailBackBtn?.addEventListener('click', closeDetailPanel);
 
+function closeDetailModal() {
+  if (!detailModal) return;
+  detailModal.classList.remove('is-open');
+  detailModal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('overflow-hidden');
+  detailModalCloseTimer = setTimeout(() => {
+    detailModal.classList.add('hidden');
+    detailModalCloseTimer = null;
+  }, 180);
+}
+
+detailModalCloseBtn?.addEventListener('click', closeDetailModal);
+detailModalOverlay?.addEventListener('click', closeDetailModal);
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && detailModal && !detailModal.classList.contains('hidden')) {
+    closeDetailModal();
+  }
+});
+
+function formatDateTime(value) {
+  if (!value) return '';
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return String(value);
+  return dt.toLocaleString('zh-CN', { hour12: false });
+}
+
+function normalizePointsLabel(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  if (/[积分]/.test(text)) return text;
+  return `${text} 积分`;
+}
+
+function getWorkerProfileByAnyId(id) {
+  const target = String(id || '').trim();
+  if (!target) return null;
+  return state.workers.find((w) => {
+    const wid = String(w?.id || '').trim();
+    const sid = String(w?.secondUserId || '').trim();
+    return wid === target || sid === target;
+  }) || null;
+}
+
+function buildDetailPublisherProfile(type, data) {
+  const isTask = type === 'task';
+  const userId = String(isTask ? (data.publisherId || '') : (data.ownerId || '')).trim();
+  const worker = getWorkerProfileByAnyId(userId);
+  return {
+    label: isTask ? '发布者个人信息' : '技能提供者个人信息',
+    name: worker?.name || worker?.displayName || (isTask ? (data.publisherName || data.requesterAi || '匿名发布者') : (data.ownerName || '匿名提供者')),
+    avatar: worker?.avatar || worker?.profileImageUrl || (isTask ? data.publisherAvatar : data.ownerAvatar) || '',
+    title: worker?.title || (isTask ? '任务发布者' : 'AI 技能提供者'),
+    bio: worker?.persona || worker?.bio || '',
+    userId: worker?.secondUserId || userId || '',
+    workerId: worker?.id || '',
+    specialties: Array.isArray(worker?.specialties) ? worker.specialties.filter(Boolean) : []
+  };
+}
+
+function getDetailRelatedConversations(type, data) {
+  const refId = String(data?.id || '').trim();
+  if (!refId) return [];
+  const role = type === 'task' ? 'worker' : 'demand';
+  return chatState.conversations
+    .filter((conv) => String(conv?.refId || '').trim() === refId && conv.role === role)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+}
+
+function renderDetailChatMessage(msg) {
+  if (!msg) return '';
+  if (msg.type === 'loading') {
+    return `<div class="detail-chat-msg detail-chat-msg-system"><div class="detail-chat-msg-label">系统</div><div class="detail-chat-msg-text">AI 处理中...</div></div>`;
+  }
+  if (msg.type === 'delivery') {
+    const images = (Array.isArray(msg.images) ? msg.images : []).map(normalizeImageSrc).filter(Boolean);
+    return `
+      <div class="detail-chat-msg detail-chat-msg-delivery">
+        <div class="detail-chat-msg-label">交付结果${msg.time ? ` · ${escapeHtml(formatDateTime(msg.time))}` : ''}${msg.skillName ? ` · ${escapeHtml(msg.skillName)}` : ''}</div>
+        <div class="detail-chat-msg-text">${escapeHtml(msg.content || '')}</div>
+        ${images.length ? `<div class="detail-chat-images">${images.map((src) => `<img src="${escapeHtml(src)}" alt="交付图片" loading="lazy" referrerpolicy="no-referrer" />`).join('')}</div>` : ''}
+      </div>
+    `;
+  }
+  const label = msg.type === 'self' ? '我' : (msg.type === 'peer' ? '对方' : '系统');
+  const cls = msg.type === 'self'
+    ? 'detail-chat-msg-self'
+    : (msg.type === 'peer' ? 'detail-chat-msg-peer' : 'detail-chat-msg-system');
+  return `
+    <div class="detail-chat-msg ${cls}">
+      <div class="detail-chat-msg-label">${label}${msg.time ? ` · ${escapeHtml(formatDateTime(msg.time))}` : ''}</div>
+      <div class="detail-chat-msg-text">${escapeHtml(msg.text || '')}</div>
+    </div>
+  `;
+}
+
+function renderDetailPublisherSection(type, data) {
+  if (!detailModalPublisher) return;
+  const profile = buildDetailPublisherProfile(type, data);
+  const avatar = profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent((profile.name || 'U').charAt(0))}&background=random&rounded=true&size=96`;
+  detailModalPublisher.innerHTML = `
+    <section class="detail-section-card">
+      <h3 class="detail-section-title">${escapeHtml(profile.label)}</h3>
+      <div class="detail-publisher-card">
+        <img class="detail-publisher-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(profile.name)}" loading="lazy" referrerpolicy="no-referrer" />
+        <div class="min-w-0 flex-1">
+          <div class="detail-publisher-name">${escapeHtml(profile.name)}</div>
+          <div class="detail-publisher-title">${escapeHtml(profile.title || '')}</div>
+          ${profile.userId ? `<div class="detail-publisher-id">用户ID：${escapeHtml(profile.userId)}</div>` : ''}
+          ${profile.workerId && profile.workerId !== profile.userId ? `<div class="detail-publisher-id">劳务体ID：${escapeHtml(profile.workerId)}</div>` : ''}
+          ${profile.bio ? `<p class="detail-publisher-bio">${escapeHtml(profile.bio)}</p>` : ''}
+          ${profile.specialties.length ? `<div class="detail-publisher-tags">${profile.specialties.slice(0, 8).map((tag) => `<span>${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderDetailChatSection(type, data) {
+  if (!detailModalChat) return;
+  const convs = getDetailRelatedConversations(type, data);
+  if (!convs.length) {
+    detailModalChat.innerHTML = `
+      <section class="detail-section-card">
+        <h3 class="detail-section-title">聊天记录</h3>
+        <div class="detail-empty-state">当前还没有与该${type === 'task' ? '任务' : '技能'}相关的聊天记录。</div>
+      </section>
+    `;
+    return;
+  }
+
+  detailModalChat.innerHTML = `
+    <section class="detail-section-card">
+      <h3 class="detail-section-title">聊天记录</h3>
+      <div class="space-y-4">
+        ${convs.map((conv) => {
+          const avatar = conv.peerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent((conv.peerName || 'A').charAt(0))}&background=random&rounded=true&size=64`;
+          const messages = Array.isArray(conv.messages) ? conv.messages : [];
+          return `
+            <div class="detail-chat-thread">
+              <div class="detail-chat-thread-head">
+                <img class="detail-chat-thread-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(conv.peerName || '对方')}" loading="lazy" referrerpolicy="no-referrer" />
+                <div class="min-w-0">
+                  <div class="detail-chat-thread-title">${escapeHtml(conv.title || '对话')}</div>
+                  <div class="detail-chat-thread-meta">${escapeHtml(conv.peerName || '对方')} · ${escapeHtml(formatDateTime(conv.updatedAt || conv.createdAt))}</div>
+                </div>
+              </div>
+              <div class="detail-chat-thread-body">
+                ${messages.length ? messages.map(renderDetailChatMessage).join('') : `<div class="detail-chat-msg detail-chat-msg-system"><div class="detail-chat-msg-text">暂无消息</div></div>`}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderDetailModalCommon(config) {
+  if (!detailModal) return;
+  const {
+    type,
+    data,
+    badgeText,
+    badgeClass,
+    title,
+    metaHtml,
+    description,
+    coverImage,
+    extraHtml,
+    actionsHtml
+  } = config || {};
+
+  if (detailModalBadge) {
+    detailModalBadge.textContent = badgeText || '';
+    detailModalBadge.className = `detail-modal-badge ${badgeClass || ''}`.trim();
+  }
+  if (detailModalTitle) detailModalTitle.textContent = title || '';
+  if (detailModalMeta) detailModalMeta.innerHTML = metaHtml || '';
+
+  const img = normalizeImageSrc(coverImage || '');
+  if (detailModalImageWrap && detailModalImage) {
+    if (img) {
+      detailModalImageWrap.classList.remove('hidden');
+      detailModalImage.src = img;
+      detailModalImage.alt = title || '详情图片';
+    } else {
+      detailModalImageWrap.classList.add('hidden');
+      detailModalImage.removeAttribute('src');
+    }
+  }
+
+  if (detailModalDesc) {
+    detailModalDesc.innerHTML = `
+      <section class="detail-section-card">
+        <h3 class="detail-section-title">${type === 'task' ? '完整需求内容' : '完整技能内容'}</h3>
+        <div class="detail-fulltext">${escapeHtml(description || '')}</div>
+        ${extraHtml || ''}
+      </section>
+    `;
+  }
+
+  renderDetailPublisherSection(type, data);
+  renderDetailChatSection(type, data);
+  if (detailModalActions) detailModalActions.innerHTML = actionsHtml || '';
+}
+
 function renderTaskDetail(task) {
   const statusLabel = statusText(task.status);
-  const statusBg = task.status === 'DELIVERED' ? 'bg-green-100 text-green-700' : task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700';
+  const statusBg = task.status === 'DELIVERED' ? 'is-success' : task.status === 'IN_PROGRESS' ? 'is-info' : 'is-muted';
   if (detailStatusBadge) {
     detailStatusBadge.textContent = statusLabel;
-    detailStatusBadge.className = `px-3 py-1 rounded-full text-xs font-bold ${statusBg}`;
   }
-  const coverImg = String(task.coverImage || '').trim();
-  detailBody.innerHTML = `
-    <div class="flex gap-4 items-start">
-      ${coverImg ? `<img src="${coverImg}" alt="${escapeHtml(task.title)}" class="w-32 h-24 object-cover rounded-xl flex-shrink-0" />` : ''}
-      <div class="flex-1 min-w-0">
-        <h2 class="text-xl font-black text-gray-900 dark:text-white mb-2">${escapeHtml(task.title)}</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400">发布者：${escapeHtml(task.publisherName || task.requesterAi || '匿名')}</p>
-        ${task.budget ? `<span class="inline-flex items-center mt-2 px-2 py-1 bg-green-50 text-green-600 text-xs font-medium rounded-full"><span class="material-icons-round text-xs mr-1">toll</span>${escapeHtml(String(task.budget))} 积分</span>` : ''}
-      </div>
-    </div>
-    <div class="mt-4">
-      <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">需求描述</h3>
-      <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap">${escapeHtml(task.description)}</p>
-    </div>
-    ${task.delivery ? `
-    <div class="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800">
-      <h3 class="text-sm font-bold text-green-700 dark:text-green-400 mb-2 flex items-center gap-1"><span class="material-icons-round text-sm">check_circle</span> 交付结果</h3>
-      <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">${escapeHtml(task.delivery?.content || '')}</p>
-      ${(task.delivery?.images?.length > 0) ? `<div class="grid grid-cols-2 gap-2 mt-2">${task.delivery.images.map(img => `<img src="${img}" class="rounded-lg" />`).join('')}</div>` : ''}
-    </div>` : ''}
-  `;
   let actionsHtml = '';
   if ((task.status === 'OPEN' || task.status === 'IN_PROGRESS') && canOperate()) {
-    actionsHtml = `<button class="detail-action-btn px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-amber-700 transition-colors flex items-center gap-1.5" data-action="join-chat" data-task-id="${task.id}"><span class="material-icons-round text-sm">forum</span> 加入对话</button>`;
+    actionsHtml = `<button class="detail-action-btn px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-amber-700 transition-colors flex items-center gap-1.5" data-action="join-chat" data-task-id="${task.id}"><span class="material-icons-round text-sm">forum</span> 加入对话</button>`;
   }
-  if (detailActions) detailActions.innerHTML = actionsHtml;
+  const deliveryImages = (Array.isArray(task?.delivery?.images) ? task.delivery.images : []).map(normalizeImageSrc).filter(Boolean);
+  const deliveryHtml = task.delivery ? `
+    <div class="detail-delivery-card">
+      <div class="detail-delivery-head"><span class="material-icons-round text-base">verified</span> 交付结果</div>
+      <div class="detail-delivery-text">${escapeHtml(task.delivery?.content || '')}</div>
+      ${deliveryImages.length ? `<div class="detail-chat-images">${deliveryImages.map((src) => `<img src="${escapeHtml(src)}" alt="交付图片" loading="lazy" referrerpolicy="no-referrer" />`).join('')}</div>` : ''}
+    </div>
+  ` : '';
+  renderDetailModalCommon({
+    type: 'task',
+    data: task,
+    badgeText: statusLabel,
+    badgeClass: statusBg,
+    title: task.title || '未命名任务',
+    metaHtml: `
+      <span>${escapeHtml(task.publisherName || task.requesterAi || '匿名发布者')}</span>
+      ${normalizePointsLabel(task.budget || task.price) ? `<span class="detail-modal-dot">•</span><span class="detail-price-chip">${escapeHtml(normalizePointsLabel(task.budget || task.price))}</span>` : ''}
+      ${task.deadline ? `<span class="detail-modal-dot">•</span><span>截止：${escapeHtml(String(task.deadline))}</span>` : ''}
+      ${task.createdAt ? `<span class="detail-modal-dot">•</span><span>${escapeHtml(formatDateTime(task.createdAt))}</span>` : ''}
+    `,
+    description: task.description || '',
+    coverImage: task.coverImage || '',
+    extraHtml: deliveryHtml,
+    actionsHtml
+  });
 }
 
 function renderSkillDetail(skill) {
   if (detailStatusBadge) {
     detailStatusBadge.textContent = '技能';
-    detailStatusBadge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700';
   }
-  const coverImg = String(skill.coverImage || '').trim();
-  detailBody.innerHTML = `
-    <div class="flex gap-4 items-start">
-      ${coverImg ? `<img src="${coverImg}" alt="${escapeHtml(skill.name)}" class="w-32 h-24 object-cover rounded-xl flex-shrink-0" />` : ''}
-      <div class="flex-1 min-w-0">
-        <h2 class="text-xl font-black text-gray-900 dark:text-white mb-2">${skill.icon || '🔧'} ${escapeHtml(skill.name)}</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400">提供者：${escapeHtml(skill.ownerName || '匿名')}</p>
-      </div>
-    </div>
-    <div class="mt-4">
-      <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">技能简介</h3>
-      <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">${escapeHtml(skill.description || '这个 AI 分身很懒，还没写简介…')}</p>
-    </div>
-  `;
   let actionsHtml = '';
   if (canOperate()) {
-    actionsHtml = `<button class="detail-action-btn px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-amber-700 transition-colors flex items-center gap-1.5" data-action="join-chat" data-skill-id="${skill.id}"><span class="material-icons-round text-sm">forum</span> 加入对话</button>`;
+    actionsHtml = `<button class="detail-action-btn px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-amber-700 transition-colors flex items-center gap-1.5" data-action="join-chat" data-skill-id="${skill.id}"><span class="material-icons-round text-sm">forum</span> 加入对话</button>`;
   }
-  if (detailActions) detailActions.innerHTML = actionsHtml;
+  const styles = Array.isArray(skill.styles) ? skill.styles : [];
+  const styleHtml = styles
+    .map((s) => ({ ...s, _img: normalizeImageSrc(s.image || s.coverImage || '') }))
+    .filter((s) => s._img)
+    .slice(0, 8);
+  renderDetailModalCommon({
+    type: 'skill',
+    data: skill,
+    badgeText: '技能',
+    badgeClass: 'is-skill',
+    title: `${skill.icon || '🔧'} ${skill.name || '未命名技能'}`,
+    metaHtml: `
+      <span>${escapeHtml(skill.ownerName || '匿名提供者')}</span>
+      ${skill.createdAt ? `<span class="detail-modal-dot">•</span><span>${escapeHtml(formatDateTime(skill.createdAt))}</span>` : ''}
+    `,
+    description: skill.description || '这个 AI 分身很懒，还没写简介…',
+    coverImage: skill.coverImage || '',
+    extraHtml: styleHtml.length ? `
+      <div class="detail-section-subtitle">风格样例</div>
+      <div class="detail-style-grid">
+        ${styleHtml.map((s) => `
+          <figure class="detail-style-card">
+            <img src="${escapeHtml(s._img)}" alt="${escapeHtml(s.name || '风格样例')}" loading="lazy" referrerpolicy="no-referrer" />
+            <figcaption>${escapeHtml(s.name || '未命名风格')}</figcaption>
+          </figure>
+        `).join('')}
+      </div>
+    ` : '',
+    actionsHtml
+  });
 }
 
 // 详情面板操作按钮事件委托
@@ -1037,6 +1270,27 @@ detailActions?.addEventListener('click', (e) => {
   } else if (action === 'join-chat' && skillId) {
     const skill = state.skills.find(s => s.id === skillId);
     if (skill) openConversation('demand', skill, { sourceEl: btn });
+  }
+});
+
+detailModalActions?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.detail-action-btn');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const taskId = btn.dataset.taskId;
+  const skillId = btn.dataset.skillId;
+  if (action === 'join-chat' && taskId) {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (task) {
+      closeDetailModal();
+      openConversation('worker', task, { sourceEl: btn });
+    }
+  } else if (action === 'join-chat' && skillId) {
+    const skill = state.skills.find(s => s.id === skillId);
+    if (skill) {
+      closeDetailModal();
+      openConversation('demand', skill, { sourceEl: btn });
+    }
   }
 });
 
@@ -1082,12 +1336,8 @@ async function onTaskActionClick(event) {
   if (taskCard) {
     const taskId = taskCard.dataset.taskId;
     if (taskId) {
-      if (!canOperate()) {
-        showToast('请先登录');
-        return;
-      }
       const task = state.tasks.find(t => t.id === taskId);
-      if (task) openConversation('worker', task, { sourceEl: taskCard });
+      if (task) openDetailPanel('task', task);
     }
   }
 }
@@ -1213,13 +1463,7 @@ async function viewTaskDetails(taskId) {
     showToast('任务不存在');
     return;
   }
-
-  // 如果任务已交付，显示交付结果
-  if (task.status === 'DELIVERED' && task.delivery) {
-    showDeliveryModal(task);
-  } else {
-    showToast('任务详情页开发中');
-  }
+  openDetailPanel('task', task);
 }
 
 // 显示交付结果弹窗
@@ -1635,16 +1879,20 @@ function renderSkillCard(skill, index) {
   const coverImg = String(skill.coverImage || '').trim();
   const hasCover = Boolean(coverImg);
   const ownerName = skill.ownerName || '';
+  const pricePoints = Math.max(0, Number.parseInt(String(skill?.pricePoints ?? '0'), 10) || 0);
   const ownerMeta = renderCardUserMeta(
     ownerName,
     skill.ownerAvatar,
-    `<span class="px-2 py-0.5 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-100 dark:border-gray-600 flex-shrink-0">${escapeHtml(categoryName)}</span>`
+    `
+      <span class="px-2 py-0.5 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-100 dark:border-gray-600 flex-shrink-0">${escapeHtml(categoryName)}</span>
+      <span class="px-2 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded border border-amber-100 flex-shrink-0">💰 ${pricePoints} 积分</span>
+    `
   );
 
   return `
-    <div class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-skill-id="${skill.id}">
+    <div class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group cursor-pointer" data-skill-id="${skill.id}">
       ${hasCover ? `
-        <div class="relative m-2 skill-card-cover">
+        <div class="relative m-2 skill-card-cover" data-detail-trigger="skill-cover">
           <img alt="${escapeHtml(skill.name)}" class="transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
           <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80"></div>
           <span class="absolute top-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-black/40 backdrop-blur-sm text-white border border-white/20">${skill.icon || '🔧'} ${categoryName}</span>
@@ -1657,8 +1905,8 @@ function renderSkillCard(skill, index) {
           </div>
         </div>
       ` : ''}
-      <div class="px-4 pb-4 ${hasCover ? 'pt-1' : 'pt-4'} flex flex-col cursor-pointer" onclick="openDetailPanel('skill', state.skills.find(s=>s.id==='${skill.id}'))">
-        <h3 class="font-bold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors text-base mb-2" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</h3>
+      <div class="px-4 pb-4 ${hasCover ? 'pt-1' : 'pt-4'} flex flex-col">
+        <h3 class="font-bold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors text-base mb-2" data-detail-trigger="skill-title" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</h3>
         <p class="text-xs text-subtext-light dark:text-subtext-dark line-clamp-3 mb-3 leading-relaxed">${escapeHtml(skill.description || '这个 AI 分身很懒，还没写简介…')}</p>
         ${ownerMeta}
       </div>
@@ -2113,7 +2361,11 @@ function openHireModal(skillId) {
   // 填充技能信息
   if (hireSkillIcon) hireSkillIcon.textContent = skill.icon || '🔧';
   if (hireSkillName) hireSkillName.textContent = skill.name || '未命名技能';
-  if (hireSkillDesc) hireSkillDesc.textContent = skill.description || '这个 AI 分身很懒，还没写简介…';
+  if (hireSkillDesc) {
+    const baseDesc = skill.description || '这个 AI 分身很懒，还没写简介…';
+    const pricePoints = Math.max(0, Number.parseInt(String(skill?.pricePoints ?? '0'), 10) || 0);
+    hireSkillDesc.textContent = `${baseDesc} · ${pricePoints} 积分/次`;
+  }
   if (hireRequirement) hireRequirement.value = '';
   renderHireStyleOptions(skill);
 
@@ -2217,6 +2469,10 @@ async function submitHire() {
     setHireStatus('COMPLETED', '已完成', 'success');
     renderHireWorkbench();
 
+    if (state.me) {
+      loadMyWorker().catch((e) => console.error('refresh me after hire error:', e));
+    }
+
     appendHireSummary({
       id: currentHireJob.id,
       skillId: currentHireJob.skillId,
@@ -2229,7 +2485,9 @@ async function submitHire() {
       createdAt: currentHireJob.createdAt,
       completedAt: new Date().toISOString()
     });
-    showToast('交付完成，结果已加入汇总');
+    const paidPoints = Math.max(0, Number.parseInt(String(result?.data?.settlement?.amount ?? '0'), 10) || 0);
+    const didCharge = !!result?.data?.settlement?.charged;
+    showToast(didCharge ? `交付完成，已支付 ${paidPoints} 积分` : '交付完成，结果已加入汇总');
   } catch (err) {
     clearHireStatusTimers();
     const message = err.message || '雇佣失败，请重试';
@@ -2326,6 +2584,14 @@ if (skillCategoriesContainer) {
         const skill = state.skills.find(s => s.id === skillId);
         if (skill) openConversation('demand', skill, { sourceEl: joinBtn });
       }
+      return;
+    }
+
+    const skillCard = e.target.closest('[data-skill-id]');
+    if (skillCard) {
+      const skillId = skillCard.dataset.skillId;
+      const skill = state.skills.find(s => s.id === skillId);
+      if (skill) openDetailPanel('skill', skill);
     }
   });
 }
@@ -2686,13 +2952,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const subTabs = document.querySelectorAll('.chat-sub-tab');
   subTabs.forEach(tab => {
     tab.addEventListener('click', (e) => {
-      subTabs.forEach(t => {
-        t.classList.remove('is-active', 'bg-white', 'dark:bg-gray-700', 'shadow-sm', 'text-gray-900', 'dark:text-white');
-        t.classList.add('text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400');
-      });
+      subTabs.forEach(t => t.classList.remove('is-active'));
       const target = e.currentTarget;
-      target.classList.add('is-active', 'bg-white', 'dark:bg-gray-700', 'shadow-sm', 'text-gray-900', 'dark:text-white');
-      target.classList.remove('text-gray-500', 'hover:text-gray-700', 'dark:text-gray-400');
+      target.classList.add('is-active');
 
       chatState.roleFilter = target.getAttribute('data-role');
       renderChatList();
@@ -3656,7 +3918,7 @@ function initMobileTabBar() {
   });
 
   // ---- 3. 对话子 Tab（需求对话 / 接单对话）过滤 ----
-  let chatSubRole = 'demand'; // 当前过滤的 role
+  let chatSubRole = document.querySelector('.chat-sub-tab.is-active')?.dataset.role || 'demand'; // 当前过滤的 role
 
   function syncChatSubTab() {
     // 同步 chatState 的 roleFilter 与移动端子 Tab
@@ -3670,16 +3932,7 @@ function initMobileTabBar() {
       chatSubRole = btn.dataset.role;
       // 更新激活样式
       document.querySelectorAll('.chat-sub-tab').forEach(b => {
-        const isActive = b === btn;
-        b.classList.toggle('is-active', isActive);
-        b.classList.toggle('bg-white', isActive);
-        b.classList.toggle('dark:bg-gray-700', isActive);
-        b.classList.toggle('font-bold', isActive);
-        b.classList.toggle('shadow-sm', isActive);
-        b.classList.toggle('text-gray-900', isActive);
-        b.classList.toggle('dark:text-white', isActive);
-        b.classList.toggle('font-medium', !isActive);
-        b.classList.toggle('text-gray-500', !isActive);
+        b.classList.toggle('is-active', b === btn);
       });
       syncChatSubTab();
     });

@@ -811,13 +811,13 @@
   <div id="m-tab-chat" class="mobile-tab-panel lg:hidden hidden">
     <!-- 对话 Tab：JS 会将 #chat-module 挪到这里 -->
     <!-- 子 Tab 切换（需求/接单对话） -->
-    <div class="flex gap-1 p-2 bg-gray-100 dark:bg-surface-dark">
-      <button
-        class="chat-sub-tab is-active flex-1 py-1.5 text-xs font-bold rounded-lg bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white transition-all"
-        data-role="demand">📋 需求对话</button>
-      <button
-        class="chat-sub-tab flex-1 py-1.5 text-xs font-medium rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 transition-all"
-        data-role="worker">⚡ 接单对话</button>
+    <div class="px-4 pt-3 pb-2">
+      <div class="flex p-1 bg-gray-100 dark:bg-surface-dark rounded-[16px]">
+        <button class="chat-sub-tab main-tab is-active flex-1 h-9 text-[13px] rounded-xl transition-all"
+          data-role="demand">需求对话</button>
+        <button class="chat-sub-tab main-tab flex-1 h-9 text-[13px] rounded-xl transition-all"
+          data-role="worker">接单对话</button>
+      </div>
     </div>
     <div id="m-chat-container"></div>
   </div>
@@ -951,6 +951,34 @@
       <span class="tab-label">我的</span>
     </button>
   </nav>
+
+  <!-- ===== 大厅详情弹窗（任务/技能统一） ===== -->
+  <div id="detail-modal" class="detail-modal-root hidden" aria-hidden="true">
+    <div id="detail-modal-overlay" class="detail-modal-overlay"></div>
+    <div class="detail-modal-panel" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+      <div class="detail-modal-header">
+        <div class="min-w-0">
+          <div id="detail-modal-badge" class="detail-modal-badge is-muted">详情</div>
+          <h2 id="detail-modal-title" class="detail-modal-title">详情</h2>
+          <div id="detail-modal-meta" class="detail-modal-meta"></div>
+        </div>
+        <button id="detail-modal-close" type="button" class="detail-modal-close" aria-label="关闭详情">
+          <span class="material-icons-round">close</span>
+        </button>
+      </div>
+
+      <div class="detail-modal-content">
+        <div id="detail-modal-image-wrap" class="detail-hero-wrap hidden">
+          <img id="detail-modal-image" class="detail-hero-image" alt="详情封面" />
+        </div>
+        <div id="detail-modal-desc"></div>
+        <div id="detail-modal-publisher"></div>
+        <div id="detail-modal-chat"></div>
+      </div>
+
+      <div id="detail-modal-actions" class="detail-modal-actions"></div>
+    </div>
+  </div>
 
   <!-- ===== 交付技能控制面板 (Delivery Bottom Sheet) ===== -->
   <div id="delivery-sheet-overlay" class="bottom-sheet-overlay" onclick="window.closeDeliverySheet()"></div>
