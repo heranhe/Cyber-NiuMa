@@ -1,3 +1,28 @@
+// ===== AppBridge 安全距离适配 =====
+// The Second Me 容器会注入 window.appBridge.SAFE_AREA_TOP/BOTTOM（单位: vw）
+// 优先级： appBridge > env(safe-area-inset) > 0
+(function applySafeArea() {
+  const root = document.documentElement;
+  function apply() {
+    if (window.appBridge) {
+      const top = window.appBridge.SAFE_AREA_TOP;
+      const bottom = window.appBridge.SAFE_AREA_BOTTOM;
+      if (typeof top === 'number') {
+        root.style.setProperty('--safe-area-inset-top', `${top}vw`);
+      }
+      if (typeof bottom === 'number') {
+        root.style.setProperty('--safe-area-inset-bottom', `${bottom}vw`);
+      }
+    }
+  }
+  // 立即尝试（部分容器同步注入）
+  apply();
+  // 延迟再试（部分容器异步注入）
+  window.addEventListener('load', apply);
+  // 监听自定义事件（如果 App 容器分发此事件）
+  window.addEventListener('appBridgeReady', apply);
+})();
+
 // ===== 状态管理 =====
 const state = {
   laborTypes: [],

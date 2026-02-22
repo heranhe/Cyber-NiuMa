@@ -1,19 +1,24 @@
-/* ===== iOS Safe Area ===== */
+/* ===== iOS / AppBridge Safe Area 适配 ===== */
+/* JS 会在 appBridge 可用时用内联变量覆盖这些 CSS 变量（优先级更高） */
 :root {
   --safe-area-inset-top: 0px;
+  --safe-area-inset-bottom: 0px;
   --top-nav-base-height: 72px;
   --top-nav-height: calc(var(--top-nav-base-height) + var(--safe-area-inset-top));
 }
 
+/* Fallback: 标准 env() 安全区域（浏览器/WKWebView 原生支持时使用） */
 @supports (top: env(safe-area-inset-top)) {
   :root {
     --safe-area-inset-top: env(safe-area-inset-top);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom);
   }
 }
 
 @supports (top: constant(safe-area-inset-top)) {
   :root {
     --safe-area-inset-top: constant(safe-area-inset-top);
+    --safe-area-inset-bottom: constant(safe-area-inset-bottom);
   }
 }
 
@@ -24,6 +29,7 @@
 .safe-top-toolbar {
   top: 0 !important;
 }
+
 
 @media (min-width: 768px) {
   .safe-top-toolbar {
@@ -1006,7 +1012,7 @@ input:checked+.toggle-slider:before {
   align-items: center;
   justify-content: space-around;
   padding-top: 0.5rem;
-  padding-bottom: max(0.625rem, env(safe-area-inset-bottom));
+  padding-bottom: max(0.625rem, var(--safe-area-inset-bottom));
   background: white;
   border-top: 1px solid #e5e7eb;
   z-index: 40;
@@ -1118,9 +1124,9 @@ input:checked+.toggle-slider:before {
 /* ===== 手机端内容区适配 ===== */
 @media (max-width: 1023px) {
 
-  /* 底部留白，防止内容被 Tab Bar 遮挡 */
+  /* 底部留白，防止内容被 Tab Bar 遮挡（含 appBridge 底部安全距离）*/
   main {
-    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+    padding-bottom: calc(76px + var(--safe-area-inset-bottom));
   }
 
   /* 排行页固定单列 */
