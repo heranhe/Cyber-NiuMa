@@ -12,6 +12,36 @@ const state = {
   selectedStyleId: null     // 当前选中的风格ID（null=默认提示词）
 };
 
+const IMAGE_QUALITY_SIZE_MAP = {
+  '1K': '1024x1024',
+  '2K': '2048x2048',
+  '4K': '4096x4096'
+};
+
+function normalizeImageQualityTier(value) {
+  const tier = String(value || '').trim().toUpperCase();
+  if (tier === '2K') return '2K';
+  if (tier === '4K') return '4K';
+  return '1K';
+}
+
+function imageQualityTierToSize(value) {
+  const tier = normalizeImageQualityTier(value);
+  return IMAGE_QUALITY_SIZE_MAP[tier] || IMAGE_QUALITY_SIZE_MAP['1K'];
+}
+
+function imageSizeToQualityTier(size) {
+  const normalized = String(size || '').trim().toLowerCase();
+  if (normalized === '2048x2048') return '2K';
+  if (normalized === '4096x4096') return '4K';
+
+  const numbers = normalized.match(/\d+/g)?.map(Number).filter(Number.isFinite) || [];
+  const maxSide = numbers.length ? Math.max(...numbers) : 0;
+  if (maxSide >= 4096) return '4K';
+  if (maxSide >= 2048) return '2K';
+  return '1K';
+}
+
 const el = {
   loginBtn: document.querySelector('#login-btn'),
   logoutBtn: document.querySelector('#logout-btn'),
@@ -88,8 +118,8 @@ const el = {
   abilityTypeTextLabel: document.querySelector('#ability-type-text-label'),
   abilityTypeImageLabel: document.querySelector('#ability-type-image-label'),
   imageConfigPanel: document.querySelector('#image-config-panel'),
-  fieldImageSize: document.querySelector('#field-image-size'),
   fieldImageQuality: document.querySelector('#field-image-quality'),
+  fieldTestImagePrompt: document.querySelector('#field-test-image-prompt'),
   testImageBtn: document.querySelector('#test-image-btn'),
   testImageStatus: document.querySelector('#test-image-status'),
   testImagePreview: document.querySelector('#test-image-preview'),
@@ -352,8 +382,7 @@ function renderForm() {
   updateAbilityTypeUI(isImage);
 
   // 图像配置
-  if (el.fieldImageSize) el.fieldImageSize.value = ability.imageConfig?.size || '1024x1024';
-  if (el.fieldImageQuality) el.fieldImageQuality.value = ability.imageConfig?.quality || 'standard';
+  if (el.fieldImageQuality) el.fieldImageQuality.value = imageSizeToQualityTier(ability.imageConfig?.size || '1024x1024');
 
   if (el.deleteBtn) {
     el.deleteBtn.classList.toggle('hidden', !ability.id);
@@ -430,8 +459,8 @@ function updateCurrentFromForm() {
 
   // 图像配置
   if (!ability.imageConfig) ability.imageConfig = {};
-  ability.imageConfig.size = String(el.fieldImageSize?.value ?? '1024x1024').trim();
-  ability.imageConfig.quality = String(el.fieldImageQuality?.value ?? 'standard').trim();
+  ability.imageConfig.size = imageQualityTierToSize(el.fieldImageQuality?.value ?? '1K');
+  ability.imageConfig.quality = 'standard';
 
   if (el.avatarEmoji) {
     el.avatarEmoji.textContent = ability.icon || '🤖';
@@ -670,6 +699,7 @@ async function onTestImageGeneration() {
     showToast('请先选择模型');
     return;
   }
+  const testPrompt = String(el.fieldTestImagePrompt?.value || '').trim() || '一只戴着太阳镜的猫咪，赛博朋克风格';
 
   if (el.testImageBtn) {
     el.testImageBtn.disabled = true;
@@ -690,7 +720,7 @@ async function onTestImageGeneration() {
         endpoint: ability.customApi.endpoint,
         apiKey: ability.customApi.apiKey,
         model: ability.customApi.model,
-        prompt: '一只戴着太阳镜的猫咪，赛博朋克风格',
+        prompt: testPrompt,
         size: ability.imageConfig?.size || '1024x1024',
         quality: ability.imageConfig?.quality || 'standard'
       }
@@ -862,7 +892,6 @@ function bindEvents() {
     el.fieldApiEndpoint,
     el.fieldApiKey,
     el.fieldApiModel,
-    el.fieldImageSize,
     el.fieldImageQuality
   ].forEach((node) => {
     node?.addEventListener('input', updateCurrentFromForm);

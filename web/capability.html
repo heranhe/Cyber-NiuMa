@@ -576,36 +576,22 @@
                         </svg>
                         <span class="text-xs font-bold text-blue-800 uppercase">图像生成配置</span>
                       </div>
-                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">图片尺寸 / 比例</label>
-                          <input id="field-image-size" type="text" list="image-size-suggestions"
-                            placeholder="例如: 1024x1024 / 1536x1024 / 16:9"
-                            class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
-                          <datalist id="image-size-suggestions">
-                            <option value="不限制"></option>
-                            <option value="1024x1024"></option>
-                            <option value="1024x1792"></option>
-                            <option value="1792x1024"></option>
-                            <option value="1536x1024"></option>
-                            <option value="1024x1536"></option>
-                            <option value="1:1"></option>
-                            <option value="4:3"></option>
-                            <option value="16:9"></option>
-                          </datalist>
-                        </div>
+                      <div class="grid grid-cols-1 gap-3">
                         <div>
                           <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">图片质量</label>
-                          <input id="field-image-quality" type="text" list="image-quality-suggestions"
-                            placeholder="例如: standard / hd / high"
-                            class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary" />
-                          <datalist id="image-quality-suggestions">
-                            <option value="不限制"></option>
-                            <option value="standard"></option>
-                            <option value="hd"></option>
-                            <option value="high"></option>
-                          </datalist>
+                          <select id="field-image-quality"
+                            class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary">
+                            <option value="1K" selected>1K</option>
+                            <option value="2K">2K</option>
+                            <option value="4K">4K</option>
+                          </select>
                         </div>
+                      </div>
+                      <div>
+                        <label class="block text-[11px] font-bold text-gray-600 uppercase mb-1">测试生成内容</label>
+                        <textarea id="field-test-image-prompt" rows="3"
+                          placeholder="输入用于测试图像生成的提示词，例如：一只戴着太阳镜的猫咪，赛博朋克风格"
+                          class="w-full rounded-lg border-gray-200 bg-white py-2.5 px-3 text-sm focus:ring-primary focus:border-primary">一只戴着太阳镜的猫咪，赛博朋克风格</textarea>
                       </div>
                       <div>
                         <button id="test-image-btn" type="button"
