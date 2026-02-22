@@ -802,7 +802,8 @@
 
   <!-- ===== 手机端 App 化：3 个 Tab 面板（排行/对话/我的，大厅复用 #hall-panel） ===== -->
   <!-- JS 在初始化时将对应模块节点 appendChild 到这里，DOM 不重复 -->
-  <div id="m-tab-ranking" class="mobile-tab-panel lg:hidden hidden pt-4 px-4">
+  <div id="m-tab-ranking" class="mobile-tab-panel lg:hidden hidden px-4"
+    style="padding-top: calc(1rem + var(--safe-area-inset-top))">
     <!-- 排行 Tab：JS 会将两个排行榜卡片挪到这里，手机端单列 -->
     <div id="m-ranking-inner" class="grid grid-cols-1 gap-3"></div>
   </div>
@@ -823,7 +824,7 @@
 
   <div id="m-tab-me" class="mobile-tab-panel lg:hidden hidden px-4 space-y-4 pb-24">
     <!-- 顶部操作栏 -->
-    <div class="flex justify-between items-center pt-4 px-2">
+    <div class="flex justify-between items-center px-2" style="padding-top: calc(1rem + var(--safe-area-inset-top))">
       <h2 class="text-xl font-black text-gray-900 dark:text-white">我的</h2>
       <div class="flex gap-2">
         <!-- 登录按钮：未登录时显示 -->
