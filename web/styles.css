@@ -626,6 +626,12 @@ input:checked+.toggle-slider:before {
   transition: all 0.3s ease;
 }
 
+/* 对话详情视图：display 由 hidden class 控制显隐，非 hidden 时使用 flex 布局 */
+#chat-dialog-view:not(.hidden) {
+  display: flex;
+  flex-direction: column;
+}
+
 /* 折叠/展开动画 */
 #chat-content {
   max-height: 800px;
@@ -1124,7 +1130,8 @@ input:checked+.toggle-slider:before {
 
   /* 大厅面板隐藏（切换到其他 Tab 时 JS 加此 class） */
   #hall-panel.mobile-tab-hidden,
-  #detail-panel.mobile-tab-hidden {
+  #detail-panel.mobile-tab-hidden,
+  main.mobile-tab-hidden {
     display: none !important;
   }
 }
@@ -1140,6 +1147,17 @@ input:checked+.toggle-slider:before {
   border-left: none;
   border-right: none;
   box-shadow: none;
+  border-top: none;
+}
+
+/* 移动端：隐藏桌面端折叠标题栏，内容始终展开 */
+#m-tab-chat #chat-toggle-btn {
+  display: none;
+}
+
+#m-tab-chat #chat-content {
+  max-height: none;
+  opacity: 1;
   border-top: none;
 }
 

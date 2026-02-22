@@ -2426,14 +2426,11 @@ function renderChatList() {
       ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
       : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
     const roleLabel = conv.role === 'demand' ? 'BUYER' : 'SELLER';
-    html += `<div class="chat-list-item flex items-center p-3 mb-2 bg-white dark:bg-surface-dark rounded-2xl border ${activeClass} hover:border-gray-100 dark:hover:border-border-dark shadow-sm transition-all cursor-pointer" data-conv-id="${conv.id}"><div class="relative w-12 h-12 flex-shrink-0"><img src="${avatarFallback}" alt="${escapeHtml(conv.peerName)}" class="w-full h-full rounded-full object-cover border border-gray-100 dark:border-border-dark" />${hasUnread ? '<span class="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-white dark:border-surface-dark rounded-full"></span>' : ''}</div><div class="ml-3 flex-1 min-w-0 flex flex-col justify-center"><div class="flex items-center justify-between mb-0.5"><div class="flex items-center gap-1.5 min-w-0"><span class="text-[15px] font-black text-gray-900 dark:text-white truncate">${escapeHtml(conv.title || '未命名任务')}</span><span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-subtext-light dark:text-gray-400 text-[9px] font-bold rounded flex-shrink-0">${shortId}</span></div><span class="text-[11px] font-medium text-gray-400 whitespace-nowrap ml-2">${time}</span></div><div class="flex items-center gap-1.5"><span class="text-[10px] font-bold px-1.5 rounded ${roleBadgeClass}">${roleLabel}</span><span class="text-[12px] text-subtext-light dark:text-subtext-dark truncate flex-1">${escapeHtml(preview)}</span></div></div></div>`;
+    html += `<div class="chat-list-item flex items-center p-3 mb-2 bg-white dark:bg-surface-dark rounded-2xl border ${activeClass} hover:border-gray-100 dark:hover:border-border-dark shadow-sm transition-all cursor-pointer" data-conv-id="${conv.id}" data-role="${conv.role}"><div class="relative w-12 h-12 flex-shrink-0"><img src="${avatarFallback}" alt="${escapeHtml(conv.peerName)}" class="w-full h-full rounded-full object-cover border border-gray-100 dark:border-border-dark" />${hasUnread ? '<span class="absolute top-0 right-0 w-3 h-3 bg-red-500 border-2 border-white dark:border-surface-dark rounded-full"></span>' : ''}</div><div class="ml-3 flex-1 min-w-0 flex flex-col justify-center"><div class="flex items-center justify-between mb-0.5"><div class="flex items-center gap-1.5 min-w-0"><span class="text-[15px] font-black text-gray-900 dark:text-white truncate">${escapeHtml(conv.title || '未命名任务')}</span><span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-subtext-light dark:text-gray-400 text-[9px] font-bold rounded flex-shrink-0">${shortId}</span></div><span class="text-[11px] font-medium text-gray-400 whitespace-nowrap ml-2">${time}</span></div><div class="flex items-center gap-1.5"><span class="text-[10px] font-bold px-1.5 rounded ${roleBadgeClass}">${roleLabel}</span><span class="text-[12px] text-subtext-light dark:text-subtext-dark truncate flex-1">${escapeHtml(preview)}</span></div></div></div>`;
   }
 
-  // 优先渲染到移动端容器，fallback 到桌面端 — 只写一次，避免重复渲染
-  const mChatContainer = document.querySelector('#m-chat-container');
-  if (mChatContainer) {
-    mChatContainer.innerHTML = html;
-  } else if (chatListEl) {
+  // 统一渲染到 chatListEl（移动端通过 DOM 挂载共享同一节点）
+  if (chatListEl) {
     chatListEl.innerHTML = html;
   }
 }
@@ -2469,16 +2466,16 @@ function renderChatDialog() {
   if (chatPeerName) chatPeerName.textContent = conv.peerName || '对方';
   if (chatPeerTitle) chatPeerTitle.textContent = conv.title || '';
 
-  // 角色标识（新版: BUYER / SELLER 标签）
+  // 角色标识（新版: 显示对方角色标签）
   if (chatRoleBadge) {
     if (conv.role === 'demand') {
-      // 需求方：我是 BUYER
+      // 我是需求方 → 对方是 SELLER（接单方）
+      chatRoleBadge.textContent = 'SELLER';
+      chatRoleBadge.className = 'px-2 py-0.5 rounded text-[10px] font-black bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+    } else {
+      // 我是接单方 → 对方是 BUYER（需求方）
       chatRoleBadge.textContent = 'BUYER';
       chatRoleBadge.className = 'px-2 py-0.5 rounded text-[10px] font-black bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
-    } else {
-      // 接单方：对方是 BUYER
-      chatRoleBadge.textContent = 'BUYER';
-      chatRoleBadge.className = 'px-2 py-0.5 rounded text-[10px] font-black bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
     }
   }
 
@@ -2498,24 +2495,26 @@ function renderChatDialog() {
 
   // 根据角色显示不同操作
   if (conv.role === 'demand') {
-    // 需求方：隐藏技能选择器，显示需求书按钮
+    // 需求方（BUYER）：隐藏技能选择器，显示需求书按钮
     if (chatSkillSelector) chatSkillSelector.closest('#chat-skill-selector-wrapper')?.classList.add('hidden');
     if (chatDeliveryHint) chatDeliveryHint.classList.add('hidden');
     if (chatSubmitDemandBtn) chatSubmitDemandBtn.classList.remove('hidden');
-
     // 隐藏技能快捷栏
     const skillsStrip = document.querySelector('#available-skills-strip');
     if (skillsStrip) skillsStrip.classList.add('hidden');
+    // 需求方输入提示
+    if (chatInput) chatInput.placeholder = '描述你的需求…';
   } else {
-    // 接单方：显示技能选择器，隐藏需求书按钮
+    // 接单方（SELLER）：显示技能选择器，隐藏需求书按钮
     if (chatSkillSelector) chatSkillSelector.closest('#chat-skill-selector-wrapper')?.classList.remove('hidden');
     if (chatDeliveryHint) {
       chatDeliveryHint.classList.toggle('hidden', !chatState.selectedSkill);
     }
     if (chatSubmitDemandBtn) chatSubmitDemandBtn.classList.add('hidden');
-
     // 显示技能快捷栏
     renderAvailableSkillsStrip();
+    // 接单方输入提示
+    if (chatInput) chatInput.placeholder = '选择技能后发送交付，或输入消息…';
   }
 }
 
@@ -2794,9 +2793,12 @@ function switchConversation(convId) {
   chatState.selectedSkill = null;
   chatState.skillDropdownOpen = false;
 
-  // 切换视图
+  // 切换视图：隐藏列表，显示对话详情
   if (chatListView) chatListView.classList.add('hidden');
-  if (chatDialogView) chatDialogView.classList.remove('hidden');
+  if (chatDialogView) {
+    chatDialogView.classList.remove('hidden');
+    chatDialogView.style.removeProperty('display');
+  }
 
   renderChatDialog();
   renderChatList();
@@ -2818,7 +2820,10 @@ function backToChatList() {
   chatSkillDropdown?.classList.add('hidden');
   if (chatSubmitDemandBtn) chatSubmitDemandBtn.classList.add('hidden');
 
-  if (chatDialogView) chatDialogView.classList.add('hidden');
+  if (chatDialogView) {
+    chatDialogView.classList.add('hidden');
+    chatDialogView.style.setProperty('display', 'none'); // 确保隐藏
+  }
   if (chatListView) chatListView.classList.remove('hidden');
 
   renderChatList();
@@ -3252,16 +3257,47 @@ function initMobileTabBar() {
     hallPanel?.classList.toggle('mobile-tab-hidden', !isHall);
     detailPanel?.classList.toggle('mobile-tab-hidden', !isHall);
 
+    // 非大厅 Tab 时隐藏 main 元素（消除顶部空白占位）
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.classList.toggle('mobile-tab-hidden', !isHall);
+
     // 控制排行/对话/我的 面板显隐
     Object.entries(tabPanels).forEach(([key, el]) => {
       if (!el) return; // hall 的 el 为 null，由 hallPanel 控制
       el.classList.toggle('hidden', key !== tab);
     });
 
-    // 切换到对话 Tab 时刷新渲染
+    // 切换到对话 Tab 时：隐藏桌面端折叠标题、展开内容、刷新渲染
     if (tab === 'chat') {
+      // chat-module 已在 initMobileTabBar 中整体移动到 m-chat-container
+      // 隐藏桌面端专用的折叠标题栏（移动端不需要）
+      const toggleBtn = document.getElementById('chat-toggle-btn');
+      if (toggleBtn) toggleBtn.style.display = 'none';
+      // 确保内容区域始终展开（移动端不可折叠）
+      const chatContentEl = document.getElementById('chat-content');
+      if (chatContentEl) {
+        chatContentEl.classList.remove('collapsed');
+        chatContentEl.style.maxHeight = 'none';
+        chatContentEl.style.opacity = '1';
+      }
+      // 确保视图状态正确
+      const listView = document.getElementById('chat-list-view');
+      const dialogView = document.getElementById('chat-dialog-view');
+      if (chatState.activeConversationId) {
+        listView?.classList.add('hidden');
+        if (dialogView) {
+          dialogView.classList.remove('hidden');
+          dialogView.style.removeProperty('display');
+        }
+      } else {
+        listView?.classList.remove('hidden');
+        if (dialogView) {
+          dialogView.classList.add('hidden');
+          dialogView.style.setProperty('display', 'none');
+        }
+      }
       renderChatList();
-      syncChatSubTab(); // 同步子 Tab 过滤
+      syncChatSubTab();
     }
     // 切换到我的 Tab 时刷新 AI 分身
     if (tab === 'me') {
@@ -3283,17 +3319,10 @@ function initMobileTabBar() {
   let chatSubRole = 'demand'; // 当前过滤的 role
 
   function syncChatSubTab() {
-    // 根据 chatSubRole 过滤对话列表项显示
-    document.querySelectorAll('#chat-list .chat-list-item').forEach(item => {
-      const role = item.dataset.role || 'demand';
-      item.style.display = (role === chatSubRole) ? '' : 'none';
-    });
-    // 同步空状态提示
-    const visibleItems = document.querySelectorAll(
-      '#chat-list .chat-list-item[style=""]'
-    );
-    const emptyEl = document.getElementById('chat-list-empty');
-    if (emptyEl) emptyEl.classList.toggle('hidden', visibleItems.length > 0);
+    // 同步 chatState 的 roleFilter 与移动端子 Tab
+    chatState.roleFilter = chatSubRole;
+    // 重新渲染列表（renderChatList 已根据 roleFilter 过滤）
+    renderChatList();
   }
 
   document.querySelectorAll('.chat-sub-tab').forEach(btn => {
