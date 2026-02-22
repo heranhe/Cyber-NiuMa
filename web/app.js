@@ -162,9 +162,18 @@ function oauthState() {
 }
 
 // ===== API 调用 =====
+// 从 sessionStorage 读取 Access Token（OAuth 登录成功后由回调页注入）
+// 用于在 WKWebView 环境中 Cookie 无法传递时，改用 Authorization header 认证
+function getStoredToken() {
+  try { return sessionStorage.getItem('niuma_access_token') || ''; } catch { return ''; }
+}
+
 async function api(path, options = {}) {
   const method = options.method || 'GET';
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  // WKWebView 中 Cookie 可能无法传递，将 Token 同时附加到 Authorization header
+  const token = getStoredToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   const body = options.body ? JSON.stringify(options.body) : undefined;
 
   try {
@@ -187,6 +196,7 @@ async function api(path, options = {}) {
     throw error;
   }
 }
+
 
 // ===== OAuth 登录 =====
 function onLoginClick(event) {

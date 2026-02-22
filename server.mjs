@@ -4913,16 +4913,23 @@ async function handleOAuthCallbackPage(req, res, urlObj) {
   const redirectDelayMs = 1200;
 
   const content = exchanged
-    ? buildCallbackPage({ success: true, title: '登录成功', message: '正在进入...', redirectTarget, redirectDelayMs })
+    ? buildCallbackPage({
+      success: true, title: '登录成功', message: '正在进入...', redirectTarget, redirectDelayMs,
+      accessToken: exchanged ? String(tokenResponse?.data?.accessToken || '').trim() : ''
+    })
     : buildCallbackPage({ success: false, title: '登录失败', message: exchangeErrorMsg || '获取登录凭证失败，请重试。', redirectTarget: null });
 
   return html(res, exchanged ? 200 : 400, content);
 }
 
 /** 生成美观的 OAuth 回调页（成功/失败通用） */
-function buildCallbackPage({ success, title, message, redirectTarget, redirectDelayMs = 1200 }) {
+function buildCallbackPage({ success, title, message, redirectTarget, redirectDelayMs = 1200, accessToken = '' }) {
+  // 登录成功时，将 token 存入 sessionStorage，解决 WKWebView Cookie 不传递的问题
+  const storeToken = accessToken
+    ? `<script>try{sessionStorage.setItem('niuma_access_token',${JSON.stringify(accessToken)});}catch(e){}<\/script>`
+    : '';
   const autoRedirect = success && redirectTarget
-    ? `<script>setTimeout(()=>{window.location.replace(${JSON.stringify(redirectTarget)});},${redirectDelayMs});</script>`
+    ? `<script>setTimeout(()=>{window.location.replace(${JSON.stringify(redirectTarget)});},${redirectDelayMs});<\/script>`
     : '';
 
   const iconHtml = success
@@ -4950,6 +4957,7 @@ function buildCallbackPage({ success, title, message, redirectTarget, redirectDe
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>${success ? '登录成功' : '登录失败'} · Cyber NiuMa</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  ${storeToken}
   ${autoRedirect}
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -5052,9 +5060,16 @@ async function serveStatic(req, res, urlObj) {
 
 export async function requestHandler(req, res) {
   const cookies = parseCookieHeader(req.headers.cookie || '');
+  // 优先从 Cookie 读取 Token（浏览器正常登录流程）
+  // Fallback: 从 Authorization: Bearer <token> header 读取（App WKWebView 环境）
+  const cookieToken = String(cookies[OAUTH_COOKIE_ACCESS] || '').trim();
+  const bearerHeader = String(req.headers.authorization || req.headers['x-secondme-token'] || '').trim();
+  const bearerToken = bearerHeader.startsWith('Bearer ') ? bearerHeader.slice(7).trim() : bearerHeader;
+  const resolvedToken = cookieToken || bearerToken;
+
   return requestAuthStore.run(
     {
-      oauthAccessToken: String(cookies[OAUTH_COOKIE_ACCESS] || '').trim(),
+      oauthAccessToken: resolvedToken,
       oauthRefreshToken: String(cookies[OAUTH_COOKIE_REFRESH] || '').trim(),
       oauthState: String(cookies[OAUTH_COOKIE_STATE] || '').trim()
     },
