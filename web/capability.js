@@ -42,6 +42,12 @@ function imageSizeToQualityTier(size) {
   return '1K';
 }
 
+function normalizePricePoints(value, fallback = 0) {
+  const parsed = Number.parseInt(String(value ?? '').trim(), 10);
+  const safe = Number.isFinite(parsed) ? parsed : Number.parseInt(String(fallback ?? '0'), 10);
+  return Math.max(0, Math.min(9999999, Number.isFinite(safe) ? safe : 0));
+}
+
 const el = {
   loginBtn: document.querySelector('#login-btn'),
   logoutBtn: document.querySelector('#logout-btn'),
@@ -60,6 +66,7 @@ const el = {
   fieldName: document.querySelector('#field-name'),
   fieldIcon: document.querySelector('#field-icon'),
   fieldDescription: document.querySelector('#field-description'),
+  fieldPricePoints: document.querySelector('#field-price-points'),
   fieldPrompt: document.querySelector('#field-prompt'),
 
   fieldUseCustomApi: document.querySelector('#field-use-custom-api'),
@@ -193,6 +200,7 @@ function normalizeAbility(raw = {}) {
     name: String(source.name || '').trim(),
     icon: String(source.icon || '🤖').trim() || '🤖',
     description: String(source.description || '').trim(),
+    pricePoints: normalizePricePoints(source.pricePoints ?? source.price ?? source.points, 0),
     prompt: String(source.prompt || '').trim(),
 
     abilityType: ['text', 'image'].includes(String(source.abilityType || '')) ? source.abilityType : 'text',
@@ -219,6 +227,7 @@ function newAbilityDraft() {
     name: '',
     icon: '🤖',
     description: '',
+    pricePoints: 0,
     prompt: '',
 
     abilityType: 'text',
@@ -300,22 +309,45 @@ function renderAbilityList() {
     const mode = ability.useCustomApi
       ? `${typeTag} · API · ${escapeHtml(ability.customApi?.model || '未选模型')}`
       : `${typeTag} · SecondMe`;
+    const pricePoints = normalizePricePoints(ability.pricePoints, 0);
+    const disabledAttr = state.connected ? '' : 'disabled';
 
 
     return `
-      <button type="button" data-ability-id="${escapeHtml(ability.id)}"
-        class="ability-card w-full text-left rounded-2xl border border-gray-200 bg-white px-3.5 py-3 hover:border-primary/50 transition-colors ${isActive ? 'is-active' : ''}">
+      <div data-ability-id="${escapeHtml(ability.id)}"
+        class="ability-card rounded-2xl border border-gray-200 bg-white px-3.5 py-3 hover:border-primary/50 transition-colors ${isActive ? 'is-active' : ''}">
         <div class="flex items-start gap-3">
-          <div class="w-10 h-10 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center text-lg">${escapeHtml(ability.icon || '🤖')}</div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center justify-between gap-2">
-              <h3 class="text-sm font-bold text-gray-900 truncate">${escapeHtml(ability.name || '未命名能力')}</h3>
+          <button type="button" class="min-w-0 flex-1 text-left" data-action="select-ability" data-ability-id="${escapeHtml(ability.id)}">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center text-lg shrink-0">${escapeHtml(ability.icon || '🤖')}</div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-2">
+                  <h3 class="text-sm font-bold text-gray-900 truncate">${escapeHtml(ability.name || '未命名能力')}</h3>
+                </div>
+                <p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${escapeHtml(ability.description || '暂无简介')}</p>
+                <p class="text-[11px] text-amber-700 mt-1.5 font-medium">${mode}</p>
+              </div>
             </div>
-            <p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${escapeHtml(ability.description || '暂无简介')}</p>
-            <p class="text-[11px] text-amber-700 mt-1.5 font-medium">${mode}</p>
+          </button>
+          <div class="shrink-0 w-[96px] md:w-[108px]" data-price-editor="1">
+            <label class="block text-[10px] font-bold text-gray-500 mb-1">积分价格</label>
+            <div class="relative">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                value="${pricePoints}"
+                ${disabledAttr}
+                data-ability-price-input="1"
+                data-ability-id="${escapeHtml(ability.id)}"
+                class="w-full h-9 rounded-lg border border-gray-200 bg-white px-2 pr-8 text-sm font-bold text-gray-900 focus:ring-primary focus:border-primary ${state.connected ? '' : 'opacity-60 cursor-not-allowed'}"
+              />
+              <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 pointer-events-none">积分</span>
+            </div>
           </div>
         </div>
-      </button>
+      </div>
     `;
   }).join('');
 }
@@ -357,6 +389,7 @@ function renderForm() {
   if (el.fieldName) el.fieldName.value = ability.name || '';
   if (el.fieldIcon) el.fieldIcon.value = ability.icon || '';
   if (el.fieldDescription) el.fieldDescription.value = ability.description || '';
+  if (el.fieldPricePoints) el.fieldPricePoints.value = String(normalizePricePoints(ability.pricePoints, 0));
 
   // 切换能力时重置风格选中状态
   state.selectedStyleId = null;
@@ -438,6 +471,7 @@ function updateCurrentFromForm() {
   ability.name = String(el.fieldName?.value || '').trim();
   ability.icon = String(el.fieldIcon?.value || '').trim() || '🤖';
   ability.description = String(el.fieldDescription?.value || '').trim();
+  ability.pricePoints = normalizePricePoints(el.fieldPricePoints?.value, ability.pricePoints || 0);
 
   // 根据选中的风格，将 textarea 内容写回正确的目标
   const textareaPrompt = String(el.fieldPrompt?.value || '').trim();
@@ -547,6 +581,7 @@ function abilityPayload(ability) {
     name: ability.name,
     icon: ability.icon,
     description: ability.description,
+    pricePoints: normalizePricePoints(ability.pricePoints, 0),
     prompt: ability.prompt,
 
     abilityType: ability.abilityType || 'text',
@@ -852,6 +887,56 @@ async function onDelete() {
   }
 }
 
+function updateAbilityPriceLocal(abilityId, value) {
+  const normalized = normalizePricePoints(value, 0);
+  const idx = state.abilities.findIndex((item) => item.id === abilityId);
+  if (idx >= 0) {
+    state.abilities[idx] = normalizeAbility({ ...state.abilities[idx], pricePoints: normalized });
+  }
+
+  if (state.current && String(state.current.id || '') === String(abilityId || '')) {
+    state.current.pricePoints = normalized;
+    if (el.fieldPricePoints && document.activeElement !== el.fieldPricePoints) {
+      el.fieldPricePoints.value = String(normalized);
+    }
+  }
+  return normalized;
+}
+
+async function saveQuickAbilityPrice(abilityId, rawValue, inputEl = null) {
+  const id = String(abilityId || '').trim();
+  if (!id) return;
+
+  const normalized = updateAbilityPriceLocal(id, rawValue);
+  if (inputEl && inputEl.value !== String(normalized)) {
+    inputEl.value = String(normalized);
+  }
+
+  if (!state.connected) {
+    showToast('请先登录后再修改积分价格');
+    return;
+  }
+
+  try {
+    const res = await api(`/api/me/abilities/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: { pricePoints: normalized }
+    });
+    const saved = normalizeAbility(res?.ability || { id, pricePoints: normalized });
+    const idx = state.abilities.findIndex((item) => item.id === id);
+    if (idx >= 0) state.abilities[idx] = saved;
+    if (state.current && state.current.id === id) {
+      state.current = clone(saved);
+      if (el.fieldPricePoints && document.activeElement !== el.fieldPricePoints) {
+        el.fieldPricePoints.value = String(saved.pricePoints || 0);
+      }
+    }
+    showToast('积分价格已更新');
+  } catch (error) {
+    showToast(error.message || '积分价格保存失败');
+  }
+}
+
 function bindEvents() {
   el.loginBtn?.addEventListener('click', onLogin);
   el.logoutBtn?.addEventListener('click', onLogout);
@@ -863,11 +948,38 @@ function bindEvents() {
   });
 
   el.list?.addEventListener('click', (event) => {
+    if (event.target.closest('[data-price-editor]')) {
+      return;
+    }
     const card = event.target.closest('[data-ability-id]');
     if (!card) return;
     const id = String(card.dataset.abilityId || '').trim();
     if (!id) return;
     selectAbility(id);
+  });
+
+  el.list?.addEventListener('input', (event) => {
+    const input = event.target.closest('[data-ability-price-input]');
+    if (!input) return;
+    event.stopPropagation();
+    const clean = normalizePricePoints(input.value, 0);
+    updateAbilityPriceLocal(String(input.dataset.abilityId || ''), clean);
+  });
+
+  el.list?.addEventListener('change', async (event) => {
+    const input = event.target.closest('[data-ability-price-input]');
+    if (!input) return;
+    event.stopPropagation();
+    await saveQuickAbilityPrice(String(input.dataset.abilityId || ''), input.value, input);
+  });
+
+  el.list?.addEventListener('keydown', (event) => {
+    const input = event.target.closest('[data-ability-price-input]');
+    if (!input) return;
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      input.blur();
+    }
   });
 
   el.form?.addEventListener('submit', onSave);
@@ -887,6 +999,7 @@ function bindEvents() {
     el.fieldName,
     el.fieldIcon,
     el.fieldDescription,
+    el.fieldPricePoints,
     el.fieldPrompt,
     el.fieldUseCustomApi,
     el.fieldApiEndpoint,
