@@ -638,6 +638,38 @@ input:checked+.toggle-slider:before {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
+/* ===== 加入对话动效 ===== */
+.join-chat-orb {
+  position: fixed;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 2000;
+  background: radial-gradient(circle at 35% 35%, #fde68a 0%, #f59e0b 45%, #d97706 100%);
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.12), 0 6px 18px rgba(217, 119, 6, 0.35);
+}
+
+@keyframes join-chat-target-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45);
+  }
+  45% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.12);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+.join-chat-target-pulse {
+  animation: join-chat-target-pulse 0.65s ease-out;
+}
+
 /* ===== 对话模块 ===== */
 #chat-module {
   transition: all 0.3s ease;

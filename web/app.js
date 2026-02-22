@@ -33,6 +33,7 @@ const state = {
   mainTab: 'task-hall',  // 'task-hall' | 'skill-hall'，默认显示任务大厅
   skillCategoryFilter: 'all',  // 'all' | 'visual' | 'writing' | 'image' | 'design' | 'other'
   integration: null,
+  realtime: null,
   secondMeConnected: false,
   me: null,
   meWorker: null,
@@ -133,6 +134,18 @@ const detailBackBtn = document.querySelector('#detail-back-btn');
 const detailBody = document.querySelector('#detail-body');
 const detailActions = document.querySelector('#detail-actions');
 const detailStatusBadge = document.querySelector('#detail-status-badge');
+const detailModal = document.querySelector('#detail-modal');
+const detailModalOverlay = document.querySelector('#detail-modal-overlay');
+const detailModalCloseBtn = document.querySelector('#detail-modal-close');
+const detailModalBadge = document.querySelector('#detail-modal-badge');
+const detailModalTitle = document.querySelector('#detail-modal-title');
+const detailModalMeta = document.querySelector('#detail-modal-meta');
+const detailModalImageWrap = document.querySelector('#detail-modal-image-wrap');
+const detailModalImage = document.querySelector('#detail-modal-image');
+const detailModalDesc = document.querySelector('#detail-modal-desc');
+const detailModalPublisher = document.querySelector('#detail-modal-publisher');
+const detailModalChat = document.querySelector('#detail-modal-chat');
+const detailModalActions = document.querySelector('#detail-modal-actions');
 
 // 排行榜
 const rankingList = document.querySelector('#ranking-list');
@@ -249,10 +262,11 @@ function statusClass(status) {
   }
 }
 
-function renderCardUserMeta(name, avatar) {
+function renderCardUserMeta(name, avatar, trailingHtml = '') {
   const rawName = String(name || '').trim();
   const rawAvatar = String(avatar || '').trim();
-  if (!rawName && !rawAvatar) {
+  const extraMeta = String(trailingHtml || '').trim();
+  if (!rawName && !rawAvatar && !extraMeta) {
     return '';
   }
 
@@ -272,7 +286,10 @@ function renderCardUserMeta(name, avatar) {
       <div class="w-7 h-7 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center flex-shrink-0">
         ${avatarNode}
       </div>
-      <span class="text-sm text-gray-700 dark:text-gray-300 font-medium truncate">${safeName}</span>
+      <div class="min-w-0 flex items-center gap-1.5 flex-1">
+        <span class="text-sm text-gray-700 dark:text-gray-300 font-medium truncate">${safeName}</span>
+        ${extraMeta}
+      </div>
     </div>
   `;
 }
@@ -322,46 +339,38 @@ function renderRanking() {
   }).join('');
 }
 
-// 封面图列表（随机分配给任务卡片）
-const COVER_IMAGES = [
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuApLeqfMTWrfgiwAnrZ8S9kMx4wQBWIhiog0wveE3m7R3Y4OgokllSADSKGhhQ1VUNfdkfPjEgAEpa8C7Zz-SvgVW7IOZWXAs9XFUp9oh_QFH1ESVWBygWqni4uxuoWYLr2Ythjp3I8DnDe5wR-HrviV-51UcVybRYkrTCP-NpkwHQv-iPpTRL0IdxeDtxqUqh_UX0-PH5xIyW33QocMBV8UgBAS9e3Uv66VeroVyFLPQNgY4ExC9zNGN-K-oJtkXUAL9HR1NroKinT',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBH9cRv7ReWAcdCcBkmDMInDyGHd9GxpDneNmIXWPAoP9f2FkfTCz9qqsktI3m1EPzCZ3dtL8MBhVjzcH6iIqfWqsR00m-wUbc69WatakyLyeH_FmsMTWJDGhT324Gs2RUYuJCEsdQD9ou3jUuPKjjwniuFRB47Aayo5eoh9inDbZWHV-2JFaT3KLIaQmYyM36PtwV4BGld0bQsk4RVSL0o1Piw0KhhfNfZYUFjYCx1_NWB89KeUIP7Ix8_mbwDXmPNqTB8riNyf-YQ',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuAzpNlFyrejz971QGU3hUvzOD066u0YrtwSs8rAaGgckNRbI6tPwHVH4Klth50_ja092AVPPq9d_EePMRspM6svLvZ0_Pp9j-Wkq8IaaKQ5ZYZfThGKgvbyFUbtaoAqrBTm3DTGtIgjhEOgT9sM11OXF_47tT2TOrtwVwiLqauWCgmHuxZkwL3uvN1dT1MHlGRRbw6h8TBAIxlpJy6pw7dBkCfwARrliv77tHFFp-CAKE1E6GTv49YOdfc6WaFaM_039vha9QD6dWui',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuARh5IYkrQkyjQfLr8nZOBtwKyStnzha5bSRJUZVxiqOP7_2wlmAynZs0TsKxPwFm8TFjwSLWZom90upOCG4ZCNypWwP796rxRNUbJ3rfSGMoPtTjXeL5NBhvKItiQUKtlP6PNCrKZRwtkxC5OqRsy1yhJzpIIGlS7dzROrn-P8uUj9KmbCSCjSnR90XDoe_Q3d1ygw-NAEBxJ44KqoOzq30U1IonyqN7ne4Tjo7E2b-Do7Nv2hmbr5kpp1Ze2ls4WWyv6Bm80k-56l'
-];
-
 // 封面图长宽比列表（随机分配，营造瀑布流错落感；竖屏最高 4:3，避免过长）
 const ASPECT_RATIOS = ['aspect-[4/3]', 'aspect-[3/4]', 'aspect-[16/9]', 'aspect-[1/1]', 'aspect-[4/3]'];
 
 function renderTaskCard(task, index) {
-  const statusLabel = statusText(task.status);
-  const statusBg = task.status === 'DELIVERED' ? 'bg-green-500' : task.status === 'IN_PROGRESS' ? 'bg-blue-500' : 'bg-gray-200 text-gray-800';
-  const statusTextColor = task.status === 'DELIVERED' || task.status === 'IN_PROGRESS' ? 'text-white' : '';
-
-  // 优先使用任务自带封面图，否则用随机封面
-  const coverImg = task.coverImage || COVER_IMAGES[index % COVER_IMAGES.length];
+  const coverImg = String(task.coverImage || '').trim();
+  const hasCover = Boolean(coverImg);
   const publisherName = task.publisherName || task.requesterAi || '';
   const publisherAvatar = task.publisherAvatar ? task.publisherAvatar : `https://ui-avatars.com/api/?name=${encodeURIComponent(publisherName || 'U')}&background=random&size=64`;
+  const rewardPoints = Number.isFinite(Number(task?.budget))
+    ? Math.max(0, Number(task.budget))
+    : (Number.isFinite(Number(task?.price)) ? Math.max(0, Number(task.price)) : 0);
 
   return `
-    <div class="masonry-item mb-4 group cursor-pointer" onclick="openDetailPanel('task', state.tasks.find(t=>t.id==='${task.id}'))">
+    <div class="masonry-item mb-4 group cursor-pointer task-card" data-task-id="${task.id}">
       <div class="bg-white dark:bg-surface-dark rounded-[24px] shadow-sm border border-border-light dark:border-border-dark overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg">
-        
-        <!-- 左上角徽章 (Lv.9专家等模拟数据) -->
-        <div class="absolute top-3 left-3 z-10 flex gap-1.5">
-          <span class="px-2.5 py-1 rounded-[8px] bg-black/60 backdrop-blur-md text-white text-[10px] font-bold">Lv. ${8 + (index % 2)}</span>
-          <span class="px-2.5 py-1 text-primary text-[10px] font-bold shadow-sm rounded-[8px] ${index % 2 === 0 ? 'bg-white/80 backdrop-blur-md' : 'hidden'}">官方认证</span>
-        </div>
+        ${hasCover ? `
+          <!-- 左上角徽章 (Lv.9专家等模拟数据) -->
+          <div class="absolute top-3 left-3 z-10 flex gap-1.5">
+            <span class="px-2.5 py-1 rounded-[8px] bg-black/60 backdrop-blur-md text-white text-[10px] font-bold">Lv. ${8 + (index % 2)}</span>
+            <span class="px-2.5 py-1 text-primary text-[10px] font-bold shadow-sm rounded-[8px] ${index % 2 === 0 ? 'bg-white/80 backdrop-blur-md' : 'hidden'}">官方认证</span>
+          </div>
 
-        <!-- 封面图 -->
-        <div class="aspect-[4/3] w-full relative overflow-hidden bg-gray-100 dark:bg-gray-800">
-          <img src="${coverImg}" class="w-full h-full object-cover transition-transform duration-700 ease-in-out group-hover:scale-105" alt="Cover" loading="lazy">
-        </div>
+          <!-- 封面图 -->
+          <div class="aspect-[4/3] w-full relative overflow-hidden bg-gray-100 dark:bg-gray-800" data-detail-trigger="task-cover">
+            <img src="${coverImg}" class="w-full h-full object-cover transition-transform duration-700 ease-in-out group-hover:scale-105" alt="Cover" loading="lazy">
+          </div>
+        ` : ''}
         
         <div class="p-3.5 flex flex-col flex-1 divide-y divide-gray-100 dark:divide-border-dark/50">
           <!-- 上半部：内容与用户信息 -->
           <div class="pb-3 px-0.5">
-            <h3 class="text-[15px] font-black leading-[1.3] text-gray-900 dark:text-white line-clamp-2 mb-2">
+            <h3 class="text-[15px] font-black leading-[1.3] text-gray-900 dark:text-white line-clamp-2 mb-2" data-detail-trigger="task-title">
               ${escapeHtml(task.title)}
             </h3>
             
@@ -376,12 +385,12 @@ function renderTaskCard(task, index) {
              <div>
                 <div class="text-[9px] text-gray-400 font-bold mb-0.5 uppercase tracking-wider">STARTING AT</div>
                 <div class="text-[16px] font-black text-gray-900 dark:text-white tracking-tight">
-                  <span class="text-[12px] font-bold mr-[1px]">¥</span>${typeof task.price === 'number' ? task.price : (task.price || '800')}
+                  <span class="text-[12px] font-bold mr-[2px] text-primary">积分</span>${rewardPoints}
                 </div>
              </div>
              
              <!-- 发布方/接单方 的按钮区分 -->
-             <button class="w-8 h-8 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-primary hover:text-white transition-colors" data-action="view" data-task-id="${task.id}" onclick="event.stopPropagation(); window.openDetailPanel('task', state.tasks.find(t=>t.id==='${task.id}'))">
+             <button class="task-action w-8 h-8 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-primary hover:text-white transition-colors" data-action="view" data-task-id="${task.id}">
                 <span class="material-icons-round text-[18px]">${state.filter === 'MY_PUBLISHED' ? 'arrow_forward' : 'add'}</span>
              </button>
           </div>
@@ -598,6 +607,7 @@ function setIntegrationView(sessionInfo) {
 
   renderWorkerProfile();
   renderHireWorkbench();
+  ensureChatRealtime();
 }
 
 // ===== 能力库 CRUD =====
@@ -960,10 +970,10 @@ function renderTaskDetail(task) {
     detailStatusBadge.textContent = statusLabel;
     detailStatusBadge.className = `px-3 py-1 rounded-full text-xs font-bold ${statusBg}`;
   }
-  const coverImg = task.coverImage || COVER_IMAGES[0];
+  const coverImg = String(task.coverImage || '').trim();
   detailBody.innerHTML = `
     <div class="flex gap-4 items-start">
-      <img src="${coverImg}" alt="${escapeHtml(task.title)}" class="w-32 h-24 object-cover rounded-xl flex-shrink-0" />
+      ${coverImg ? `<img src="${coverImg}" alt="${escapeHtml(task.title)}" class="w-32 h-24 object-cover rounded-xl flex-shrink-0" />` : ''}
       <div class="flex-1 min-w-0">
         <h2 class="text-xl font-black text-gray-900 dark:text-white mb-2">${escapeHtml(task.title)}</h2>
         <p class="text-sm text-gray-500 dark:text-gray-400">发布者：${escapeHtml(task.publisherName || task.requesterAi || '匿名')}</p>
@@ -993,10 +1003,10 @@ function renderSkillDetail(skill) {
     detailStatusBadge.textContent = '技能';
     detailStatusBadge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700';
   }
-  const coverImg = skill.coverImage || SKILL_COVER_IMAGES?.[0] || COVER_IMAGES[0];
+  const coverImg = String(skill.coverImage || '').trim();
   detailBody.innerHTML = `
     <div class="flex gap-4 items-start">
-      <img src="${coverImg}" alt="${escapeHtml(skill.name)}" class="w-32 h-24 object-cover rounded-xl flex-shrink-0" />
+      ${coverImg ? `<img src="${coverImg}" alt="${escapeHtml(skill.name)}" class="w-32 h-24 object-cover rounded-xl flex-shrink-0" />` : ''}
       <div class="flex-1 min-w-0">
         <h2 class="text-xl font-black text-gray-900 dark:text-white mb-2">${skill.icon || '🔧'} ${escapeHtml(skill.name)}</h2>
         <p class="text-sm text-gray-500 dark:text-gray-400">提供者：${escapeHtml(skill.ownerName || '匿名')}</p>
@@ -1023,17 +1033,17 @@ detailActions?.addEventListener('click', (e) => {
   const skillId = btn.dataset.skillId;
   if (action === 'join-chat' && taskId) {
     const task = state.tasks.find(t => t.id === taskId);
-    if (task) openConversation('worker', task);
+    if (task) openConversation('worker', task, { sourceEl: btn });
   } else if (action === 'join-chat' && skillId) {
     const skill = state.skills.find(s => s.id === skillId);
-    if (skill) openConversation('demand', skill);
+    if (skill) openConversation('demand', skill, { sourceEl: btn });
   }
 });
 
 // ===== 任务操作 =====
 async function onTaskActionClick(event) {
   const button = event.target.closest('.task-action');
-  const taskCard = event.target.closest('article[data-task-id]');
+  const taskCard = event.target.closest('[data-task-id].task-card, article[data-task-id]');
 
   // 如果点击的是操作按钮，处理按钮操作
   if (button) {
@@ -1042,7 +1052,7 @@ async function onTaskActionClick(event) {
     const action = button.dataset.action;
     const taskId = button.dataset.taskId;
 
-    if (!canOperate()) {
+    if (action !== 'view' && !canOperate()) {
       showToast('请先登录');
       return;
     }
@@ -1051,7 +1061,7 @@ async function onTaskActionClick(event) {
       if (action === 'take' || action === 'join-chat') {
         // 打开对话（接单方角色）
         const task = state.tasks.find(t => t.id === taskId);
-        if (task) openConversation('worker', task);
+        if (task) openConversation('worker', task, { sourceEl: button });
       } else if (action === 'deliver') {
         // 实现 AI 交付逻辑
         await deliverTask(taskId, button);
@@ -1072,7 +1082,12 @@ async function onTaskActionClick(event) {
   if (taskCard) {
     const taskId = taskCard.dataset.taskId;
     if (taskId) {
-      window.location.href = `/task-detail.html?id=${taskId}`;
+      if (!canOperate()) {
+        showToast('请先登录');
+        return;
+      }
+      const task = state.tasks.find(t => t.id === taskId);
+      if (task) openConversation('worker', task, { sourceEl: taskCard });
     }
   }
 }
@@ -1329,6 +1344,7 @@ async function loadMeta() {
     state.laborTypes = meta.laborTypes || [];
     state.workers = meta.workers || [];
     state.totalUsers = meta.totalUsers || 0;
+    state.realtime = meta.realtime || null;
 
     const profile = profileRes?.data || {};
     setIntegrationView({
@@ -1386,11 +1402,21 @@ async function bootstrap() {
   if (chatPollTimer) clearInterval(chatPollTimer);
   chatPollTimer = setInterval(async () => {
     if (!canOperate()) return;
-    const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
-    if (conv) {
-      await fetchServerMessages(conv);
-      if (chatState.activeConversationId === conv.id) renderChatMessages(conv);
+    if (chatRealtimeReady) return;
+    await syncConversationsFromServer();
+    let activeConvChanged = false;
+    for (const conv of chatState.conversations) {
+      const result = await fetchServerMessages(conv);
+      if (conv.id === chatState.activeConversationId && (result?.added || 0) > 0) {
+        activeConvChanged = true;
+      }
     }
+    const activeConv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
+    if (activeConv && activeConvChanged) {
+      markConversationRead(activeConv);
+      renderChatMessages(activeConv);
+    }
+    renderChatList();
   }, 10000);
 }
 
@@ -1601,42 +1627,39 @@ function renderSkillCategories(skills) {
   `;
 }
 
-// 技能封面图列表
-const SKILL_COVER_IMAGES = [
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuC0P0SSvUZo6srifGj-ww_RRElGYWAXJ4FcFZSm5rHCkYcbHOFjc6QNSnijKKnucytou0qIFY3D0nPf2dW-WMcudn6BVQzyGPU4M_sZixbEwQJpmLYjrlmVOTl0QYbittZmVV0OR0UAJ3BLngKHt7cUu0XUNQ-9N9WqoweRVBhJ_OFFlcm42V_AJHlZ_MFFfLmhPOl87dGa--mRbI1AIPSU-kwigylSHeCaD6DM0WFi02T8bKgbcGgFtgi1eghhfyXvyS8Oib1Y7pbU',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBH9cRv7ReWAcdCcBkmDMInDyGHd9GxpDneNmIXWPAoP9f2FkfTCz9qqsktI3m1EPzCZ3dtL8MBhVjzcH6iIqfWqsR00m-wUbc69WatakyLyeH_FmsMTWJDGhT324Gs2RUYuJCEsdQD9ou3jUuPKjjwniuFRB47Aayo5eoh9inDbZWHV-2JFaT3KLIaQmYyM36PtwV4BGld0bQsk4RVSL0o1Piw0KhhfNfZYUFjYCx1_NWB89KeUIP7Ix8_mbwDXmPNqTB8riNyf-YQ',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuApLeqfMTWrfgiwAnrZ8S9kMx4wQBWIhiog0wveE3m7R3Y4OgokllSADSKGhhQ1VUNfdkfPjEgAEpa8C7Zz-SvgVW7IOZWXAs9XFUp9oh_QFH1ESVWBygWqni4uxuoWYLr2Ythjp3I8DnDe5wR-HrviV-51UcVybRYkrTCP-NpkwHQv-iPpTRL0IdxeDtxqUqh_UX0-PH5xIyW33QocMBV8UgBAS9e3Uv66VeroVyFLPQNgY4ExC9zNGN-K-oJtkXUAL9HR1NroKinT'
-];
-
 // 渲染单个技能卡片（网格布局,固定4:3比例封面）
 function renderSkillCard(skill, index) {
   const category = categorizeSkill(skill);
   const categoryInfo = SKILL_CATEGORIES.find(c => c.id === category) || SKILL_CATEGORIES[4];
   const categoryName = categoryInfo.name.replace(categoryInfo.icon, '').trim();
-  const coverImg = skill.coverImage || SKILL_COVER_IMAGES[index % SKILL_COVER_IMAGES.length];
+  const coverImg = String(skill.coverImage || '').trim();
+  const hasCover = Boolean(coverImg);
   const ownerName = skill.ownerName || '';
-  const ownerMeta = renderCardUserMeta(ownerName, skill.ownerAvatar);
+  const ownerMeta = renderCardUserMeta(
+    ownerName,
+    skill.ownerAvatar,
+    `<span class="px-2 py-0.5 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-100 dark:border-gray-600 flex-shrink-0">${escapeHtml(categoryName)}</span>`
+  );
 
   return `
     <div class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group" data-skill-id="${skill.id}">
-      <div class="relative m-2 skill-card-cover">
-        <img alt="${escapeHtml(skill.name)}" class="transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
-        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80"></div>
-        <span class="absolute top-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-black/40 backdrop-blur-sm text-white border border-white/20">${skill.icon || '🔧'} ${categoryName}</span>
-        <!-- 悬浮按钮 -->
-        <div class="card-hover-gradient"></div>
-        <div class="card-hover-buttons">
-          <button class="skill-join-chat-btn flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="join-chat" data-skill-id="${skill.id}">
-            <span class="material-symbols-outlined text-[16px]">forum</span> 加入对话
-          </button>
+      ${hasCover ? `
+        <div class="relative m-2 skill-card-cover">
+          <img alt="${escapeHtml(skill.name)}" class="transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80"></div>
+          <span class="absolute top-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-black/40 backdrop-blur-sm text-white border border-white/20">${skill.icon || '🔧'} ${categoryName}</span>
+          <!-- 悬浮按钮 -->
+          <div class="card-hover-gradient"></div>
+          <div class="card-hover-buttons">
+            <button class="skill-join-chat-btn flex-1 py-2 bg-primary text-white rounded-lg text-[11px] font-bold shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-1" data-action="join-chat" data-skill-id="${skill.id}">
+              <span class="material-symbols-outlined text-[16px]">forum</span> 加入对话
+            </button>
+          </div>
         </div>
-      </div>
-      <div class="px-4 pb-4 pt-1 flex flex-col cursor-pointer" onclick="openDetailPanel('skill', state.skills.find(s=>s.id==='${skill.id}'))">
+      ` : ''}
+      <div class="px-4 pb-4 ${hasCover ? 'pt-1' : 'pt-4'} flex flex-col cursor-pointer" onclick="openDetailPanel('skill', state.skills.find(s=>s.id==='${skill.id}'))">
         <h3 class="font-bold text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors text-base mb-2" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</h3>
         <p class="text-xs text-subtext-light dark:text-subtext-dark line-clamp-3 mb-3 leading-relaxed">${escapeHtml(skill.description || '这个 AI 分身很懒，还没写简介…')}</p>
-        <div class="flex flex-wrap gap-1.5">
-          <span class="px-2 py-0.5 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-100 dark:border-gray-600">${categoryName}</span>
-        </div>
         ${ownerMeta}
       </div>
     </div>
@@ -2301,7 +2324,7 @@ if (skillCategoriesContainer) {
       const skillId = joinBtn.dataset.skillId;
       if (skillId) {
         const skill = state.skills.find(s => s.id === skillId);
-        if (skill) openConversation('demand', skill);
+        if (skill) openConversation('demand', skill, { sourceEl: joinBtn });
       }
     }
   });
@@ -2316,6 +2339,13 @@ const chatState = {
   skillDropdownOpen: false,
   collapsed: false
 };
+
+let chatRealtimeClient = null;
+let chatRealtimeChannels = [];
+let chatRealtimeUserId = '';
+let chatRealtimeReady = false;
+let chatRealtimeFlushTimer = null;
+const chatRealtimePendingServerConvIds = new Set();
 
 // 持久化
 function loadConversations() {
@@ -2333,6 +2363,128 @@ function persistConversations() {
 
 loadConversations();
 
+function getMyChatUserId() {
+  return String(state.me?.userId || state.me?.id || '').trim();
+}
+
+function canUseSupabaseRealtime() {
+  const cfg = state.realtime || {};
+  return Boolean(
+    canOperate()
+    && cfg.enabled
+    && cfg.supabaseUrl
+    && cfg.supabaseAnonKey
+    && window.supabase?.createClient
+  );
+}
+
+function teardownChatRealtime() {
+  if (chatRealtimeFlushTimer) {
+    clearTimeout(chatRealtimeFlushTimer);
+    chatRealtimeFlushTimer = null;
+  }
+  chatRealtimePendingServerConvIds.clear();
+  chatRealtimeReady = false;
+  chatRealtimeUserId = '';
+  if (chatRealtimeClient && chatRealtimeChannels.length) {
+    for (const ch of chatRealtimeChannels) {
+      try { chatRealtimeClient.removeChannel(ch); } catch (e) { console.warn('移除 realtime channel 失败', e); }
+    }
+  }
+  chatRealtimeChannels = [];
+  chatRealtimeClient = null;
+}
+
+async function flushChatRealtimeEvents() {
+  chatRealtimeFlushTimer = null;
+  if (!canOperate()) return;
+  const targetIds = Array.from(chatRealtimePendingServerConvIds);
+  chatRealtimePendingServerConvIds.clear();
+  if (!targetIds.length) return;
+
+  await syncConversationsFromServer();
+
+  let activeConvChanged = false;
+  for (const serverConvId of targetIds) {
+    const conv = chatState.conversations.find((c) => c.serverConvId === serverConvId);
+    if (!conv) continue;
+    const result = await fetchServerMessages(conv);
+    if (conv.id === chatState.activeConversationId && (result?.added || 0) > 0) {
+      activeConvChanged = true;
+    }
+  }
+
+  const activeConv = chatState.conversations.find((c) => c.id === chatState.activeConversationId);
+  if (activeConv && activeConvChanged) {
+    markConversationRead(activeConv);
+    renderChatMessages(activeConv);
+  }
+  renderChatList();
+}
+
+function queueChatRealtimeConversationRefresh(serverConvId) {
+  if (!serverConvId) return;
+  chatRealtimePendingServerConvIds.add(String(serverConvId));
+  if (chatRealtimeFlushTimer) return;
+  chatRealtimeFlushTimer = setTimeout(() => {
+    flushChatRealtimeEvents().catch((e) => {
+      console.warn('处理 realtime 消息事件失败', e);
+    });
+  }, 250);
+}
+
+function ensureChatRealtime() {
+  if (!canUseSupabaseRealtime()) {
+    if (chatRealtimeClient || chatRealtimeChannels.length) teardownChatRealtime();
+    return;
+  }
+
+  const myId = getMyChatUserId();
+  if (!myId) return;
+  if (chatRealtimeReady && chatRealtimeUserId === myId && chatRealtimeChannels.length) return;
+
+  teardownChatRealtime();
+
+  const cfg = state.realtime || {};
+  try {
+    chatRealtimeClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+  } catch (e) {
+    console.warn('初始化 Supabase Realtime 失败', e);
+    teardownChatRealtime();
+    return;
+  }
+
+  const onConversationEvent = (payload) => {
+    const row = payload?.new || payload?.old || null;
+    const serverConvId = row?.id;
+    if (!serverConvId) return;
+    queueChatRealtimeConversationRefresh(serverConvId);
+  };
+
+  const filters = [
+    `initiator_id=eq.${myId}`,
+    `receiver_id=eq.${myId}`
+  ];
+
+  chatRealtimeChannels = filters.map((filter, index) => chatRealtimeClient
+    .channel(`chat-conversations-${myId}-${index}`)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'conversations',
+      filter
+    }, onConversationEvent)
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        chatRealtimeReady = true;
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        chatRealtimeReady = false;
+      }
+    }));
+
+  chatRealtimeUserId = myId;
+}
+
 // 从后端拉取对话列表并合并到本地
 async function syncConversationsFromServer() {
   if (!canOperate()) return;
@@ -2345,10 +2497,12 @@ async function syncConversationsFromServer() {
         || chatState.conversations.find(c => c.refId === sc.ref_id);
       if (local) {
         local.serverConvId = sc.id;
+        local.updatedAt = sc.updated_at || local.updatedAt;
+        if (typeof local.unreadCount !== 'number') local.unreadCount = Number(local.unreadCount) || 0;
       } else {
         // 后端有但本地没有 — 是对方发起的对话，创建本地记录
         const myId = String(state.me?.userId || state.me?.id || '');
-        const iAmInitiator = sc.initiator_id === myId;
+        const iAmInitiator = String(sc.initiator_id || '') === myId;
         chatState.conversations.unshift({
           id: `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           serverConvId: sc.id,
@@ -2360,6 +2514,7 @@ async function syncConversationsFromServer() {
           title: sc.title || '对话',
           desc: '',
           messages: [],
+          unreadCount: 0,
           createdAt: sc.created_at,
           updatedAt: sc.updated_at
         });
@@ -2376,25 +2531,62 @@ async function fetchServerMessages(conv) {
   try {
     const res = await api(`/api/conversations/${conv.serverConvId}/messages`);
     const serverMsgs = res.data || [];
-    if (!serverMsgs.length) return;
+    if (!serverMsgs.length) return { added: 0, addedPeer: 0 };
     const myId = String(state.me?.userId || state.me?.id || '');
     // 转换后端消息格式为本地格式
     const converted = serverMsgs.map(m => ({
-      type: m.type === 'system' ? 'system' : (m.sender_id === myId ? 'self' : 'peer'),
+      type: m.type === 'system' ? 'system' : (String(m.sender_id || '') === myId ? 'self' : 'peer'),
       text: m.content,
       time: m.created_at,
       serverId: m.id
     }));
-    // 合并：用 serverId 去重，保留本地独有消息
+    // 合并：优先按 serverId 去重；其次把本地乐观消息与后端回写消息进行配对，避免出现“我发一条显示两条”
     const existingServerIds = new Set(conv.messages.filter(m => m.serverId).map(m => m.serverId));
-    const newMsgs = converted.filter(m => !existingServerIds.has(m.serverId));
+    const newMsgs = [];
+    const optimisticMatchWindowMs = 15000;
+
+    for (const sm of converted) {
+      if (existingServerIds.has(sm.serverId)) continue;
+
+      const smTime = sm.time ? new Date(sm.time).getTime() : NaN;
+      const optimisticIdx = conv.messages.findIndex((lm) => {
+        if (!lm || lm.serverId || lm.type !== sm.type) return false;
+        if ((lm.text || '') !== (sm.text || '')) return false;
+        const lmTime = lm.time ? new Date(lm.time).getTime() : NaN;
+        if (Number.isNaN(lmTime) || Number.isNaN(smTime)) return true;
+        return Math.abs(lmTime - smTime) <= optimisticMatchWindowMs;
+      });
+
+      if (optimisticIdx >= 0) {
+        // 回写 serverId 到本地乐观消息，后续同步时不会再重复插入
+        conv.messages[optimisticIdx].serverId = sm.serverId;
+        if (sm.time) conv.messages[optimisticIdx].time = sm.time;
+        existingServerIds.add(sm.serverId);
+        continue;
+      }
+
+      newMsgs.push(sm);
+      existingServerIds.add(sm.serverId);
+    }
+
     if (newMsgs.length) {
+      const newPeerCount = newMsgs.filter(m => m.type === 'peer').length;
       conv.messages.push(...newMsgs);
       conv.messages.sort((a, b) => new Date(a.time) - new Date(b.time));
       conv.updatedAt = new Date().toISOString();
+      if (chatState.activeConversationId === conv.id) {
+        conv.unreadCount = 0;
+      } else if (newPeerCount > 0) {
+        conv.unreadCount = (Number(conv.unreadCount) || 0) + newPeerCount;
+      }
       persistConversations();
+      return { added: newMsgs.length, addedPeer: newPeerCount };
     }
+    // 仅发生了 serverId 回填（无新增消息）时，也持久化一次，避免下次再重复配对
+    persistConversations();
+    return { added: 0, addedPeer: 0 };
   } catch (e) { console.warn('拉取消息失败', e); }
+  return { added: 0, addedPeer: 0 };
 }
 
 // 折叠/展开
@@ -2426,6 +2618,18 @@ function chatTimeLabel(dateStr) {
 // ========== 聊天列表过滤状态 ==========
 chatState.roleFilter = 'demand'; // 默认查看需求对话
 
+function updateChatUnreadIndicators() {
+  const hasUnread = chatState.conversations.some((c) => (Number(c.unreadCount) || 0) > 0);
+  chatUnreadDot?.classList.toggle('hidden', !hasUnread);
+}
+
+function markConversationRead(conv) {
+  if (!conv) return;
+  if ((Number(conv.unreadCount) || 0) === 0) return;
+  conv.unreadCount = 0;
+  persistConversations();
+}
+
 // 渲染聊天列表
 function renderChatList() {
   if (!chatListEl) return;
@@ -2438,6 +2642,7 @@ function renderChatList() {
   if (chatStatusText) {
     chatStatusText.textContent = statusCount > 0 ? `${statusCount} 个对话` : '暂无对话';
   }
+  updateChatUnreadIndicators();
 
   if (convs.length === 0) {
     if (chatListEmpty) chatListEmpty.classList.remove('hidden');
@@ -2460,7 +2665,8 @@ function renderChatList() {
     const isActive = conv.id === chatState.activeConversationId;
     const shortId = `#${conv.id.substring(0, 4).toUpperCase()}`;
     const avatarFallback = conv.peerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.peerName?.[0] || 'AI')}&background=random&rounded=true&size=48`;
-    const hasUnread = !isActive && Math.random() > 0.7;
+    const unreadCount = Number(conv.unreadCount) || 0;
+    const hasUnread = !isActive && unreadCount > 0;
     const activeClass = isActive ? 'bg-orange-50/50 dark:bg-orange-900/10 border-orange-100 dark:border-primary/20' : 'border-transparent';
     const roleBadgeClass = conv.role === 'demand'
       ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
@@ -2832,6 +3038,8 @@ function switchConversation(convId) {
   chatState.activeConversationId = convId;
   chatState.selectedSkill = null;
   chatState.skillDropdownOpen = false;
+  const conv = chatState.conversations.find(c => c.id === convId);
+  markConversationRead(conv);
 
   // 切换视图：隐藏列表，显示对话详情
   if (chatListView) chatListView.classList.add('hidden');
@@ -2844,10 +3052,13 @@ function switchConversation(convId) {
   renderChatList();
 
   // 异步拉取后端消息
-  const conv = chatState.conversations.find(c => c.id === convId);
   if (conv) {
     fetchServerMessages(conv).then(() => {
-      if (chatState.activeConversationId === convId) renderChatMessages(conv);
+      if (chatState.activeConversationId === convId) {
+        markConversationRead(conv);
+        renderChatMessages(conv);
+      }
+      renderChatList();
     });
   }
 }
@@ -2879,10 +3090,84 @@ chatListEl?.addEventListener('click', (e) => {
   if (convId) switchConversation(convId);
 });
 
+function getRectCenter(el) {
+  if (!el || typeof el.getBoundingClientRect !== 'function') return null;
+  const rect = el.getBoundingClientRect();
+  if (!rect.width && !rect.height) return null;
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+function getDesktopChatAnimationTarget() {
+  return document.querySelector('#chat-peer-avatar')
+    || document.querySelector('#chat-toggle-btn')
+    || document.querySelector('#chat-module');
+}
+
+function getMobileChatAnimationTarget() {
+  return document.querySelector('[data-mobile-tab="chat"] .tab-icon')
+    || document.querySelector('[data-mobile-tab="chat"]')
+    || document.querySelector('#m-chat-unread');
+}
+
+function pulseJoinChatTarget(targetEl) {
+  if (!targetEl) return;
+  targetEl.classList.remove('join-chat-target-pulse');
+  void targetEl.offsetWidth;
+  targetEl.classList.add('join-chat-target-pulse');
+  setTimeout(() => targetEl.classList.remove('join-chat-target-pulse'), 700);
+}
+
+function animateJoinToChat(sourceEl, targetEl) {
+  const start = getRectCenter(sourceEl);
+  const end = getRectCenter(targetEl);
+  if (!end) return;
+  if (!start) {
+    pulseJoinChatTarget(targetEl);
+    return;
+  }
+
+  const orb = document.createElement('div');
+  orb.className = 'join-chat-orb';
+  orb.style.left = `${start.x}px`;
+  orb.style.top = `${start.y}px`;
+  document.body.appendChild(orb);
+
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const curveLift = Math.max(24, Math.min(120, Math.abs(dx) * 0.12 + 36));
+
+  orb.animate([
+    { transform: 'translate(-50%, -50%) scale(0.9)', opacity: 0.25 },
+    { transform: `translate(calc(-50% + ${dx * 0.45}px), calc(-50% + ${dy * 0.45 - curveLift}px)) scale(1.1)`, opacity: 1, offset: 0.55 },
+    { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.5)`, opacity: 0.1 }
+  ], {
+    duration: 680,
+    easing: 'cubic-bezier(0.22, 0.8, 0.2, 1)',
+    fill: 'forwards'
+  }).finished
+    .catch(() => {})
+    .finally(() => {
+      orb.remove();
+      pulseJoinChatTarget(targetEl);
+    });
+}
+
+function triggerJoinConversationFeedback(sourceEl) {
+  if (window.innerWidth < 1024) {
+    animateJoinToChat(sourceEl, getMobileChatAnimationTarget());
+    setTimeout(() => {
+      pulseJoinChatTarget(document.querySelector('#chat-peer-avatar') || document.querySelector('#chat-module'));
+    }, 220);
+    return;
+  }
+  animateJoinToChat(sourceEl, getDesktopChatAnimationTarget());
+}
+
 // 打开/创建对话（统一入口）
-async function openConversation(role, data) {
+async function openConversation(role, data, options = {}) {
   // role: 'demand' | 'worker'
   // data: skill 或 task 对象
+  const sourceEl = options?.sourceEl || null;
 
   const isDemand = role === 'demand';
   const peerId = isDemand ? (data.ownerId || data.id) : (data.publisherId || data.id);
@@ -2940,6 +3225,7 @@ async function openConversation(role, data) {
 
   // 打开对话
   switchConversation(conv.id);
+  triggerJoinConversationFeedback(sourceEl);
 
   showToast(`💬 已进入对话`);
 
@@ -2999,7 +3285,21 @@ async function sendChatMessage() {
     api(`/api/conversations/${conv.serverConvId}/messages`, {
       method: 'POST',
       body: { content: userMsg.text, type: skill ? 'skill_request' : 'text' }
-    }).catch(e => console.warn('同步消息失败', e));
+    })
+      .then((res) => {
+        const saved = res?.data;
+        if (!saved) return;
+        if (saved.id) userMsg.serverId = saved.id;
+        if (saved.created_at) userMsg.time = saved.created_at;
+        persistConversations();
+      })
+      .catch((e) => {
+        console.warn('同步消息失败', e);
+        showToast(e?.message || '消息发送失败（未同步到对方）');
+      });
+  } else if (canOperate() && !conv.serverConvId) {
+    // 理论上 openConversation 会先创建后端会话；这里兜底提示，避免用户误以为已送达
+    showToast('消息未发送到对方：对话尚未同步完成，请稍后重试');
   }
 
   // 如果选择了技能，调用 API 生成交付

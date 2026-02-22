@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 // Supabase 客户端初始化（仅在有配置时创建）
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 const __filename = fileURLToPath(import.meta.url);
@@ -670,6 +671,8 @@ function profileToWorker(profile) {
     specialties: normalizeSpecialties(profile.specialties),
     persona: String(profile.persona || '').trim(),
     avatar: String(profile.avatar || '').trim(),
+    earnedPoints: normalizePointsValue(profile.earnedPoints, 100),
+    completedOrders: normalizePointsValue(profile.completedOrders, 0),
     createdAt: profile.createdAt || null,
     updatedAt: profile.updatedAt || null
   };
@@ -687,6 +690,8 @@ function createDefaultProfile(secondUser = {}) {
     specialties: [LABOR_TYPES[0]?.id || 'general'],
     persona: String(secondUser.selfIntroduction || secondUser.bio || '我会按需求交付高质量内容。').trim(),
     avatar: String(secondUser.avatar || '').trim(),
+    earnedPoints: 100,
+    completedOrders: 0,
     createdAt: now,
     updatedAt: now
   };
@@ -779,6 +784,13 @@ function normalizeImageConfig(payload = {}, fallback = {}) {
   };
 }
 
+function normalizePointsValue(value, fallback = 0, { min = 0, max = 9_999_999 } = {}) {
+  const parsed = Number.parseInt(String(value ?? '').trim(), 10);
+  const safeFallback = Number.isFinite(Number(fallback)) ? Math.trunc(Number(fallback)) : 0;
+  const n = Number.isFinite(parsed) ? parsed : safeFallback;
+  return Math.max(min, Math.min(max, n));
+}
+
 function isNoLimitValue(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return ['不限制', 'unlimited', 'none', 'auto', 'any'].includes(normalized);
@@ -792,6 +804,7 @@ function normalizeStoredAbility(payload = {}) {
     name: String(source.name || '').trim(),
     icon: String(source.icon || '🔧').trim() || '🔧',
     description: String(source.description || '').trim(),
+    pricePoints: normalizePointsValue(source.pricePoints ?? source.price ?? source.points, 0),
     prompt: String(source.prompt || '').trim(),
     enabled: toBoolean(source.enabled, true),
     abilityType,
@@ -1016,6 +1029,8 @@ async function saveProfiles(workers) {
     specialties: normalizeSpecialties(worker.specialties),
     persona: String(worker.persona || '').trim(),
     avatar: String(worker.avatar || '').trim(),
+    earnedPoints: normalizePointsValue(worker.earnedPoints, 100),
+    completedOrders: normalizePointsValue(worker.completedOrders, 0),
     createdAt: worker.createdAt || nowIso(),
     updatedAt: worker.updatedAt || nowIso()
   }));
@@ -1270,6 +1285,7 @@ async function updateUserAbility(userId, abilityId, patch) {
     name: hasOwn(patch, 'name') ? String(patch.name || '').trim() : current.name,
     icon: hasOwn(patch, 'icon') ? String(patch.icon || '🔧').trim() : current.icon,
     description: hasOwn(patch, 'description') ? String(patch.description || '').trim() : current.description,
+    pricePoints: hasOwn(patch, 'pricePoints') ? normalizePointsValue(patch.pricePoints, current.pricePoints || 0) : current.pricePoints,
     prompt: hasOwn(patch, 'prompt') ? String(patch.prompt || '').trim() : current.prompt,
     enabled: hasOwn(patch, 'enabled') ? toBoolean(patch.enabled, true) : current.enabled,
     abilityType: hasOwn(patch, 'abilityType') ? String(patch.abilityType || 'text').trim() : current.abilityType,
@@ -1371,6 +1387,86 @@ async function getCurrentSessionWorker({ createIfMissing = true } = {}) {
     token: sessionToken,
     user: userData,
     worker
+  };
+}
+
+async function settleSkillDeliveryPoints({
+  buyerWorkerId,
+  providerSecondUserId,
+  pricePoints,
+  abilityId = '',
+  abilityName = ''
+} = {}) {
+  const amount = normalizePointsValue(pricePoints, 0);
+  if (amount <= 0) {
+    return {
+      charged: false,
+      amount: 0,
+      reason: 'free_skill'
+    };
+  }
+
+  const buyerKey = String(buyerWorkerId || '').trim();
+  const providerKey = String(providerSecondUserId || '').trim();
+  if (!buyerKey || !providerKey) {
+    throw new AppError('积分结算失败：缺少买方或卖方身份', 500, {
+      buyerWorkerId: buyerKey,
+      providerSecondUserId: providerKey
+    });
+  }
+
+  const workers = await loadProfiles();
+  const lookup = workersMap(workers);
+  const buyer = lookup.get(buyerKey) || null;
+  const provider = lookup.get(providerKey) || null;
+
+  if (!buyer) {
+    throw new AppError('积分结算失败：未找到购买方资料', 500, { buyerWorkerId: buyerKey });
+  }
+  if (!provider) {
+    throw new AppError('积分结算失败：未找到技能提供方资料', 500, { providerSecondUserId: providerKey });
+  }
+
+  if (String(buyer.id || '') === String(provider.id || '')) {
+    return {
+      charged: false,
+      amount: 0,
+      reason: 'self_hire',
+      buyerBalance: normalizePointsValue(buyer.earnedPoints, 100),
+      providerBalance: normalizePointsValue(provider.earnedPoints, 100)
+    };
+  }
+
+  const buyerBalance = normalizePointsValue(buyer.earnedPoints, 100);
+  if (buyerBalance < amount) {
+    throw new AppError(`积分不足，当前 ${buyerBalance}，需要 ${amount}`, 400, {
+      code: 'INSUFFICIENT_POINTS',
+      buyerBalance,
+      requiredPoints: amount,
+      abilityId: String(abilityId || ''),
+      abilityName: String(abilityName || '')
+    });
+  }
+
+  const providerBalance = normalizePointsValue(provider.earnedPoints, 100);
+  const now = nowIso();
+  buyer.earnedPoints = buyerBalance - amount;
+  buyer.updatedAt = now;
+
+  provider.earnedPoints = providerBalance + amount;
+  provider.completedOrders = normalizePointsValue(provider.completedOrders, 0) + 1;
+  provider.updatedAt = now;
+
+  await saveProfiles(workers);
+
+  return {
+    charged: true,
+    amount,
+    reason: 'settled',
+    buyerBalance: buyer.earnedPoints,
+    providerBalance: provider.earnedPoints,
+    providerWorkerId: provider.id,
+    providerSecondUserId: provider.secondUserId
   };
 }
 
@@ -2790,6 +2886,12 @@ async function handleApi(req, res, urlObj) {
           extendedScopes: EXTENDED_SCOPES,
           oauth: oauthConfigSnapshot(),
           oauthToken: oauthTokenSnapshot()
+        },
+        realtime: {
+          provider: 'supabase',
+          enabled: Boolean(SUPABASE_URL && SUPABASE_ANON_KEY),
+          supabaseUrl: SUPABASE_URL || '',
+          supabaseAnonKey: SUPABASE_ANON_KEY || ''
         }
       }
     });
@@ -2829,6 +2931,7 @@ async function handleApi(req, res, urlObj) {
           id: ability.id,
           name: ability.name,
           description: ability.description || '',
+          pricePoints: normalizePointsValue(ability.pricePoints, 0),
           icon: ability.icon || '🔧',
           abilityType: ability.abilityType || 'text',
           coverImage: ability.coverImage || '',
@@ -3800,7 +3903,7 @@ async function handleApi(req, res, urlObj) {
   const convDeliverMatch = pathname.match(/^\/api\/conversations\/([^/]+)\/deliver$/);
   if (method === 'POST' && convDeliverMatch) {
     const convId = decodeURIComponent(convDeliverMatch[1]);
-    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
     if (!session?.user?.userId) {
       return json(res, 401, { code: 401, message: '请先登录' });
     }
@@ -3898,6 +4001,13 @@ async function handleApi(req, res, urlObj) {
 
       const deliveryContent = delivery?.content || '交付完成';
       const deliveryImages = delivery?.images || [];
+      const settlement = await settleSkillDeliveryPoints({
+        buyerWorkerId: session.worker?.id,
+        providerSecondUserId: abilityOwnerId,
+        pricePoints: foundAbility.pricePoints,
+        abilityId: foundAbility.id,
+        abilityName: foundAbility.name
+      });
 
       // 存交付消息
       const { data: deliveryMsg } = await supabase
@@ -3912,7 +4022,9 @@ async function handleApi(req, res, urlObj) {
             skillId,
             skillName: foundAbility.name || '',
             skillIcon: foundAbility.icon || '🔧',
-            images: deliveryImages
+            images: deliveryImages,
+            pricePoints: normalizePointsValue(foundAbility.pricePoints, 0),
+            settlement
           }
         })
         .select()
@@ -4617,6 +4729,15 @@ async function handleApi(req, res, urlObj) {
       ability: foundAbility
     });
 
+    // 交付完成后进行积分结算（技能定价）
+    const settlement = await settleSkillDeliveryPoints({
+      buyerWorkerId: worker.id,
+      providerSecondUserId: abilityOwnerId,
+      pricePoints: foundAbility.pricePoints,
+      abilityId: foundAbility.id,
+      abilityName: foundAbility.name
+    });
+
     // 保存交付历史
     await saveDeliveryHistory({
       id: uid('delivery'),
@@ -4638,7 +4759,9 @@ async function handleApi(req, res, urlObj) {
         images: delivery.images || [],
         engine: delivery.engine || 'unknown',
         abilityName: foundAbility.name,
-        abilityId: foundAbility.id
+        abilityId: foundAbility.id,
+        pricePoints: normalizePointsValue(foundAbility.pricePoints, 0),
+        settlement
       }
     });
   }
