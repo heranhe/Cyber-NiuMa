@@ -1320,12 +1320,16 @@ function setFilter(filter) {
 // ===== 数据加载 =====
 async function loadMeta() {
   try {
-    const metaRes = await api('/api/meta');
+    const [metaRes, profileRes] = await Promise.all([
+      api('/api/meta').catch(e => { console.error('meta error', e); return null; }),
+      api('/api/secondme/profile').catch(e => { console.error('profile error', e); return null; })
+    ]);
+
     const meta = metaRes?.data || {};
     state.laborTypes = meta.laborTypes || [];
     state.workers = meta.workers || [];
     state.totalUsers = meta.totalUsers || 0;
-    const profileRes = await api('/api/secondme/profile');
+
     const profile = profileRes?.data || {};
     setIntegrationView({
       connected: !!profile.connected,
@@ -1373,7 +1377,8 @@ async function refreshEverything() {
 // ===== 初始化 =====
 let chatPollTimer = null;
 async function bootstrap() {
-  await refreshEverything();
+  // 全部并行化，去除首屏的阻塞串行请求
+  refreshEverything();
   loadSkillHall();
   // 登录后同步后端对话
   syncConversationsFromServer();
