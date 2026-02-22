@@ -26,16 +26,27 @@
   padding-top: calc(1rem + var(--safe-area-inset-top)) !important;
 }
 
+/* 大厅工具栏在移动端需要顶部安全距离 (status bar) */
 .safe-top-toolbar {
   top: 0 !important;
+  padding-top: var(--safe-area-inset-top) !important;
 }
 
-
+/* 桌面端：工具栏跟在导航栏下方，不需要额外顶部安全距离 */
 @media (min-width: 768px) {
   .safe-top-toolbar {
     top: var(--top-nav-height) !important;
+    padding-top: 0 !important;
   }
 }
+
+/* 移动端各 Tab 面板（排行/对话/我的）也需要顶部安全距离 */
+@media (max-width: 1023px) {
+  .mobile-tab-panel {
+    padding-top: var(--safe-area-inset-top);
+  }
+}
+
 
 /* ===== 保留的核心动效 ===== */
 .bg-orb {
