@@ -1961,7 +1961,6 @@ function renderSkillCard(skill, index) {
     ownerName,
     skill.ownerAvatar,
     `
-      <span class="px-2 py-0.5 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-100 dark:border-gray-600 flex-shrink-0">${escapeHtml(categoryName)}</span>
       <span class="px-2 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded border border-amber-100 flex-shrink-0">报价 ${pricePoints}积分</span>
     `
   );
