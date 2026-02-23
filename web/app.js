@@ -1032,6 +1032,7 @@ detailBackBtn?.addEventListener('click', closeDetailPanel);
 
 function closeDetailModal() {
   if (!detailModal) return;
+  chatState.detailDeliveryContext = null;
   detailModal.classList.remove('is-open');
   detailModal.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('overflow-hidden');
@@ -1049,7 +1050,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-function openChatDeliveryDetail(conv, msg) {
+function openChatDeliveryDetail(conv, msg, msgIndex = null) {
   if (!detailModal || !msg || msg.type !== 'delivery') return;
 
   if (detailModalCloseTimer) {
@@ -1064,11 +1065,16 @@ function openChatDeliveryDetail(conv, msg) {
   const deliveryTitle = msg.skillName ? `交付结果 · ${msg.skillName}` : '交付结果';
   const who = msg.senderRole === 'peer' ? (conv?.peerName || '对方') : '我';
   const images = (Array.isArray(msg.images) ? msg.images : []).map(normalizeImageSrc).filter(Boolean);
+  const isPendingPreview = isPendingDeliveryPreviewMessage(msg);
+  const isSendingPreview = Boolean(msg.sending);
+  chatState.detailDeliveryContext = (conv?.id && Number.isInteger(msgIndex))
+    ? { convId: conv.id, msgIndex }
+    : null;
 
-  if (detailStatusBadge) detailStatusBadge.textContent = '交付';
+  if (detailStatusBadge) detailStatusBadge.textContent = isPendingPreview ? '预览' : '交付';
   if (detailModalBadge) {
-    detailModalBadge.textContent = '交付详情';
-    detailModalBadge.className = 'detail-modal-badge is-success';
+    detailModalBadge.textContent = isPendingPreview ? '待发送预览' : '交付详情';
+    detailModalBadge.className = `detail-modal-badge ${isPendingPreview ? 'is-skill' : 'is-success'}`;
   }
   if (detailModalTitle) detailModalTitle.textContent = deliveryTitle;
   if (detailModalMeta) {
@@ -1091,6 +1097,7 @@ function openChatDeliveryDetail(conv, msg) {
     detailModalDesc.innerHTML = `
       <section class="detail-section-card">
         <h3 class="detail-section-title">交付正文</h3>
+        ${isPendingPreview ? `<div class="mb-3 text-[12px] font-semibold text-amber-700 dark:text-amber-300">当前为本地预览，仅你可见。确认后才会发送给对方。</div>` : ''}
         <div class="detail-fulltext">${escapeHtml(msg.content || msg.text || '')}</div>
         ${images.length ? `
           <div class="detail-section-subtitle">交付图片</div>
@@ -1103,8 +1110,40 @@ function openChatDeliveryDetail(conv, msg) {
   }
   if (detailModalPublisher) detailModalPublisher.innerHTML = '';
   if (detailModalChat) detailModalChat.innerHTML = '';
-  if (detailModalActions) detailModalActions.innerHTML = '';
+  if (detailModalActions) {
+    if (isPendingPreview && conv?.id && Number.isInteger(msgIndex)) {
+      detailModalActions.innerHTML = `
+        <button
+          type="button"
+          data-action="send-pending-delivery"
+          data-conv-id="${escapeHtml(conv.id)}"
+          data-msg-index="${msgIndex}"
+          ${isSendingPreview ? 'disabled' : ''}
+          class="w-full px-4 py-3 rounded-2xl font-black text-[14px] transition-colors shadow-sm ${isSendingPreview ? 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400' : 'bg-primary text-white hover:bg-amber-700'}"
+        >
+          ${isSendingPreview ? '发送中...' : '确认发送给对方'}
+        </button>
+      `;
+    } else {
+      detailModalActions.innerHTML = '';
+    }
+  }
 }
+
+detailModalActions?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action="send-pending-delivery"]');
+  if (!btn) return;
+
+  const convId = btn.getAttribute('data-conv-id') || '';
+  const msgIndex = Number(btn.getAttribute('data-msg-index'));
+  if (!convId || !Number.isInteger(msgIndex) || msgIndex < 0) return;
+
+  const conv = chatState.conversations.find((c) => c.id === convId);
+  const msg = conv?.messages?.[msgIndex];
+  if (!conv || !msg || msg.type !== 'delivery') return;
+
+  await sendPendingDeliveryPreview(conv, msg, { successToast: '交付已发送给对方' });
+});
 
 function formatDateTime(value) {
   if (!value) return '';
@@ -2851,7 +2890,9 @@ const chatState = {
   activeConversationId: null,
   selectedSkill: null,     // {id, name, icon, description}
   skillDropdownOpen: false,
-  collapsed: false
+  collapsed: false,
+  detailDeliveryContext: null, // { convId, msgIndex }
+  deliverySheetDraft: null // { abilityId, promptText, sourceMsgIndex, referenceImages:[{name,dataUrl}] }
 };
 
 let chatRealtimeClient = null;
@@ -3036,6 +3077,122 @@ async function syncConversationDeliveryMessage(conv, localDeliveryMsg) {
   if (saved.id) localDeliveryMsg.serverId = saved.id;
   if (saved.created_at) localDeliveryMsg.time = saved.created_at;
   return saved;
+}
+
+function isPendingDeliveryPreviewMessage(msg) {
+  return Boolean(msg && msg.type === 'delivery' && msg.senderRole !== 'peer' && msg.pendingSend);
+}
+
+function buildLocalDeliveryMessage(skill, normalizedResult) {
+  return {
+    type: 'delivery',
+    senderRole: 'self',
+    skillId: skill?.id || null,
+    content: normalizedResult?.content || '交付完成，但内容为空。',
+    text: normalizedResult?.content || '交付完成，但内容为空。',
+    images: Array.isArray(normalizedResult?.images) ? normalizedResult.images : [],
+    skillName: skill?.name || 'AI 技能',
+    skillIcon: skill?.icon || '🤖',
+    time: new Date().toISOString(),
+    pendingSend: false,
+    sending: false
+  };
+}
+
+async function appendGeneratedDeliveryResult(conv, deliveryMsg, options = {}) {
+  if (!conv || !deliveryMsg || deliveryMsg.type !== 'delivery') {
+    return { autoSent: false, pendingSend: false, syncFailed: false, autoSendSkipped: false };
+  }
+
+  const autoSendRequested = Boolean(options.autoSend);
+  const syncFailTarget = options.syncFailTarget || '对方';
+  const canAutoSendNow = autoSendRequested && canOperate();
+
+  deliveryMsg.pendingSend = !canAutoSendNow;
+  deliveryMsg.sending = false;
+
+  conv.messages.push(deliveryMsg);
+  conv.updatedAt = new Date().toISOString();
+
+  if (!canAutoSendNow) {
+    return {
+      autoSent: false,
+      pendingSend: true,
+      syncFailed: false,
+      autoSendSkipped: autoSendRequested && !canOperate()
+    };
+  }
+
+  let syncFailed = false;
+  try {
+    await syncConversationDeliveryMessage(conv, deliveryMsg);
+    deliveryMsg.pendingSend = false;
+  } catch (syncErr) {
+    syncFailed = true;
+    deliveryMsg.pendingSend = true;
+    console.warn('同步交付消息失败', syncErr);
+    conv.messages.push({
+      type: 'system',
+      text: `⚠️ 交付已生成，但未同步给${syncFailTarget}：${syncErr?.message || '未知错误'}`,
+      time: new Date().toISOString()
+    });
+    conv.updatedAt = new Date().toISOString();
+  }
+
+  return {
+    autoSent: !syncFailed,
+    pendingSend: Boolean(deliveryMsg.pendingSend),
+    syncFailed,
+    autoSendSkipped: false
+  };
+}
+
+async function sendPendingDeliveryPreview(conv, msg, options = {}) {
+  if (!conv || !msg || msg.type !== 'delivery') return false;
+  if (!isPendingDeliveryPreviewMessage(msg)) return true;
+  if (msg.sending) return false;
+  if (!canOperate()) {
+    showToast('请先登录后再发送给对方');
+    return false;
+  }
+
+  msg.sending = true;
+  conv.updatedAt = new Date().toISOString();
+  if (conv.id === chatState.activeConversationId) renderChatMessages(conv);
+  renderChatList();
+  persistConversations();
+
+  try {
+    await syncConversationDeliveryMessage(conv, msg);
+    msg.pendingSend = false;
+    msg.sending = false;
+    conv.updatedAt = new Date().toISOString();
+    if (conv.id === chatState.activeConversationId) renderChatMessages(conv);
+    renderChatList();
+    persistConversations();
+
+    if (!detailModal?.classList.contains('hidden') && options.reopenDetail !== false) {
+      const { msgIndex } = chatState.detailDeliveryContext || {};
+      if (Number.isInteger(msgIndex)) openChatDeliveryDetail(conv, conv.messages[msgIndex], msgIndex);
+    }
+
+    showToast(options.successToast || '交付已发送给对方');
+    return true;
+  } catch (err) {
+    msg.sending = false;
+    conv.updatedAt = new Date().toISOString();
+    if (conv.id === chatState.activeConversationId) renderChatMessages(conv);
+    renderChatList();
+    persistConversations();
+
+    if (!detailModal?.classList.contains('hidden') && options.reopenDetail !== false) {
+      const { msgIndex } = chatState.detailDeliveryContext || {};
+      if (Number.isInteger(msgIndex)) openChatDeliveryDetail(conv, conv.messages[msgIndex], msgIndex);
+    }
+
+    showToast(err?.message || '发送失败，请稍后重试');
+    return false;
+  }
 }
 
 function queueChatRealtimeConversationRefresh(serverConvId) {
@@ -3376,7 +3533,11 @@ function renderChatList() {
   let html = '';
   for (const conv of sorted) {
     const lastMsg = conv.messages[conv.messages.length - 1];
-    const preview = lastMsg ? (lastMsg.type === 'delivery' ? '🎉 交付结果' : (lastMsg.text || '').slice(0, 30)) : '暂无消息';
+    const preview = lastMsg
+      ? (lastMsg.type === 'delivery'
+        ? (isPendingDeliveryPreviewMessage(lastMsg) ? '📝 待确认交付' : '🎉 交付结果')
+        : (lastMsg.text || '').slice(0, 30))
+      : '暂无消息';
     const time = chatTimeLabel(conv.updatedAt || conv.createdAt);
     const isActive = conv.id === chatState.activeConversationId;
     const shortId = `#${conv.id.substring(0, 4).toUpperCase()}`;
@@ -3469,8 +3630,9 @@ function renderChatDialog() {
       chatDeliveryHint.classList.toggle('hidden', !chatState.selectedSkill);
     }
     if (chatSubmitDemandBtn) chatSubmitDemandBtn.classList.add('hidden');
-    // 显示技能快捷栏
-    renderAvailableSkillsStrip();
+    // 隐藏顶部技能快捷栏（避免与“已选技能”重复）
+    const skillsStrip = document.querySelector('#available-skills-strip');
+    if (skillsStrip) skillsStrip.classList.add('hidden');
     // 接单方输入提示
     if (chatInput) chatInput.placeholder = '选择技能后发送交付，或输入消息…';
   }
@@ -3495,6 +3657,38 @@ function renderAvailableSkillsStrip() {
   `).join('');
 }
 
+function extractFormalDemandBody(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return '';
+  if (!raw.includes('正式需求')) return '';
+  return raw
+    .replace(/^📋?\s*【正式需求】\s*/u, '')
+    .trim();
+}
+
+function getDeliverySheetPromptText(conv, ability) {
+  const messages = Array.isArray(conv?.messages) ? conv.messages : [];
+
+  // 优先使用最新一条“正式需求”，避免把闲聊内容拼进提示词
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i];
+    const body = extractFormalDemandBody(msg?.text);
+    if (body) return body;
+  }
+
+  // 没有正式需求时，回退到对方最近一条有效消息
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i];
+    if (!msg || msg.type === 'system' || msg.type === 'loading' || msg.type === 'delivery') continue;
+    if (msg.type !== 'peer') continue;
+    const text = String(msg.text || '').trim();
+    if (!text) continue;
+    return text;
+  }
+
+  return `用户要求：${String(ability?.description || '').trim()}`;
+}
+
 // 打开交付控制面板 (Bottom Sheet)
 window.openDeliverySheet = function (abilityId) {
   const ability = state.abilities?.find(a => a.id === abilityId);
@@ -3507,7 +3701,7 @@ window.openDeliverySheet = function (abilityId) {
   const sheetContent = document.querySelector('#delivery-sheet-content');
   if (sheetContent) {
     const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
-    const msgContext = conv?.messages.slice(-5).map(m => m.text).filter(Boolean).join(' ');
+    const promptText = getDeliverySheetPromptText(conv, ability);
 
     // 模拟自动生成的 Prompt 标签
     const autoTags = ['#FilmLook', '#瀑动色调', '#肖像清晰', '#躺景居中'];
@@ -3537,37 +3731,42 @@ window.openDeliverySheet = function (abilityId) {
           <div class="flex flex-wrap gap-1.5 mb-2">
             ${autoTags.map(tag => `<span class="tag-pill">${tag}</span>`).join('')}
           </div>
-          <textarea class="w-full text-[13px] text-gray-700 dark:text-gray-300 bg-transparent border-none outline-none resize-none" rows="3" placeholder="描述您想要的效果...">${msgContext ? msgContext.substring(0, 120) : '用户要求：' + escapeHtml(ability.description || '')}</textarea>
+          <textarea id="delivery-sheet-prompt" class="w-full text-[13px] text-gray-700 dark:text-gray-300 bg-transparent border-none outline-none resize-none" rows="4" placeholder="描述您想要的效果...">${escapeHtml(promptText || '')}</textarea>
         </div>
 
-        <!-- 参数配置 -->
-        <div class="flex gap-3 mb-6">
-          <div class="flex-1 bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-            <div class="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-1">强度</div>
-            <div class="flex items-center gap-2">
-              <input type="range" min="0" max="100" value="85" class="flex-1 accent-[#D97706]">
-              <span class="text-[13px] font-black text-gray-900 dark:text-white w-8">85%</span>
-            </div>
-          </div>
-          <div class="flex-1 bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-            <div class="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-1">参考图</div>
-            <div class="flex items-center gap-2">
-              <span class="text-[22px] font-black text-gray-900 dark:text-white">3</span>
-              <div class="flex flex-col">
-                <button class="text-gray-400 text-lg leading-none">&#9650;</button>
-                <button class="text-gray-400 text-lg leading-none">&#9660;</button>
+        <!-- 参考图（可选） -->
+        <div class="mb-6">
+          <div class="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2">参考图（可选）</div>
+          <label for="delivery-sheet-ref-input" class="flex items-center justify-between gap-3 w-full rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-800/60 px-4 py-3 cursor-pointer hover:border-primary/50 hover:bg-white dark:hover:bg-gray-800 transition-colors">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-xl bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-300">
+                <span class="material-icons-round text-[18px]">add_photo_alternate</span>
+              </div>
+              <div class="min-w-0">
+                <div class="text-[13px] font-bold text-gray-900 dark:text-white">添加参考图</div>
+                <div id="delivery-sheet-ref-hint" class="text-[11px] text-gray-500 dark:text-gray-400 truncate">可不上传，点击选择图片</div>
               </div>
             </div>
-          </div>
+            <span class="material-icons-round text-gray-400">chevron_right</span>
+          </label>
+          <input id="delivery-sheet-ref-input" type="file" accept="image/*" multiple class="hidden">
         </div>
 
         <!-- Run AI 主按钮 -->
         <button onclick="window.dispatchEvent(new CustomEvent('run-ai-deliver', {detail: {abilityId: '${escapeHtml(abilityId)}'}}))" class="w-full h-14 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl text-[15px] font-black flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg">
           <span class="material-icons-round">bolt</span>
-          Run AI &amp; Deliver
+          运行 AI 并交付
         </button>
       </div>
     `;
+
+    const refInput = document.querySelector('#delivery-sheet-ref-input');
+    const refHint = document.querySelector('#delivery-sheet-ref-hint');
+    refInput?.addEventListener('change', () => {
+      const count = refInput.files?.length || 0;
+      if (!refHint) return;
+      refHint.textContent = count > 0 ? `已选择 ${count} 张图片` : '可不上传，点击选择图片';
+    });
   }
 
   const overlay = document.querySelector('#delivery-sheet-overlay');
@@ -3588,6 +3787,7 @@ window.closeDeliverySheet = function () {
 window.addEventListener('run-ai-deliver', (e) => {
   const { abilityId } = e.detail;
   const ability = state.abilities?.find(a => a.id === abilityId);
+  const shouldAutoSendDelivery = Boolean(chatAutoSend?.checked);
 
   // 关闭窗口
   window.closeDeliverySheet();
@@ -3601,35 +3801,26 @@ window.addEventListener('run-ai-deliver', (e) => {
     // 模拟 AI 运行延迟 (3s)
     setTimeout(async () => {
       conv.messages.pop(); // 移除 loading
-      const deliveryMsg = {
-        type: 'delivery',
-        senderRole: 'self',
-        skillName: ability?.name || 'AI 技能',
-        skillId: ability?.id || null,
-        skillIcon: ability?.icon || '🤖',
-        content: `已根据您的要求完成出图，请查收！`,
-        text: `已根据您的要求完成出图，请查收！`,
-        images: [],
-        time: new Date().toISOString()
-      };
-      conv.messages.push(deliveryMsg);
-      conv.updatedAt = new Date().toISOString();
-      let syncFailed = false;
-      try {
-        await syncConversationDeliveryMessage(conv, deliveryMsg);
-      } catch (syncErr) {
-        syncFailed = true;
-        console.warn('同步交付消息失败', syncErr);
-        conv.messages.push({
-          type: 'system',
-          text: `⚠️ 交付已生成，但同步给对方失败：${syncErr?.message || '未知错误'}`,
-          time: new Date().toISOString()
-        });
-      }
+      const deliveryMsg = buildLocalDeliveryMessage(ability, {
+        content: '已根据您的要求完成出图，请查收！',
+        images: []
+      });
+      const deliveryResult = await appendGeneratedDeliveryResult(conv, deliveryMsg, {
+        autoSend: shouldAutoSendDelivery,
+        syncFailTarget: '对方'
+      });
       persistConversations();
       renderChatMessages(conv);
       renderChatList();
-      showToast(syncFailed ? '⚠️ AI 已生成结果，但未同步给对方' : '🎉 AI 运行完成！成果已发送给客户');
+      if (deliveryResult.autoSent) {
+        showToast('🎉 AI 运行完成！成果已发送给客户');
+      } else if (deliveryResult.autoSendSkipped) {
+        showToast('AI 已生成结果，请登录后预览并发送给对方');
+      } else if (deliveryResult.syncFailed) {
+        showToast('⚠️ AI 已生成结果，请预览后手动发送给对方');
+      } else {
+        showToast('AI 已生成结果，请点击预览确认后发送');
+      }
     }, 3000);
   }
 });
@@ -3655,21 +3846,27 @@ function renderChatMessages(conv) {
     } else if (msg.type === 'peer') {
       html += `<div class="chat-bubble chat-bubble-peer">${escapeHtml(msg.text)}</div>`;
     } else if (msg.type === 'delivery') {
+      const isPendingPreview = isPendingDeliveryPreviewMessage(msg);
+      const isSendingPreview = Boolean(msg.sending);
       const imgHtml = (msg.images && msg.images.length > 0) ? `
         <div class="delivery-images">
           ${msg.images.map(img => `<img src="${normalizeImageSrc(img)}" alt="交付图片" loading="lazy" />`).join('')}
         </div>
       ` : '';
       const skillLabel = msg.skillName ? ` · ${escapeHtml(msg.skillName)}` : '';
+      const footerText = isPendingPreview
+        ? (isSendingPreview ? '发送中...' : '点击查看预览，确认后发送给对方')
+        : '点击查看详情';
       html += `
         <div class="chat-bubble-delivery cursor-pointer" data-msg-index="${msgIndex}" role="button" tabindex="0" aria-label="查看交付详情">
           <div class="delivery-header">
-            <span class="material-icons-round text-sm">check_circle</span>
-            交付结果${skillLabel}
+            <span class="material-icons-round text-sm">${isPendingPreview ? 'visibility' : 'check_circle'}</span>
+            ${isPendingPreview ? '交付预览' : '交付结果'}${skillLabel}
           </div>
+          ${isPendingPreview ? `<div class="mb-2 text-[11px] font-semibold text-amber-700/90">仅自己可见 · 确认后发送</div>` : ''}
           <div class="delivery-content">${escapeHtml(msg.content || '')}</div>
           ${imgHtml}
-          <div class="mt-2 text-[11px] font-semibold text-emerald-700/80">点击查看详情</div>
+          <div class="mt-2 text-[11px] font-semibold ${isPendingPreview ? 'text-amber-700/90' : 'text-emerald-700/80'}">${footerText}</div>
         </div>
       `;
     } else if (msg.type === 'loading') {
@@ -3695,7 +3892,7 @@ chatMessagesEl?.addEventListener('click', (e) => {
   if (!Number.isInteger(idx) || idx < 0) return;
   const msg = conv.messages?.[idx];
   if (!msg || msg.type !== 'delivery') return;
-  openChatDeliveryDetail(conv, msg);
+  openChatDeliveryDetail(conv, msg, idx);
 });
 
 chatMessagesEl?.addEventListener('keydown', (e) => {
@@ -4095,6 +4292,7 @@ async function sendChatMessage() {
 
   // 如果选择了技能，调用 API 生成交付
   if (skill && conv.role === 'worker') {
+    const shouldAutoSendDelivery = Boolean(chatAutoSend?.checked);
     // 添加加载状态
     conv.messages.push({ type: 'loading' });
     renderChatMessages(conv);
@@ -4147,35 +4345,11 @@ async function sendChatMessage() {
         images: result?.data?.images || []
       };
 
-      // 添加交付结果消息
-      const deliveryMsg = {
-        type: 'delivery',
-        senderRole: 'self',
-        skillId: skill.id,
-        content: normalizedResult.content,
-        text: normalizedResult.content,
-        images: normalizedResult.images,
-        skillName: skill.name,
-        skillIcon: skill.icon || '🔧',
-        time: new Date().toISOString()
-      };
-      conv.messages.push(deliveryMsg);
-      conv.updatedAt = new Date().toISOString();
-
-      let deliverySyncFailed = false;
-      try {
-        await syncConversationDeliveryMessage(conv, deliveryMsg);
-      } catch (syncErr) {
-        deliverySyncFailed = true;
-        console.warn('同步交付消息失败', syncErr);
-        conv.messages.push({
-          type: 'system',
-          text: `⚠️ 交付已生成，但未同步给甲方：${syncErr?.message || '未知错误'}`,
-          time: new Date().toISOString()
-        });
-        conv.updatedAt = new Date().toISOString();
-        showToast(syncErr?.message || '交付同步失败（仅本地可见）');
-      }
+      const deliveryMsg = buildLocalDeliveryMessage(skill, normalizedResult);
+      const deliveryResult = await appendGeneratedDeliveryResult(conv, deliveryMsg, {
+        autoSend: shouldAutoSendDelivery,
+        syncFailTarget: '甲方'
+      });
 
       currentHireJob.result = normalizedResult;
       setHireStatus('COMPLETED', '已完成', 'success');
@@ -4194,7 +4368,15 @@ async function sendChatMessage() {
         completedAt: new Date().toISOString()
       });
 
-      if (!deliverySyncFailed) showToast('🎉 交付完成！');
+      if (deliveryResult.autoSent) {
+        showToast('🎉 交付完成！已发送给甲方');
+      } else if (deliveryResult.autoSendSkipped) {
+        showToast('AI 已生成交付，请登录后预览并发送给甲方');
+      } else if (deliveryResult.syncFailed) {
+        showToast('⚠️ AI 已生成交付，请预览后手动发送给甲方');
+      } else {
+        showToast('AI 已生成交付，请点击预览确认后发送');
+      }
     } catch (err) {
       clearHireStatusTimers();
       conv.messages = conv.messages.filter(m => m.type !== 'loading');
