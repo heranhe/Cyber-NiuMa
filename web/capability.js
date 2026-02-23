@@ -162,19 +162,9 @@ function showToast(message) {
   setTimeout(() => el.toast.classList.remove('show'), 2200);
 }
 
-function getStoredToken() {
-  try {
-    return sessionStorage.getItem('niuma_access_token') || '';
-  } catch {
-    return '';
-  }
-}
-
 async function api(path, options = {}) {
   const method = options.method || 'GET';
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-  const token = getStoredToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
   const body = options.body ? JSON.stringify(options.body) : undefined;
   const res = await fetch(path, { method, headers, body, credentials: 'include' });
   let payload = {};
