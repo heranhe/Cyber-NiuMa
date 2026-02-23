@@ -3666,8 +3666,13 @@ function extractFormalDemandBody(text) {
     .trim();
 }
 
-function getDeliverySheetPromptText(conv, ability) {
+function getDeliverySheetPromptText(conv, ability, sourceMsgIndex = null) {
   const messages = Array.isArray(conv?.messages) ? conv.messages : [];
+
+  if (Number.isInteger(sourceMsgIndex) && sourceMsgIndex >= 0) {
+    const body = extractFormalDemandBody(messages[sourceMsgIndex]?.text);
+    if (body) return body;
+  }
 
   // 优先使用最新一条“正式需求”，避免把闲聊内容拼进提示词
   for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -3689,85 +3694,215 @@ function getDeliverySheetPromptText(conv, ability) {
   return `用户要求：${String(ability?.description || '').trim()}`;
 }
 
+function getDeliverySheetAbilityById(abilityId) {
+  const list = Array.isArray(state.abilities) ? state.abilities : [];
+  return list.find(a => String(a?.id || '') === String(abilityId || '')) || null;
+}
+
+function resolveDeliverySheetAbility(abilityId) {
+  const list = Array.isArray(state.abilities) ? state.abilities : [];
+  if (list.length === 0) return null;
+  return getDeliverySheetAbilityById(abilityId)
+    || getDeliverySheetAbilityById(chatState.selectedSkill?.id)
+    || list[0]
+    || null;
+}
+
+function setChatSelectedSkillFromAbility(ability) {
+  if (!ability) return;
+  chatState.selectedSkill = {
+    id: ability.id,
+    name: ability.name,
+    icon: ability.icon || '🔧',
+    description: ability.description || ''
+  };
+  renderSelectedSkillCapsule(chatState.selectedSkill);
+}
+
+function renderDeliverySheet() {
+  const sheetContent = document.querySelector('#delivery-sheet-content');
+  const draft = chatState.deliverySheetDraft;
+  if (!sheetContent) return;
+  if (!draft) {
+    sheetContent.innerHTML = `
+      <div class="p-6 text-center text-gray-400">
+        <span class="material-icons-round text-3xl mb-2 text-gray-300">psychology</span>
+        <p class="text-sm">请选择一个技能开始交付</p>
+      </div>
+    `;
+    return;
+  }
+
+  const ability = resolveDeliverySheetAbility(draft.abilityId);
+  if (!ability) {
+    sheetContent.innerHTML = `
+      <div class="p-6 text-center text-gray-400">
+        <p class="text-sm">暂无可用技能，请先在「AI分身」里添加技能</p>
+      </div>
+    `;
+    return;
+  }
+
+  draft.abilityId = ability.id;
+  setChatSelectedSkillFromAbility(ability);
+
+  const autoTags = ['#FilmLook', '#瀑动色调', '#肖像清晰', '#躺景居中'];
+  const refImages = Array.isArray(draft.referenceImages) ? draft.referenceImages : [];
+  const refHint = refImages.length > 0 ? `已选择 ${refImages.length} 张图片` : '可不上传，点击选择图片';
+  const refPreviewHtml = refImages.length > 0 ? `
+    <div class="delivery-sheet-ref-preview">
+      ${refImages.map((img, idx) => `
+        <div class="delivery-sheet-ref-item">
+          <img src="${normalizeImageSrc(img.dataUrl)}" alt="参考图 ${idx + 1}" loading="lazy" />
+          <button type="button" class="delivery-sheet-ref-remove" data-ref-index="${idx}" aria-label="移除参考图">✕</button>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  sheetContent.innerHTML = `
+    <div class="p-5">
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">${ability.icon || '🤖'}</div>
+          <div class="min-w-0">
+            <div class="text-[16px] font-black text-gray-900 dark:text-white truncate">${escapeHtml(ability.name)}</div>
+            <div class="text-[11px] text-subtext-light dark:text-subtext-dark font-medium">AI 技能调用</div>
+          </div>
+        </div>
+        <button type="button" onclick="window.cycleDeliverySheetAbility()" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-2.5 py-1 rounded-lg hover:opacity-80 transition-opacity">换一个</button>
+      </div>
+
+      <div class="prompt-polish-card mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Prompt Polish</span>
+          <button type="button" onclick="window.resetDeliverySheetPrompt()" class="text-gray-400 hover:text-primary transition-colors" aria-label="重置为正式需求">
+            <span class="material-icons-round text-[16px]">refresh</span>
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-1.5 mb-2">
+          ${autoTags.map(tag => `<span class="tag-pill">${tag}</span>`).join('')}
+        </div>
+        <textarea id="delivery-sheet-prompt" class="w-full text-[13px] text-gray-700 dark:text-gray-300 bg-transparent border-none outline-none resize-none" rows="4" placeholder="可修改对方正式需求，再生成交付...">${escapeHtml(draft.promptText || '')}</textarea>
+      </div>
+
+      <div class="mb-6">
+        <div class="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2">参考图（可选）</div>
+        <label for="delivery-sheet-ref-input" class="flex items-center justify-between gap-3 w-full rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-800/60 px-4 py-3 cursor-pointer hover:border-primary/50 hover:bg-white dark:hover:bg-gray-800 transition-colors">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-xl bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-300">
+              <span class="material-icons-round text-[18px]">add_photo_alternate</span>
+            </div>
+            <div class="min-w-0">
+              <div class="text-[13px] font-bold text-gray-900 dark:text-white">添加参考图</div>
+              <div id="delivery-sheet-ref-hint" class="text-[11px] text-gray-500 dark:text-gray-400 truncate">${refHint}</div>
+            </div>
+          </div>
+          <span class="material-icons-round text-gray-400">chevron_right</span>
+        </label>
+        <input id="delivery-sheet-ref-input" type="file" accept="image/*" multiple class="hidden">
+        ${refPreviewHtml}
+      </div>
+
+      <button type="button" onclick="window.dispatchEvent(new CustomEvent('run-ai-deliver'))" class="w-full h-14 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl text-[15px] font-black flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg">
+        <span class="material-icons-round">bolt</span>
+        运行 AI 并交付
+      </button>
+    </div>
+  `;
+
+  const promptInput = document.querySelector('#delivery-sheet-prompt');
+  promptInput?.addEventListener('input', () => {
+    if (!chatState.deliverySheetDraft) return;
+    chatState.deliverySheetDraft.promptText = promptInput.value || '';
+  });
+
+  const refInput = document.querySelector('#delivery-sheet-ref-input');
+  refInput?.addEventListener('change', async () => {
+    const files = Array.from(refInput.files || []);
+    if (files.length === 0) return;
+    try {
+      const refs = await Promise.all(files.map(async (file) => ({
+        name: file.name || `ref-${Date.now()}.png`,
+        dataUrl: await fileToDataUrl(file)
+      })));
+      if (!chatState.deliverySheetDraft) return;
+      chatState.deliverySheetDraft.referenceImages = refs;
+      renderDeliverySheet();
+    } catch (err) {
+      console.warn('参考图读取失败', err);
+      showToast('参考图读取失败，请重试');
+    }
+  });
+
+  sheetContent.querySelectorAll('.delivery-sheet-ref-remove').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = Number(btn.dataset.refIndex);
+      if (!Number.isInteger(idx) || idx < 0 || !chatState.deliverySheetDraft) return;
+      const list = Array.isArray(chatState.deliverySheetDraft.referenceImages)
+        ? chatState.deliverySheetDraft.referenceImages.slice()
+        : [];
+      list.splice(idx, 1);
+      chatState.deliverySheetDraft.referenceImages = list;
+      renderDeliverySheet();
+    });
+  });
+}
+
+window.cycleDeliverySheetAbility = function () {
+  const draft = chatState.deliverySheetDraft;
+  const abilities = Array.isArray(state.abilities) ? state.abilities : [];
+  if (!draft || abilities.length === 0) return;
+  const currentIndex = Math.max(0, abilities.findIndex(a => a.id === draft.abilityId));
+  const next = abilities[(currentIndex + 1) % abilities.length];
+  if (!next) return;
+  draft.abilityId = next.id;
+  renderDeliverySheet();
+};
+
+window.resetDeliverySheetPrompt = function () {
+  const draft = chatState.deliverySheetDraft;
+  if (!draft) return;
+  const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
+  const ability = resolveDeliverySheetAbility(draft.abilityId);
+  if (!conv || !ability) return;
+  draft.promptText = getDeliverySheetPromptText(conv, ability, draft.sourceMsgIndex);
+  renderDeliverySheet();
+};
+
 // 打开交付控制面板 (Bottom Sheet)
-window.openDeliverySheet = function (abilityId) {
-  const ability = state.abilities?.find(a => a.id === abilityId);
+window.openDeliverySheet = function (abilityId, sourceMsgIndex = null) {
+  const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
+  if (!conv) {
+    showToast('请先进入一个对话');
+    return;
+  }
+
+  const ability = resolveDeliverySheetAbility(abilityId);
   if (!ability) {
     showToast('请先选择一个技能');
     return;
   }
 
-  // 加载内容到 Sheet
-  const sheetContent = document.querySelector('#delivery-sheet-content');
-  if (sheetContent) {
-    const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
-    const promptText = getDeliverySheetPromptText(conv, ability);
+  const previousDraft = chatState.deliverySheetDraft;
+  const shouldReuseDraft = previousDraft
+    && previousDraft.convId === conv.id
+    && previousDraft.sourceMsgIndex === sourceMsgIndex;
 
-    // 模拟自动生成的 Prompt 标签
-    const autoTags = ['#FilmLook', '#瀑动色调', '#肖像清晰', '#躺景居中'];
-
-    sheetContent.innerHTML = `
-      <div class="p-5">
-        <!-- 技能头部 -->
-        <div class="flex items-center justify-between mb-5">
-          <div class="flex items-center gap-3">
-            <div class="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-center justify-center text-2xl">${ability.icon || '🤖'}</div>
-            <div>
-              <div class="text-[16px] font-black text-gray-900 dark:text-white">${escapeHtml(ability.name)}</div>
-              <div class="text-[11px] text-subtext-light dark:text-subtext-dark font-medium">AI 技能调用</div>
-            </div>
-          </div>
-          <button class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-2.5 py-1 rounded-lg hover:opacity-80 transition-opacity">换一个</button>
-        </div>
-
-        <!-- PROMPT POLISH 区块 -->
-        <div class="prompt-polish-card mb-4">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Prompt Polish</span>
-            <button class="text-gray-400 hover:text-primary transition-colors">
-              <span class="material-icons-round text-[16px]">refresh</span>
-            </button>
-          </div>
-          <div class="flex flex-wrap gap-1.5 mb-2">
-            ${autoTags.map(tag => `<span class="tag-pill">${tag}</span>`).join('')}
-          </div>
-          <textarea id="delivery-sheet-prompt" class="w-full text-[13px] text-gray-700 dark:text-gray-300 bg-transparent border-none outline-none resize-none" rows="4" placeholder="描述您想要的效果...">${escapeHtml(promptText || '')}</textarea>
-        </div>
-
-        <!-- 参考图（可选） -->
-        <div class="mb-6">
-          <div class="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2">参考图（可选）</div>
-          <label for="delivery-sheet-ref-input" class="flex items-center justify-between gap-3 w-full rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-800/60 px-4 py-3 cursor-pointer hover:border-primary/50 hover:bg-white dark:hover:bg-gray-800 transition-colors">
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="w-9 h-9 rounded-xl bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-300">
-                <span class="material-icons-round text-[18px]">add_photo_alternate</span>
-              </div>
-              <div class="min-w-0">
-                <div class="text-[13px] font-bold text-gray-900 dark:text-white">添加参考图</div>
-                <div id="delivery-sheet-ref-hint" class="text-[11px] text-gray-500 dark:text-gray-400 truncate">可不上传，点击选择图片</div>
-              </div>
-            </div>
-            <span class="material-icons-round text-gray-400">chevron_right</span>
-          </label>
-          <input id="delivery-sheet-ref-input" type="file" accept="image/*" multiple class="hidden">
-        </div>
-
-        <!-- Run AI 主按钮 -->
-        <button onclick="window.dispatchEvent(new CustomEvent('run-ai-deliver', {detail: {abilityId: '${escapeHtml(abilityId)}'}}))" class="w-full h-14 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl text-[15px] font-black flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg">
-          <span class="material-icons-round">bolt</span>
-          运行 AI 并交付
-        </button>
-      </div>
-    `;
-
-    const refInput = document.querySelector('#delivery-sheet-ref-input');
-    const refHint = document.querySelector('#delivery-sheet-ref-hint');
-    refInput?.addEventListener('change', () => {
-      const count = refInput.files?.length || 0;
-      if (!refHint) return;
-      refHint.textContent = count > 0 ? `已选择 ${count} 张图片` : '可不上传，点击选择图片';
-    });
-  }
+  chatState.deliverySheetDraft = {
+    convId: conv.id,
+    abilityId: ability.id,
+    sourceMsgIndex: Number.isInteger(sourceMsgIndex) ? sourceMsgIndex : null,
+    promptText: shouldReuseDraft
+      ? String(previousDraft.promptText || '')
+      : getDeliverySheetPromptText(conv, ability, Number.isInteger(sourceMsgIndex) ? sourceMsgIndex : null),
+    referenceImages: shouldReuseDraft && Array.isArray(previousDraft.referenceImages)
+      ? previousDraft.referenceImages.slice()
+      : []
+  };
+  renderDeliverySheet();
 
   const overlay = document.querySelector('#delivery-sheet-overlay');
   const sheet = document.querySelector('#delivery-bottom-sheet');

@@ -1766,7 +1766,7 @@ input:checked+.toggle-slider:before {
 }
 
 /* 对话 Tab：去除 chat-module 的圆角和阴影（全屏沉浸） */
-#m-tab-chat {
+#m-tab-chat:not(.hidden) {
   display: flex;
   flex-direction: column;
   min-height: calc(100dvh - 76px - var(--safe-area-inset-bottom));
