@@ -35,6 +35,7 @@ const state = {
   integration: null,
   realtime: null,
   secondMeConnected: false,
+  isAdmin: false,
   me: null,
   meWorker: null,
   abilities: [], // 用户能力库
@@ -158,6 +159,10 @@ function escapeHtml(value) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function isAdminMode() {
+  return !!state.secondMeConnected && !!state.isAdmin;
 }
 
 function showToast(message) {
@@ -350,10 +355,24 @@ function renderTaskCard(task, index) {
   const rewardPoints = Number.isFinite(Number(task?.budget))
     ? Math.max(0, Number(task.budget))
     : (Number.isFinite(Number(task?.price)) ? Math.max(0, Number(task.price)) : 0);
+  const adminControls = isAdminMode() ? `
+    <div class="absolute top-3 right-3 z-10 flex items-center gap-1.5" data-admin-toolbar="task">
+      <button type="button" class="task-action w-7 h-7 rounded-full bg-white/90 text-gray-700 shadow-sm hover:bg-white" data-action="admin-up" data-task-id="${task.id}" title="上移">
+        <span class="material-icons-round text-[16px]">keyboard_arrow_up</span>
+      </button>
+      <button type="button" class="task-action w-7 h-7 rounded-full bg-white/90 text-gray-700 shadow-sm hover:bg-white" data-action="admin-down" data-task-id="${task.id}" title="下移">
+        <span class="material-icons-round text-[16px]">keyboard_arrow_down</span>
+      </button>
+      <button type="button" class="task-action w-7 h-7 rounded-full bg-white/90 text-red-600 shadow-sm hover:bg-white" data-action="admin-delete" data-task-id="${task.id}" title="删除">
+        <span class="material-icons-round text-[15px]">delete</span>
+      </button>
+    </div>
+  ` : '';
 
   return `
     <div class="masonry-item mb-4 group cursor-pointer task-card" data-task-id="${task.id}">
       <div class="bg-white dark:bg-surface-dark rounded-[24px] shadow-sm border border-border-light dark:border-border-dark overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg">
+        ${adminControls}
         ${hasCover ? `
           <!-- 左上角徽章 (Lv.9专家等模拟数据) -->
           <div class="absolute top-3 left-3 z-10 flex gap-1.5">
@@ -588,6 +607,7 @@ window.toggleAbilityStatus = function (abilityId, isEnabled) {
 
 function setIntegrationView(sessionInfo) {
   state.secondMeConnected = !!sessionInfo?.connected;
+  state.isAdmin = !!sessionInfo?.isAdmin;
   state.me = sessionInfo?.user || null;
 
   // 桌面端登录/退出按钮
@@ -606,6 +626,8 @@ function setIntegrationView(sessionInfo) {
   if (mLogoutBtn) mLogoutBtn.classList.toggle('hidden', !state.secondMeConnected);
 
   renderWorkerProfile();
+  renderTasks();
+  if (state.skillsLoaded) renderSkillCategories(state.skills);
   renderHireWorkbench();
   ensureChatRealtime();
 }
@@ -1295,6 +1317,28 @@ detailModalActions?.addEventListener('click', (e) => {
 });
 
 // ===== 任务操作 =====
+async function adminReorderTask(taskId, direction) {
+  if (!isAdminMode()) {
+    showToast('仅管理员可操作');
+    return;
+  }
+  await api('/api/admin/tasks/reorder', {
+    method: 'POST',
+    body: { taskId, direction }
+  });
+  await loadTasks();
+}
+
+async function adminDeleteTask(taskId) {
+  if (!isAdminMode()) {
+    showToast('仅管理员可操作');
+    return;
+  }
+  if (!confirm('确定删除这个任务卡片吗？')) return;
+  await api(`/api/admin/tasks/${encodeURIComponent(taskId)}`, { method: 'DELETE' });
+  await loadTasks();
+}
+
 async function onTaskActionClick(event) {
   const button = event.target.closest('.task-action');
   const taskCard = event.target.closest('[data-task-id].task-card, article[data-task-id]');
@@ -1312,7 +1356,13 @@ async function onTaskActionClick(event) {
     }
 
     try {
-      if (action === 'take' || action === 'join-chat') {
+      if (action === 'admin-up') {
+        await adminReorderTask(taskId, 'up');
+      } else if (action === 'admin-down') {
+        await adminReorderTask(taskId, 'down');
+      } else if (action === 'admin-delete') {
+        await adminDeleteTask(taskId);
+      } else if (action === 'take' || action === 'join-chat') {
         // 打开对话（接单方角色）
         const task = state.tasks.find(t => t.id === taskId);
         if (task) openConversation('worker', task, { sourceEl: button });
@@ -1593,7 +1643,8 @@ async function loadMeta() {
     const profile = profileRes?.data || {};
     setIntegrationView({
       connected: !!profile.connected,
-      user: profile?.profile?.data || null
+      user: profile?.profile?.data || null,
+      isAdmin: !!profile?.isAdmin
     });
 
     if (profile?.connected && profile?.profile?.data) {
@@ -1642,7 +1693,7 @@ async function bootstrap() {
   loadSkillHall();
   // 登录后同步后端对话
   syncConversationsFromServer();
-  // 轮询新消息（每 10 秒）
+  // 轮询新消息（未启用 realtime 时兜底轮询）
   if (chatPollTimer) clearInterval(chatPollTimer);
   chatPollTimer = setInterval(async () => {
     if (!canOperate()) return;
@@ -1661,7 +1712,7 @@ async function bootstrap() {
       renderChatMessages(activeConv);
     }
     renderChatList();
-  }, 10000);
+  }, CHAT_POLL_INTERVAL_MS);
 }
 
 // 事件绑定
@@ -1888,9 +1939,23 @@ function renderSkillCard(skill, index) {
       <span class="px-2 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded border border-amber-100 flex-shrink-0">💰 ${pricePoints} 积分</span>
     `
   );
+  const adminControls = isAdminMode() ? `
+    <div class="absolute top-2 right-2 z-20 flex items-center gap-1.5">
+      <button type="button" class="skill-admin-action w-7 h-7 rounded-full bg-white/90 text-gray-700 shadow-sm hover:bg-white" data-action="admin-up" data-skill-id="${skill.id}" data-owner-id="${skill.ownerId}" title="上移">
+        <span class="material-icons-round text-[16px]">keyboard_arrow_up</span>
+      </button>
+      <button type="button" class="skill-admin-action w-7 h-7 rounded-full bg-white/90 text-gray-700 shadow-sm hover:bg-white" data-action="admin-down" data-skill-id="${skill.id}" data-owner-id="${skill.ownerId}" title="下移">
+        <span class="material-icons-round text-[16px]">keyboard_arrow_down</span>
+      </button>
+      <button type="button" class="skill-admin-action w-7 h-7 rounded-full bg-white/90 text-red-600 shadow-sm hover:bg-white" data-action="admin-delete" data-skill-id="${skill.id}" data-owner-id="${skill.ownerId}" title="删除">
+        <span class="material-icons-round text-[15px]">delete</span>
+      </button>
+    </div>
+  ` : '';
 
   return `
-    <div class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group cursor-pointer" data-skill-id="${skill.id}">
+    <div class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark hover:border-primary/30 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all flex flex-col overflow-hidden group cursor-pointer relative" data-skill-id="${skill.id}" data-owner-id="${skill.ownerId}">
+      ${adminControls}
       ${hasCover ? `
         <div class="relative m-2 skill-card-cover" data-detail-trigger="skill-cover">
           <img alt="${escapeHtml(skill.name)}" class="transform group-hover:scale-110 transition-transform duration-700 ease-in-out" src="${coverImg}" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
@@ -2568,10 +2633,61 @@ hireManageDemandsBtn?.addEventListener('click', () => {
 renderHireSummary();
 renderHireWorkbench();
 
+async function adminReorderSkill(ownerId, skillId, direction) {
+  if (!isAdminMode()) {
+    showToast('仅管理员可操作');
+    return;
+  }
+  await api('/api/admin/skills/reorder', {
+    method: 'POST',
+    body: { ownerId, skillId, direction }
+  });
+  state.skillsLoaded = false;
+  state.skillsLoadedAt = 0;
+  await loadSkillHall();
+}
+
+async function adminDeleteSkill(ownerId, skillId) {
+  if (!isAdminMode()) {
+    showToast('仅管理员可操作');
+    return;
+  }
+  if (!confirm('确定删除这个技能卡片吗？')) return;
+  await api(`/api/admin/skills/${encodeURIComponent(ownerId)}/${encodeURIComponent(skillId)}`, {
+    method: 'DELETE'
+  });
+  state.skillsLoaded = false;
+  state.skillsLoadedAt = 0;
+  await loadSkillHall();
+}
+
 // 技能大厅卡片点击事件委托（加入对话按钮）
 const skillCategoriesContainer = document.querySelector('#skill-categories');
 if (skillCategoriesContainer) {
   skillCategoriesContainer.addEventListener('click', (e) => {
+    const adminBtn = e.target.closest('.skill-admin-action');
+    if (adminBtn) {
+      e.stopPropagation();
+      const action = adminBtn.dataset.action;
+      const skillId = adminBtn.dataset.skillId;
+      const ownerId = adminBtn.dataset.ownerId;
+      if (!skillId || !ownerId) return;
+      (async () => {
+        try {
+          if (action === 'admin-up') {
+            await adminReorderSkill(ownerId, skillId, 'up');
+          } else if (action === 'admin-down') {
+            await adminReorderSkill(ownerId, skillId, 'down');
+          } else if (action === 'admin-delete') {
+            await adminDeleteSkill(ownerId, skillId);
+          }
+        } catch (err) {
+          showToast(err.message || '操作失败');
+        }
+      })();
+      return;
+    }
+
     const joinBtn = e.target.closest('.skill-join-chat-btn');
     if (joinBtn) {
       e.stopPropagation();
@@ -2590,7 +2706,8 @@ if (skillCategoriesContainer) {
     const skillCard = e.target.closest('[data-skill-id]');
     if (skillCard) {
       const skillId = skillCard.dataset.skillId;
-      const skill = state.skills.find(s => s.id === skillId);
+      const ownerId = skillCard.dataset.ownerId;
+      const skill = state.skills.find(s => s.id === skillId && (!ownerId || s.ownerId === ownerId));
       if (skill) openDetailPanel('skill', skill);
     }
   });
@@ -2598,6 +2715,7 @@ if (skillCategoriesContainer) {
 
 // ===== 对话模块 =====
 const CHAT_STORAGE_KEY = 'chat_conversations_v1';
+const CHAT_CACHE_RESET_ONCE_KEY = 'chat_cache_reset_once_v1';
 const chatState = {
   conversations: [],       // [{id, role, peerId, peerName, peerAvatar, title, desc, messages[], skillId?, createdAt, updatedAt}]
   activeConversationId: null,
@@ -2612,10 +2730,16 @@ let chatRealtimeUserId = '';
 let chatRealtimeReady = false;
 let chatRealtimeFlushTimer = null;
 const chatRealtimePendingServerConvIds = new Set();
+const CHAT_POLL_INTERVAL_MS = 3000;
 
 // 持久化
 function loadConversations() {
   try {
+    // 一次性清理聊天本地缓存（用于修复历史版本遗留的重复消息/方向错误）
+    if (!localStorage.getItem(CHAT_CACHE_RESET_ONCE_KEY)) {
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+      localStorage.setItem(CHAT_CACHE_RESET_ONCE_KEY, new Date().toISOString());
+    }
     const data = localStorage.getItem(CHAT_STORAGE_KEY);
     if (data) chatState.conversations = JSON.parse(data);
   } catch { chatState.conversations = []; }
@@ -2758,25 +2882,42 @@ async function syncConversationsFromServer() {
     const res = await api('/api/conversations');
     const serverConvs = res.data || [];
     for (const sc of serverConvs) {
+      const myId = String(state.me?.userId || state.me?.id || '');
+      const iAmInitiator = String(sc.initiator_id || '') === myId;
+      const refType = String(sc.ref_type || '').trim().toLowerCase();
+      const derivedRole = refType === 'task'
+        ? (iAmInitiator ? 'worker' : 'demand')
+        : (iAmInitiator ? 'demand' : 'worker');
+      const derivedPeerId = iAmInitiator ? sc.receiver_id : sc.initiator_id;
+      const derivedPeerName = iAmInitiator ? sc.receiver_name : sc.initiator_name;
+      const derivedPeerAvatar = iAmInitiator ? (sc.receiver_avatar || '') : (sc.initiator_avatar || '');
+
       // 用 serverConvId 或 ref_id 匹配本地对话
       let local = chatState.conversations.find(c => c.serverConvId === sc.id)
-        || chatState.conversations.find(c => c.refId === sc.ref_id);
+        || chatState.conversations.find(c =>
+          String(c?.refId || '') === String(sc.ref_id || '')
+          && String(c?.peerId || '') === String(derivedPeerId || '')
+          && String(c?.role || '') === derivedRole
+        );
       if (local) {
         local.serverConvId = sc.id;
+        local.role = derivedRole;
+        local.peerId = derivedPeerId;
+        local.peerName = derivedPeerName || local.peerName;
+        local.peerAvatar = derivedPeerAvatar || local.peerAvatar || '';
+        local.title = sc.title || local.title || '对话';
         local.updatedAt = sc.updated_at || local.updatedAt;
         if (typeof local.unreadCount !== 'number') local.unreadCount = Number(local.unreadCount) || 0;
       } else {
         // 后端有但本地没有 — 是对方发起的对话，创建本地记录
-        const myId = String(state.me?.userId || state.me?.id || '');
-        const iAmInitiator = String(sc.initiator_id || '') === myId;
         chatState.conversations.unshift({
           id: `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
           serverConvId: sc.id,
-          role: iAmInitiator ? 'demand' : 'worker',
+          role: derivedRole,
           refId: sc.ref_id,
-          peerId: iAmInitiator ? sc.receiver_id : sc.initiator_id,
-          peerName: iAmInitiator ? sc.receiver_name : sc.initiator_name,
-          peerAvatar: iAmInitiator ? (sc.receiver_avatar || '') : (sc.initiator_avatar || ''),
+          peerId: derivedPeerId,
+          peerName: derivedPeerName,
+          peerAvatar: derivedPeerAvatar,
           title: sc.title || '对话',
           desc: '',
           messages: [],
@@ -2808,11 +2949,31 @@ async function fetchServerMessages(conv) {
     }));
     // 合并：优先按 serverId 去重；其次把本地乐观消息与后端回写消息进行配对，避免出现“我发一条显示两条”
     const existingServerIds = new Set(conv.messages.filter(m => m.serverId).map(m => m.serverId));
+    const existingByServerId = new Map(conv.messages.filter(m => m.serverId).map(m => [m.serverId, m]));
     const newMsgs = [];
     const optimisticMatchWindowMs = 15000;
+    let mutatedExisting = false;
 
     for (const sm of converted) {
-      if (existingServerIds.has(sm.serverId)) continue;
+      if (existingServerIds.has(sm.serverId)) {
+        const localMsg = existingByServerId.get(sm.serverId);
+        if (localMsg) {
+          // 用服务端数据纠正本地缓存中的旧错误类型（例如历史版本把 self/peer 判反）
+          if (localMsg.type !== sm.type) {
+            localMsg.type = sm.type;
+            mutatedExisting = true;
+          }
+          if ((localMsg.text || '') !== (sm.text || '')) {
+            localMsg.text = sm.text;
+            mutatedExisting = true;
+          }
+          if ((localMsg.time || '') !== (sm.time || '')) {
+            localMsg.time = sm.time;
+            mutatedExisting = true;
+          }
+        }
+        continue;
+      }
 
       const smTime = sm.time ? new Date(sm.time).getTime() : NaN;
       const optimisticIdx = conv.messages.findIndex((lm) => {
@@ -2827,12 +2988,55 @@ async function fetchServerMessages(conv) {
         // 回写 serverId 到本地乐观消息，后续同步时不会再重复插入
         conv.messages[optimisticIdx].serverId = sm.serverId;
         if (sm.time) conv.messages[optimisticIdx].time = sm.time;
+        if (conv.messages[optimisticIdx].type !== sm.type) conv.messages[optimisticIdx].type = sm.type;
         existingServerIds.add(sm.serverId);
+        existingByServerId.set(sm.serverId, conv.messages[optimisticIdx]);
+        mutatedExisting = true;
         continue;
       }
 
       newMsgs.push(sm);
       existingServerIds.add(sm.serverId);
+      existingByServerId.set(sm.serverId, sm);
+    }
+
+    // 清理历史版本遗留的“本地乐观消息 + 服务端已同步消息”重复项
+    // 常见症状：自己发一条消息后，本地出现两条完全相同内容（例如两个“你好”）
+    const dedupeWindowMs = 15000;
+    const dedupedMessages = [];
+    let removedOptimisticDup = false;
+    for (const msg of conv.messages) {
+      if (!msg || msg.serverId) {
+        dedupedMessages.push(msg);
+        continue;
+      }
+      const msgText = String(msg.text || '');
+      if (!msgText) {
+        dedupedMessages.push(msg);
+        continue;
+      }
+      const msgTime = msg.time ? new Date(msg.time).getTime() : NaN;
+      const matchedServerMsg = dedupedMessages.find((existing) => {
+        if (!existing?.serverId) return false;
+        if (String(existing.text || '') !== msgText) return false;
+        const existingTime = existing.time ? new Date(existing.time).getTime() : NaN;
+        if (!Number.isNaN(existingTime) && !Number.isNaN(msgTime) && Math.abs(existingTime - msgTime) > dedupeWindowMs) {
+          return false;
+        }
+        const a = String(existing.type || '');
+        const b = String(msg.type || '');
+        if (a === b) return true;
+        return (a === 'self' || a === 'peer') && (b === 'self' || b === 'peer');
+      });
+      if (matchedServerMsg) {
+        removedOptimisticDup = true;
+        mutatedExisting = true;
+        continue;
+      }
+      dedupedMessages.push(msg);
+    }
+    if (removedOptimisticDup) {
+      conv.messages = dedupedMessages;
     }
 
     if (newMsgs.length) {
@@ -2847,6 +3051,9 @@ async function fetchServerMessages(conv) {
       }
       persistConversations();
       return { added: newMsgs.length, addedPeer: newPeerCount };
+    }
+    if (mutatedExisting) {
+      conv.messages.sort((a, b) => new Date(a.time) - new Date(b.time));
     }
     // 仅发生了 serverId 回填（无新增消息）时，也持久化一次，避免下次再重复配对
     persistConversations();
@@ -3439,8 +3646,12 @@ async function openConversation(role, data, options = {}) {
   const peerAvatar = data.avatar || '';
   const refId = data.id; // 技能 ID 或 任务 ID
 
-  // 查找是否已有对应对话
-  let conv = chatState.conversations.find(c => c.refId === refId && c.role === role);
+  // 查找是否已有对应对话（同一对象 + 同一对方），避免不同人使用相同技能 ID 时串会话
+  let conv = chatState.conversations.find(c =>
+    String(c?.refId || '') === String(refId || '')
+    && String(c?.role || '') === String(role || '')
+    && String(c?.peerId || '') === String(peerId || '')
+  );
 
   if (!conv) {
     // 创建新对话

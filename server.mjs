@@ -49,6 +49,20 @@ const OAUTH_COOKIE_ACCESS = 'niuma_oauth_at';
 const OAUTH_COOKIE_REFRESH = 'niuma_oauth_rt';
 const OAUTH_COOKIE_STATE = 'niuma_oauth_state';
 const COOKIE_SECURE = IS_VERCEL || process.env.NODE_ENV === 'production';
+const ADMIN_ACCOUNT_NAMES = new Set([
+  '小布',
+  '迷途醉猫',
+  ...String(process.env.ADMIN_ACCOUNT_NAMES || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+]);
+const ADMIN_ACCOUNT_IDS = new Set(
+  String(process.env.ADMIN_ACCOUNT_IDS || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+);
 
 const LABOR_TYPES = [
   {
@@ -318,6 +332,41 @@ function parseCookieHeader(cookieHeader = '') {
       }
     });
   return map;
+}
+
+function normalizeAdminMatchValue(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isAdminUser(user = {}) {
+  if (!user || typeof user !== 'object') {
+    return false;
+  }
+
+  const idCandidates = [
+    user.userId,
+    user.id,
+    user.uid,
+    user.secondUserId
+  ].map((item) => String(item || '').trim()).filter(Boolean);
+
+  if (idCandidates.some((id) => ADMIN_ACCOUNT_IDS.has(id))) {
+    return true;
+  }
+
+  const normalizedNames = [
+    user.name,
+    user.displayName,
+    user.nickname,
+    user.username
+  ].map(normalizeAdminMatchValue).filter(Boolean);
+
+  if (normalizedNames.length === 0) {
+    return false;
+  }
+
+  const whitelist = new Set(Array.from(ADMIN_ACCOUNT_NAMES).map(normalizeAdminMatchValue));
+  return normalizedNames.some((name) => whitelist.has(name));
 }
 
 function buildSetCookie(
@@ -791,6 +840,63 @@ function normalizePointsValue(value, fallback = 0, { min = 0, max = 9_999_999 } 
   return Math.max(min, Math.min(max, n));
 }
 
+function normalizeHallSortValue(value, fallback = null) {
+  if (value == null || value === '') {
+    return fallback;
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function timeSortValue(value, fallback = 0) {
+  const ts = new Date(value || '').getTime();
+  return Number.isFinite(ts) ? ts : fallback;
+}
+
+function taskHallSortValue(task = {}) {
+  return normalizeHallSortValue(task.hallSort, timeSortValue(task.createdAt, 0));
+}
+
+function compareTaskHallOrder(a, b) {
+  const byRank = taskHallSortValue(b) - taskHallSortValue(a);
+  if (byRank !== 0) return byRank;
+  const byUpdatedAt = timeSortValue(b?.updatedAt, 0) - timeSortValue(a?.updatedAt, 0);
+  if (byUpdatedAt !== 0) return byUpdatedAt;
+  return String(b?.id || '').localeCompare(String(a?.id || ''));
+}
+
+function abilityHallSortValue(ability = {}) {
+  return normalizeHallSortValue(ability.hallSort, timeSortValue(ability.createdAt, 0));
+}
+
+function compareSkillHallOrder(a, b) {
+  const byRank = abilityHallSortValue(b) - abilityHallSortValue(a);
+  if (byRank !== 0) return byRank;
+  const byUpdatedAt = timeSortValue(b?.updatedAt, 0) - timeSortValue(a?.updatedAt, 0);
+  if (byUpdatedAt !== 0) return byUpdatedAt;
+  return String(b?.id || '').localeCompare(String(a?.id || ''));
+}
+
+function moveArrayItem(list, index, direction) {
+  if (!Array.isArray(list) || index < 0) {
+    return false;
+  }
+  const targetIndex = direction === 'up' ? index - 1 : direction === 'down' ? index + 1 : -1;
+  if (targetIndex < 0 || targetIndex >= list.length) {
+    return false;
+  }
+  const [item] = list.splice(index, 1);
+  list.splice(targetIndex, 0, item);
+  return true;
+}
+
+function resequenceHallSort(list, applyRank) {
+  const base = Date.now() + list.length + 10;
+  list.forEach((item, index) => {
+    applyRank(item, base - index);
+  });
+}
+
 function isNoLimitValue(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return ['不限制', 'unlimited', 'none', 'auto', 'any'].includes(normalized);
@@ -820,6 +926,7 @@ function normalizeStoredAbility(payload = {}) {
     ),
     imageConfig: abilityType === 'image' ? normalizeImageConfig(source.imageConfig, source.imageConfig) : normalizeImageConfig(),
     styles: normalizeStyles(source.styles),
+    hallSort: normalizeHallSortValue(source.hallSort, null),
     createdAt: source.createdAt || null,
     updatedAt: source.updatedAt || null
   };
@@ -1242,6 +1349,7 @@ async function addUserAbility(userId, ability) {
   const newAbility = normalizeStoredAbility({
     ...ability,
     id: uid('ability'),
+    hallSort: Date.now(),
     createdAt,
     updatedAt: createdAt
   });
@@ -1388,6 +1496,56 @@ async function getCurrentSessionWorker({ createIfMissing = true } = {}) {
     user: userData,
     worker
   };
+}
+
+async function requireAdminSession() {
+  const session = await getCurrentSessionWorker({ createIfMissing: false });
+  if (!session?.user) {
+    throw new AppError('请先登录', 401);
+  }
+  if (!isAdminUser(session.user)) {
+    throw new AppError('仅管理员可操作', 403);
+  }
+  return session;
+}
+
+function buildPublicSkillsFromSources(allAbilities = {}, profiles = []) {
+  const workerLookup = workersMap(profiles);
+  const skills = [];
+
+  for (const [userId, abilities] of Object.entries(allAbilities || {})) {
+    if (!Array.isArray(abilities)) continue;
+    const owner = workerLookup.get(userId);
+    for (const raw of abilities) {
+      const ability = normalizeStoredAbility(raw);
+      if (ability.enabled === false) continue;
+      skills.push({
+        id: ability.id,
+        name: ability.name,
+        description: ability.description || '',
+        pricePoints: normalizePointsValue(ability.pricePoints, 0),
+        icon: ability.icon || '🔧',
+        abilityType: ability.abilityType || 'text',
+        coverImage: ability.coverImage || '',
+        styles: (ability.styles || []).map(s => ({
+          id: s.id,
+          name: s.name,
+          image: s.image || s.coverImage || '',
+          coverImage: s.coverImage || s.image || ''
+        })),
+        ownerId: userId,
+        ownerName: owner?.name || owner?.displayName || '',
+        ownerAvatar: owner?.avatar || owner?.profileImageUrl || '',
+        completedOrders: 0,
+        rating: 0,
+        hallSort: ability.hallSort ?? null,
+        createdAt: ability.createdAt || ''
+      });
+    }
+  }
+
+  skills.sort(compareSkillHallOrder);
+  return skills;
 }
 
 async function settleSkillDeliveryPoints({
@@ -2917,39 +3075,7 @@ async function handleApi(req, res, urlObj) {
     }
 
     const [allAbilities, profiles] = await Promise.all([loadAbilities(), loadProfiles()]);
-    const workerLookup = workersMap(profiles);
-
-    const skills = [];
-    for (const [userId, abilities] of Object.entries(allAbilities)) {
-      if (!Array.isArray(abilities)) continue;
-      const owner = workerLookup.get(userId);
-      for (const raw of abilities) {
-        const ability = normalizeStoredAbility(raw);
-        // 只展示已启用的能力
-        if (ability.enabled === false) continue;
-        skills.push({
-          id: ability.id,
-          name: ability.name,
-          description: ability.description || '',
-          pricePoints: normalizePointsValue(ability.pricePoints, 0),
-          icon: ability.icon || '🔧',
-          abilityType: ability.abilityType || 'text',
-          coverImage: ability.coverImage || '',
-          styles: (ability.styles || []).map(s => ({
-            id: s.id,
-            name: s.name,
-            image: s.image || s.coverImage || '',
-            coverImage: s.coverImage || s.image || ''
-          })),
-          ownerId: userId,
-          ownerName: owner?.name || owner?.displayName || '',
-          ownerAvatar: owner?.avatar || owner?.profileImageUrl || '',
-          completedOrders: 0,
-          rating: 0,
-          createdAt: ability.createdAt || ''
-        });
-      }
-    }
+    const skills = buildPublicSkillsFromSources(allAbilities, profiles);
 
     publicSkillsCache = {
       expiresAt: Date.now() + PUBLIC_SKILLS_CACHE_TTL,
@@ -2960,6 +3086,90 @@ async function handleApi(req, res, urlObj) {
       code: 0,
       message: 'success',
       data: skills
+    });
+  }
+
+  if (method === 'POST' && pathname === '/api/admin/skills/reorder') {
+    try {
+      await requireAdminSession();
+    } catch (error) {
+      return json(res, error.statusCode || 403, { code: error.statusCode || 403, message: error.message || '无权限' });
+    }
+
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const ownerId = String(body.ownerId || '').trim();
+    const skillId = String(body.skillId || body.abilityId || '').trim();
+    const direction = String(body.direction || '').trim().toLowerCase();
+    if (!ownerId || !skillId) {
+      return badRequest(res, '缺少 ownerId 或 skillId');
+    }
+    if (!['up', 'down'].includes(direction)) {
+      return badRequest(res, 'direction 仅支持 up/down');
+    }
+
+    const allAbilities = await loadAbilities();
+    const entries = [];
+    for (const [uid, list] of Object.entries(allAbilities)) {
+      if (!Array.isArray(list)) continue;
+      const normalizedList = list.map((item) => normalizeStoredAbility(item));
+      allAbilities[uid] = normalizedList;
+      normalizedList.forEach((ability) => {
+        entries.push({ ownerId: uid, ability });
+      });
+    }
+
+    const visibleSkills = entries
+      .filter((entry) => entry.ability.enabled !== false)
+      .sort((a, b) => compareSkillHallOrder(a.ability, b.ability));
+    const index = visibleSkills.findIndex((entry) => entry.ownerId === ownerId && entry.ability.id === skillId);
+    if (index < 0) {
+      return json(res, 404, { code: 404, message: '技能不存在或未公开' });
+    }
+
+    moveArrayItem(visibleSkills, index, direction);
+    resequenceHallSort(visibleSkills, (item, rank) => {
+      item.ability.hallSort = rank;
+      item.ability.updatedAt = nowIso();
+    });
+    await saveAbilities(allAbilities);
+
+    return json(res, 200, {
+      code: 0,
+      message: '排序已更新'
+    });
+  }
+
+  const adminSkillDeleteMatch = pathname.match(/^\/api\/admin\/skills\/([^/]+)\/([^/]+)$/);
+  if (method === 'DELETE' && adminSkillDeleteMatch) {
+    try {
+      await requireAdminSession();
+    } catch (error) {
+      return json(res, error.statusCode || 403, { code: error.statusCode || 403, message: error.message || '无权限' });
+    }
+
+    const ownerId = decodeURIComponent(adminSkillDeleteMatch[1]);
+    const skillId = decodeURIComponent(adminSkillDeleteMatch[2]);
+    if (!ownerId || !skillId) {
+      return badRequest(res, '参数不能为空');
+    }
+
+    const deleted = await deleteUserAbility(ownerId, skillId);
+    if (!deleted) {
+      return json(res, 404, { code: 404, message: '技能不存在' });
+    }
+
+    return json(res, 200, {
+      code: 0,
+      message: '技能已删除'
     });
   }
 
@@ -3809,7 +4019,7 @@ async function handleApi(req, res, urlObj) {
     if (!conv) {
       return json(res, 404, { code: 404, message: '对话不存在' });
     }
-    if (conv.initiator_id !== myId && conv.receiver_id !== myId) {
+    if (String(conv.initiator_id || '') !== myId && String(conv.receiver_id || '') !== myId) {
       return json(res, 403, { code: 403, message: '无权访问此对话' });
     }
 
@@ -3857,7 +4067,7 @@ async function handleApi(req, res, urlObj) {
     if (!conv) {
       return json(res, 404, { code: 404, message: '对话不存在' });
     }
-    if (conv.initiator_id !== myId && conv.receiver_id !== myId) {
+    if (String(conv.initiator_id || '') !== myId && String(conv.receiver_id || '') !== myId) {
       return json(res, 403, { code: 403, message: '无权访问此对话' });
     }
 
@@ -3930,7 +4140,7 @@ async function handleApi(req, res, urlObj) {
     if (!conv) {
       return json(res, 404, { code: 404, message: '对话不存在' });
     }
-    if (conv.initiator_id !== myId && conv.receiver_id !== myId) {
+    if (String(conv.initiator_id || '') !== myId && String(conv.receiver_id || '') !== myId) {
       return json(res, 403, { code: 403, message: '无权访问此对话' });
     }
 
@@ -4058,6 +4268,75 @@ async function handleApi(req, res, urlObj) {
     }
   }
 
+  if (method === 'POST' && pathname === '/api/admin/tasks/reorder') {
+    try {
+      await requireAdminSession();
+    } catch (error) {
+      return json(res, error.statusCode || 403, { code: error.statusCode || 403, message: error.message || '无权限' });
+    }
+
+    let body;
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      if (String(error.message) === 'INVALID_JSON') {
+        return badRequest(res, '请求体不是合法 JSON');
+      }
+      throw error;
+    }
+
+    const taskId = String(body.taskId || '').trim();
+    const direction = String(body.direction || '').trim().toLowerCase();
+    if (!taskId) {
+      return badRequest(res, 'taskId 不能为空');
+    }
+    if (!['up', 'down'].includes(direction)) {
+      return badRequest(res, 'direction 仅支持 up/down');
+    }
+
+    const tasks = await loadTasks();
+    const orderedTasks = tasks.slice().sort(compareTaskHallOrder);
+    const index = orderedTasks.findIndex((item) => item.id === taskId);
+    if (index < 0) {
+      return json(res, 404, { code: 404, message: '任务不存在' });
+    }
+
+    moveArrayItem(orderedTasks, index, direction);
+    resequenceHallSort(orderedTasks, (item, rank) => {
+      item.hallSort = rank;
+      item.updatedAt = nowIso();
+    });
+    await saveTasks(tasks);
+
+    return json(res, 200, {
+      code: 0,
+      message: '排序已更新'
+    });
+  }
+
+  const adminTaskDeleteMatch = pathname.match(/^\/api\/admin\/tasks\/([^/]+)$/);
+  if (method === 'DELETE' && adminTaskDeleteMatch) {
+    try {
+      await requireAdminSession();
+    } catch (error) {
+      return json(res, error.statusCode || 403, { code: error.statusCode || 403, message: error.message || '无权限' });
+    }
+
+    const taskId = decodeURIComponent(adminTaskDeleteMatch[1]);
+    const tasks = await loadTasks();
+    const index = tasks.findIndex((item) => item.id === taskId);
+    if (index < 0) {
+      return json(res, 404, { code: 404, message: '任务不存在' });
+    }
+
+    tasks.splice(index, 1);
+    await saveTasks(tasks);
+    return json(res, 200, {
+      code: 0,
+      message: '任务已删除'
+    });
+  }
+
   if (method === 'GET' && pathname === '/api/tasks') {
     const tasks = await loadTasks();
     const workers = await loadProfiles();
@@ -4070,7 +4349,7 @@ async function handleApi(req, res, urlObj) {
 
     list = list
       .slice()
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort(compareTaskHallOrder)
       .map((task) => {
         const summary = safeTaskSummary(task);
         // 从 profiles 中查找发布者信息，展示真实头像和名称
@@ -4442,6 +4721,7 @@ async function handleApi(req, res, urlObj) {
         events: [],
         secondMeSessionId: null
       },
+      hallSort: Date.now(),
       createdAt: nowIso(),
       updatedAt: nowIso()
     };
@@ -4899,6 +5179,7 @@ async function handleApi(req, res, urlObj) {
         message: '当前未登录 SecondMe 账号',
         data: {
           connected: false,
+          isAdmin: false,
           profile: null,
           worker: null,
           authMode: currentAuthMode(),
@@ -4914,6 +5195,7 @@ async function handleApi(req, res, urlObj) {
         code: 0,
         message: 'success',
         data: {
+          isAdmin: isAdminUser(session.user),
           connected: true,
           profile: {
             code: 0,
@@ -4933,6 +5215,7 @@ async function handleApi(req, res, urlObj) {
         message,
         data: {
           connected: false,
+          isAdmin: false,
           error: details,
           authMode: currentAuthMode(),
           requiredScopes: REQUIRED_SCOPES,
