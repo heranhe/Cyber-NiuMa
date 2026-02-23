@@ -3115,7 +3115,8 @@ function chatTimeLabel(dateStr) {
 }
 
 // ========== 聊天列表过滤状态 ==========
-chatState.roleFilter = 'demand'; // 默认查看需求对话
+// 默认显示全部对话，避免桌面端（无角色切换按钮）把收到的对话隐藏掉
+chatState.roleFilter = 'all';
 
 function updateChatUnreadIndicators() {
   const hasUnread = chatState.conversations.some((c) => (Number(c.unreadCount) || 0) > 0);
@@ -3134,7 +3135,10 @@ function renderChatList() {
   if (!chatListEl) return;
 
   // 过滤当前在移动端选择的对话类型
-  const convs = chatState.conversations.filter(c => c.role === chatState.roleFilter);
+  const filterRole = String(chatState.roleFilter || 'all');
+  const convs = filterRole === 'demand' || filterRole === 'worker'
+    ? chatState.conversations.filter(c => c.role === filterRole)
+    : chatState.conversations.slice();
   const statusCount = convs.length;
 
   // 更新状态文字
@@ -3690,6 +3694,28 @@ async function openConversation(role, data, options = {}) {
     && String(c?.role || '') === String(role || '')
     && String(c?.peerId || '') === String(peerId || '')
   );
+
+  // 若同一用户已有未读/最近会话，优先进入已有会话，避免双方各自新建一条“只能看到自己”的平行线程
+  if (!conv) {
+    const nowTs = Date.now();
+    const peerThreads = chatState.conversations
+      .filter(c => String(c?.peerId || '') === String(peerId || ''))
+      .sort((a, b) => {
+        const unreadA = Number(a?.unreadCount) || 0;
+        const unreadB = Number(b?.unreadCount) || 0;
+        if (unreadB !== unreadA) return unreadB - unreadA;
+        return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+      });
+    const candidate = peerThreads[0];
+    const candidateUpdatedTs = candidate ? new Date(candidate.updatedAt || candidate.createdAt || 0).getTime() : 0;
+    const isRecent = candidate && Number.isFinite(candidateUpdatedTs) && (nowTs - candidateUpdatedTs) < 24 * 60 * 60 * 1000;
+    if (candidate && ((Number(candidate.unreadCount) || 0) > 0 || isRecent)) {
+      conv = candidate;
+      if (conv.role !== role || String(conv.refId || '') !== refId) {
+        showToast('已打开你与该用户的现有对话');
+      }
+    }
+  }
 
   if (!conv) {
     // 创建新对话
