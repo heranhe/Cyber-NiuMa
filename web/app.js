@@ -586,9 +586,15 @@ function renderMobileMePage() {
             </div>
           </div>
           <div class="flex items-center gap-3 pl-2">
-            <a href="/edit-skill.html?id=${encodeURIComponent(ability.id)}" class="text-gray-400 hover:text-primary transition-colors cursor-pointer">
+            <button
+              type="button"
+              class="text-gray-400 hover:text-primary transition-colors cursor-pointer inline-flex items-center"
+              data-action="edit-mobile-ability"
+              data-ability-id="${escapeHtml(ability.id)}"
+              aria-label="编辑技能"
+            >
               <span class="material-icons-round text-sm">edit</span>
-            </a>
+            </button>
             <label class="ios-toggle">
               <input type="checkbox" onchange="toggleAbilityStatus('${ability.id}', this.checked)" ${!isLegacy ? 'checked' : ''}>
               <span class="toggle-slider"></span>
@@ -1748,6 +1754,19 @@ if (skillsList) {
       const ability = state.abilities.find((a) => a.id === id);
       if (ability) openAbilityModal(ability);
     }
+  });
+}
+
+const mobileCapabilitiesList = document.querySelector('#m-active-capabilities-list');
+if (mobileCapabilitiesList) {
+  mobileCapabilitiesList.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('[data-action="edit-mobile-ability"]');
+    if (!editBtn) return;
+
+    e.preventDefault();
+    const id = editBtn.dataset.abilityId;
+    const ability = state.abilities.find((a) => a.id === id);
+    if (ability) openAbilityModal(ability);
   });
 }
 
