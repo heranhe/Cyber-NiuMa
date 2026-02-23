@@ -114,6 +114,7 @@ const UPLOAD_ALLOWED_TYPES = {
   'image/gif': '.gif'
 };
 const UPLOAD_MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const JSON_BODY_MAX_SIZE = Number(process.env.JSON_BODY_MAX_SIZE || 1024 * 1024);
 
 // 读取原始二进制请求体
 async function readRawBody(req, maxSize = UPLOAD_MAX_SIZE) {
@@ -261,9 +262,14 @@ function internalError(res, error) {
   });
 }
 
-async function readBody(req) {
+async function readBody(req, maxSize = JSON_BODY_MAX_SIZE) {
   const chunks = [];
+  let totalSize = 0;
   for await (const chunk of req) {
+    totalSize += chunk.length;
+    if (totalSize > maxSize) {
+      throw new AppError(`请求体过大（最大 ${Math.round(maxSize / 1024)}KB）`, 413);
+    }
     chunks.push(chunk);
   }
   if (chunks.length === 0) {
@@ -632,6 +638,65 @@ function safeTaskSummary(task) {
     createdAt: task.createdAt,
     updatedAt: task.updatedAt
   };
+}
+
+function sessionActorIds(session = null) {
+  return new Set(
+    [
+      session?.user?.userId,
+      session?.user?.id,
+      session?.user?.uid,
+      session?.user?.secondUserId,
+      session?.worker?.id,
+      session?.worker?.workerId,
+      session?.worker?.secondUserId
+    ]
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+  );
+}
+
+function taskViewerScope(task, session = null) {
+  const actorIds = sessionActorIds(session);
+  const publisherId = String(task?.publisherId || '').trim();
+  const assigneeId = String(task?.assigneeId || '').trim();
+  const participantIds = Array.isArray(task?.participants)
+    ? task.participants.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+  const isAdmin = isAdminUser(session?.user);
+  const isPublisher = Boolean(publisherId) && actorIds.has(publisherId);
+  const isAssignee = Boolean(assigneeId) && actorIds.has(assigneeId);
+  const isParticipant = participantIds.some((id) => actorIds.has(id));
+  const isDeliveryPublic = String(task?.deliveryVisibility || 'public') !== 'private';
+
+  return {
+    actorIds,
+    isAdmin,
+    isPublisher,
+    isAssignee,
+    isParticipant,
+    canViewDeliveryContent: isAdmin || isPublisher || isDeliveryPublic,
+    canViewUpdates: isAdmin || isPublisher || isParticipant || isAssignee,
+    canViewSync: isAdmin || isPublisher,
+    canManageDeliveries: isAdmin || isPublisher || isAssignee
+  };
+}
+
+function buildTaskSummaryForViewer(task, session = null, { listView = false } = {}) {
+  const summary = safeTaskSummary(task);
+  const scope = taskViewerScope(task, session);
+
+  if (!scope.canViewDeliveryContent) {
+    summary.delivery = null;
+  }
+  if (!scope.canViewUpdates || listView) {
+    summary.updates = [];
+  }
+  if (!scope.canViewSync || listView) {
+    summary.sync = null;
+  }
+
+  return { summary, scope };
 }
 
 function laborTypeById(typeId) {
@@ -1569,6 +1634,20 @@ async function requireAdminSession() {
     throw new AppError('仅管理员可操作', 403);
   }
   return session;
+}
+
+async function tryGetCurrentSessionWorker({ createIfMissing = false } = {}) {
+  const ctx = getRequestAuthContext();
+  const token = String(ctx?.oauthAccessToken || '').trim();
+  if (!token) {
+    return null;
+  }
+  try {
+    return await getCurrentSessionWorker({ createIfMissing });
+  } catch (error) {
+    console.warn('[auth] optional session resolve failed:', error?.message || error);
+    return null;
+  }
 }
 
 function buildPublicSkillsFromSources(allAbilities = {}, profiles = []) {
@@ -3017,6 +3096,11 @@ async function handleApi(req, res, urlObj) {
 
   // ===== 图片上传 =====
   if (method === 'POST' && pathname === '/api/upload/image') {
+    const session = await getCurrentSessionWorker({ createIfMissing: false });
+    if (!session?.user?.userId) {
+      return json(res, 401, { code: 401, message: '请先登录后上传图片' });
+    }
+
     const ct = String(req.headers['content-type'] || '');
     if (!ct.includes('multipart/form-data')) {
       throw new AppError('请使用 multipart/form-data 格式上传', 400);
@@ -3111,7 +3195,8 @@ async function handleApi(req, res, urlObj) {
           provider: 'supabase',
           enabled: Boolean(SUPABASE_URL && SUPABASE_ANON_KEY),
           supabaseUrl: SUPABASE_URL || '',
-          supabaseAnonKey: SUPABASE_ANON_KEY || ''
+          supabaseAnonKey: '',
+          supabaseAnonKeyMasked: maskToken(SUPABASE_ANON_KEY)
         }
       }
     });
@@ -4414,6 +4499,7 @@ async function handleApi(req, res, urlObj) {
   if (method === 'GET' && pathname === '/api/tasks') {
     const tasks = await loadTasks();
     const workers = await loadProfiles();
+    const viewerSession = await tryGetCurrentSessionWorker({ createIfMissing: false });
     const statusFilter = searchParams.get('status');
 
     let list = tasks;
@@ -4425,7 +4511,7 @@ async function handleApi(req, res, urlObj) {
       .slice()
       .sort(compareTaskHallOrder)
       .map((task) => {
-        const summary = safeTaskSummary(task);
+        const { summary } = buildTaskSummaryForViewer(task, viewerSession, { listView: true });
         // 从 profiles 中查找发布者信息，展示真实头像和名称
         if (task.publisherId) {
           const publisher = workers.find(w => w.id === task.publisherId || w.secondUserId === task.publisherId);
@@ -4458,6 +4544,8 @@ async function handleApi(req, res, urlObj) {
     if (!task) {
       return json(res, 404, { code: 404, message: '任务不存在' });
     }
+    const viewerSession = await tryGetCurrentSessionWorker({ createIfMissing: false });
+    const { summary: viewerTaskSummary, scope: viewerScope } = buildTaskSummaryForViewer(task, viewerSession);
 
     // 获取派活人信息
     const workers = await loadProfiles();
@@ -4526,6 +4614,10 @@ async function handleApi(req, res, urlObj) {
       }
     }
 
+    if (!viewerScope.canViewDeliveryContent) {
+      deliveries = [];
+    }
+
     // 获取讨论（从任务的 comments 字段）
     const comments = task.comments || [];
 
@@ -4533,7 +4625,7 @@ async function handleApi(req, res, urlObj) {
       code: 0,
       message: 'success',
       task: {
-        ...safeTaskSummary(task),
+        ...viewerTaskSummary,
         ...publisherInfo,
         ...assigneeInfo,
         publisherId: task.publisherId,
@@ -4891,6 +4983,13 @@ async function handleApi(req, res, urlObj) {
     if (task.laborType && !task.laborType.startsWith('custom:') && !worker.specialties.includes(task.laborType)) {
       return badRequest(res, `${worker.name} 不支持该劳务类型`);
     }
+    if (task.status === 'DELIVERED') {
+      return badRequest(res, '任务已交付，不能再次接单');
+    }
+    const existingAssigneeId = String(task.assigneeId || '').trim();
+    if (existingAssigneeId && existingAssigneeId !== workerId) {
+      return json(res, 409, { code: 409, message: '任务已被其他 AI 接单' });
+    }
 
     const userAbilities = await getUserAbilities(session.user.userId);
     let selectedAbilityId = requestedAbilityId;
@@ -4908,13 +5007,26 @@ async function handleApi(req, res, urlObj) {
 
     const workerLookup = workersMap(await loadProfiles());
     let shouldSave = false;
-    if (!task.participants.includes(workerId)) {
+    const joinedNow = !task.participants.includes(workerId);
+    if (joinedNow) {
       task.participants.push(workerId);
+    }
+    if (!existingAssigneeId) {
       task.assigneeId = workerId;  // 保存接单者ID
       task.assigneeName = worker.name;  // 保存接单者名称
       task.takenAt = nowIso();  // 保存接单时间
+      shouldSave = true;
+    } else if (!task.takenAt) {
+      task.takenAt = nowIso();
+      shouldSave = true;
+    }
+
+    if (joinedNow || shouldSave) {
       task.status = 'IN_PROGRESS';
       task.updatedAt = nowIso();
+    }
+
+    if (joinedNow) {
       await syncTaskJoined(task, worker, workerLookup);
       shouldSave = true;
     }
@@ -5146,15 +5258,24 @@ async function handleApi(req, res, urlObj) {
     if (!task) {
       return notFound(res);
     }
+    if (task.status === 'OPEN' && !task.assigneeId) {
+      return badRequest(res, '请先接单再交付');
+    }
 
-    // 已移除权限限制：所有登录用户都可以参与交付
-    // 如果用户尚未参与任务，自动加入参与者列表
+    const actorIds = sessionActorIds(session);
+    const currentAssigneeId = String(task.assigneeId || '').trim();
+    if (currentAssigneeId && !actorIds.has(currentAssigneeId)) {
+      return json(res, 403, { code: 403, message: '只有接单者可以交付' });
+    }
+
     if (!task.participants.includes(workerId)) {
       task.participants.push(workerId);
-      if (!task.assigneeId) {
-        task.assigneeId = workerId;
-        task.assigneeName = worker.name;
-      }
+      task.updatedAt = nowIso();
+    }
+    if (!currentAssigneeId) {
+      task.assigneeId = workerId;
+      task.assigneeName = worker.name;
+      task.takenAt = task.takenAt || nowIso();
       task.status = 'IN_PROGRESS';
       task.updatedAt = nowIso();
     }
@@ -5213,6 +5334,16 @@ async function handleApi(req, res, urlObj) {
   const deliveriesMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/deliveries$/);
   if (method === 'GET' && deliveriesMatch) {
     const taskId = decodeURIComponent(deliveriesMatch[1]);
+    const tasks = await loadTasks();
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) {
+      return notFound(res);
+    }
+    const viewerSession = await tryGetCurrentSessionWorker({ createIfMissing: false });
+    const scope = taskViewerScope(task, viewerSession);
+    if (!scope.canViewDeliveryContent) {
+      return json(res, 403, { code: 403, message: '该任务交付内容仅派活人可见' });
+    }
     const deliveries = await getTaskDeliveries(taskId);
     return json(res, 200, {
       code: 0,
@@ -5225,9 +5356,41 @@ async function handleApi(req, res, urlObj) {
   const deleteDeliveryMatch = pathname.match(/^\/api\/deliveries\/([^/]+)$/);
   if (method === 'DELETE' && deleteDeliveryMatch) {
     const deliveryId = decodeURIComponent(deleteDeliveryMatch[1]);
-    const session = await getCurrentSessionWorker({ createIfMissing: false });
-    if (!session?.worker) {
+    const session = await getCurrentSessionWorker({ createIfMissing: true });
+    if (!session?.user?.userId) {
       return badRequest(res, '请先登录');
+    }
+    if (!supabase) {
+      return json(res, 503, { code: 503, message: '当前环境不支持删除交付记录' });
+    }
+
+    const { data: deliveryRow, error: deliveryFetchError } = await supabase
+      .from('deliveries')
+      .select('*')
+      .eq('id', deliveryId)
+      .single();
+
+    if (deliveryFetchError && deliveryFetchError.code !== 'PGRST116') {
+      throw new AppError('查询交付记录失败', 500, deliveryFetchError);
+    }
+    if (!deliveryRow) {
+      return json(res, 404, { code: 404, message: '交付记录不存在' });
+    }
+
+    const actorIds = sessionActorIds(session);
+    let canDelete = isAdminUser(session.user);
+    if (!canDelete && actorIds.has(String(deliveryRow.worker_id || '').trim())) {
+      canDelete = true;
+    }
+    if (!canDelete) {
+      const tasks = await loadTasks();
+      const relatedTask = tasks.find((item) => item.id === deliveryRow.task_id);
+      if (relatedTask) {
+        canDelete = taskViewerScope(relatedTask, session).canManageDeliveries;
+      }
+    }
+    if (!canDelete) {
+      return json(res, 403, { code: 403, message: '无权删除该交付记录' });
     }
 
     const success = await deleteDeliveryById(deliveryId);

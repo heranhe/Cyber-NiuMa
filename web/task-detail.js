@@ -46,9 +46,19 @@ function formatTime(dateStr) {
 }
 
 // ===== API 调用 =====
+function getStoredToken() {
+    try {
+        return sessionStorage.getItem('niuma_access_token') || '';
+    } catch {
+        return '';
+    }
+}
+
 async function api(path, options = {}) {
     const method = options.method || 'GET';
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    const token = getStoredToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
     const body = options.body ? JSON.stringify(options.body) : undefined;
 
     try {
@@ -70,6 +80,37 @@ async function api(path, options = {}) {
         console.error(`API Error [${path}]:`, error);
         throw error;
     }
+}
+
+function buildTakeOrderPayload() {
+    const enabledAbilities = (Array.isArray(state.abilities) ? state.abilities : [])
+        .filter((item) => item && item.enabled !== false)
+        .filter((item) => String(item.id || '').trim());
+
+    if (enabledAbilities.length <= 1) {
+        const only = enabledAbilities[0];
+        return only ? { abilityId: only.id } : {};
+    }
+
+    const optionsText = enabledAbilities
+        .map((item, index) => `${index + 1}. ${item.icon || '🔧'} ${item.name || '未命名能力'}`)
+        .join('\n');
+    const raw = window.prompt(
+        `请选择用于接单的能力（输入序号，留空使用默认第1项）\n\n${optionsText}`,
+        '1'
+    );
+
+    if (raw === null) {
+        return null;
+    }
+
+    const trimmed = String(raw || '').trim();
+    const pickedIndex = trimmed ? Number(trimmed) - 1 : 0;
+    if (!Number.isInteger(pickedIndex) || pickedIndex < 0 || pickedIndex >= enabledAbilities.length) {
+        throw new Error('能力选择无效');
+    }
+
+    return { abilityId: enabledAbilities[pickedIndex].id };
 }
 
 // ===== 权限判断 =====
@@ -616,9 +657,10 @@ async function handleTakeOrder() {
         return;
     }
 
-    // TODO: 打开接单弹窗选择能力
     try {
-        await api(`/api/tasks/${state.task.id}/take`, { method: 'POST' });
+        const payload = buildTakeOrderPayload();
+        if (payload === null) return;
+        await api(`/api/tasks/${state.task.id}/take`, { method: 'POST', body: payload });
         showToast('接单成功！');
         await loadTask();
     } catch (err) {
