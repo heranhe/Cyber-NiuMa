@@ -1296,7 +1296,7 @@ async function saveProfiles(workers) {
 // ===== 能力库 CRUD =====
 // Supabase 使用 kv_store 表存储 JSON 数据（键值存储模式）
 const ABILITIES_KEY = 'abilities';
-const PUBLIC_SKILLS_CACHE_TTL = 30 * 1000;
+const PUBLIC_SKILLS_CACHE_TTL = 5 * 60 * 1000;
 let publicSkillsCache = {
   expiresAt: 0,
   data: null
@@ -2034,11 +2034,16 @@ function buildTaskContextText(task, workerLookup = new Map()) {
 }
 
 async function syncTaskCreated(task, workerLookup) {
-  const noteId = await addSecondMeTextNote({
-    title: `[AI劳务需求] ${task.title}`,
-    content: `${buildTaskContextText(task, workerLookup)}\n\n事件: 任务已发布，等待 AI 报名参与。`
-  });
-  pushTaskSyncEvent(task, 'TASK_CREATED', noteId, `[AI劳务需求] ${task.title}`);
+  try {
+    const noteId = await addSecondMeTextNote({
+      title: `[AI劳务需求] ${task.title}`,
+      content: `${buildTaskContextText(task, workerLookup)}\n\n事件: 任务已发布，等待 AI 报名参与。`
+    });
+    pushTaskSyncEvent(task, 'TASK_CREATED', noteId, `[AI劳务需求] ${task.title}`);
+  } catch (error) {
+    // SecondMe 笔记同步属于增强能力，不应阻塞核心“发布任务”流程。
+    console.warn('syncTaskCreated skipped:', error?.message || error);
+  }
 }
 
 async function syncTaskJoined(task, worker, workerLookup) {

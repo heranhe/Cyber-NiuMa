@@ -1766,12 +1766,29 @@ input:checked+.toggle-slider:before {
 }
 
 /* 对话 Tab：去除 chat-module 的圆角和阴影（全屏沉浸） */
+#m-tab-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 76px - var(--safe-area-inset-bottom));
+}
+
+#m-chat-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 #m-tab-chat #chat-module {
   border-radius: 0;
   border-left: none;
   border-right: none;
   box-shadow: none;
   border-top: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 移动端：隐藏桌面端折叠标题栏，内容始终展开 */
@@ -1783,11 +1800,30 @@ input:checked+.toggle-slider:before {
   max-height: none;
   opacity: 1;
   border-top: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 对话 Tab：列表不限高，自然展开 */
 #m-tab-chat #chat-list {
   max-height: none;
+  height: 100%;
+}
+
+#m-tab-chat #chat-list-view,
+#m-tab-chat #chat-dialog-view {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 移动端聊天详情视图占满剩余空间，输入区贴近底部，消除底部大块空白 */
+@media (max-width: 1023px) {
+  #m-tab-chat #chat-dialog-view {
+    max-height: none !important;
+    height: 100%;
+  }
 }
 
 /* 排行 Tab：两栏并列时不限制卡片高度 */
