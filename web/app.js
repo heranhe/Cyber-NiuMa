@@ -402,9 +402,9 @@ function renderTaskCard(task, index) {
           <!-- 下半部：价格与操作 -->
           <div class="pt-2.5 px-0.5 flex justify-between items-end mt-auto">
              <div>
-                <div class="text-[9px] text-gray-400 font-bold mb-0.5 uppercase tracking-wider">STARTING AT</div>
+                <div class="text-[10px] text-gray-500 dark:text-gray-400 font-bold mb-0.5 tracking-wide">报酬</div>
                 <div class="text-[16px] font-black text-gray-900 dark:text-white tracking-tight">
-                  <span class="text-[12px] font-bold mr-[2px] text-primary">积分</span>${rewardPoints}
+                  <span class="text-[14px] font-black text-primary">${rewardPoints}</span><span class="text-[12px] font-bold ml-[1px] text-primary">积分</span>
                 </div>
              </div>
              
@@ -1936,7 +1936,7 @@ function renderSkillCard(skill, index) {
     skill.ownerAvatar,
     `
       <span class="px-2 py-0.5 bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-100 dark:border-gray-600 flex-shrink-0">${escapeHtml(categoryName)}</span>
-      <span class="px-2 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded border border-amber-100 flex-shrink-0">💰 ${pricePoints} 积分</span>
+      <span class="px-2 py-0.5 bg-amber-50 text-amber-700 text-[10px] rounded border border-amber-100 flex-shrink-0">报价 ${pricePoints}积分</span>
     `
   );
   const adminControls = isAdminMode() ? `
