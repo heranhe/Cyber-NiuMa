@@ -382,6 +382,49 @@ input:checked+.toggle-slider:before {
   border-color: #4B5563;
 }
 
+.delivery-sheet-ref-preview {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.delivery-sheet-ref-item {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #E5E7EB;
+  background: #fff;
+  aspect-ratio: 1 / 1;
+}
+
+.delivery-sheet-ref-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.delivery-sheet-ref-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(17, 24, 39, 0.72);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dark .delivery-sheet-ref-item {
+  border-color: #4B5563;
+  background: #1F2937;
+}
+
 /* ===== 能力标签悬浮提示 ===== */
 .ability-tag {
   position: relative;
@@ -860,6 +903,81 @@ input:checked+.toggle-slider:before {
 .dark .chat-bubble-peer {
   background: #374151;
   color: #E5E7EB;
+}
+
+.chat-formal-demand-wrap {
+  max-width: 92%;
+  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-bubble-formal-demand {
+  max-width: 100%;
+}
+
+.chat-formal-demand-label {
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.dark .chat-formal-demand-label {
+  color: #F3F4F6;
+}
+
+.chat-formal-demand-body {
+  line-height: 1.55;
+}
+
+.chat-formal-demand-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.chat-demand-deliver-btn {
+  border: none;
+  border-radius: 9999px;
+  background: #fff;
+  color: #D97706;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.chat-demand-deliver-btn:hover {
+  background: #FFF7ED;
+  border-color: rgba(217, 119, 6, 0.45);
+}
+
+.chat-demand-deliver-btn:disabled {
+  cursor: not-allowed;
+  color: #9CA3AF;
+  background: #F9FAFB;
+  border-color: #E5E7EB;
+  box-shadow: none;
+}
+
+.dark .chat-demand-deliver-btn {
+  background: #111827;
+  color: #FBBF24;
+  border-color: rgba(251, 191, 36, 0.25);
+}
+
+.dark .chat-demand-deliver-btn:hover {
+  background: #1F2937;
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.dark .chat-demand-deliver-btn:disabled {
+  background: #1F2937;
+  color: #6B7280;
+  border-color: #374151;
 }
 
 .chat-bubble-system {

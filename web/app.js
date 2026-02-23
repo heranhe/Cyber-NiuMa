@@ -3919,44 +3919,86 @@ window.closeDeliverySheet = function () {
 };
 
 // 监听 Run AI 事件
-window.addEventListener('run-ai-deliver', (e) => {
-  const { abilityId } = e.detail;
-  const ability = state.abilities?.find(a => a.id === abilityId);
-  const shouldAutoSendDelivery = Boolean(chatAutoSend?.checked);
+window.addEventListener('run-ai-deliver', async (e) => {
+  const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
+  if (!conv || conv.role !== 'worker') return;
 
-  // 关闭窗口
+  const draft = chatState.deliverySheetDraft || {};
+  const ability = resolveDeliverySheetAbility(draft.abilityId || e?.detail?.abilityId);
+  if (!ability) {
+    showToast('请先选择一个技能');
+    return;
+  }
+
+  const requirement = String(draft.promptText || '').trim()
+    || getDeliverySheetPromptText(conv, ability, draft.sourceMsgIndex);
+  if (!requirement) {
+    showToast('请先填写或确认正式需求');
+    return;
+  }
+
+  const shouldAutoSendDelivery = Boolean(chatAutoSend?.checked);
+  const loadingMsg = { type: 'loading', time: new Date().toISOString() };
+  conv.messages.push(loadingMsg);
+  conv.updatedAt = new Date().toISOString();
+  renderChatMessages(conv);
+  persistConversations();
+
+  setChatSelectedSkillFromAbility(ability);
   window.closeDeliverySheet();
 
-  // 在聊天流中插入加载状态
-  const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
-  if (conv) {
-    conv.messages.push({ type: 'loading', time: new Date().toISOString() });
-    renderChatMessages(conv);
-
-    // 模拟 AI 运行延迟 (3s)
-    setTimeout(async () => {
-      conv.messages.pop(); // 移除 loading
-      const deliveryMsg = buildLocalDeliveryMessage(ability, {
-        content: '已根据您的要求完成出图，请查收！',
-        images: []
-      });
-      const deliveryResult = await appendGeneratedDeliveryResult(conv, deliveryMsg, {
-        autoSend: shouldAutoSendDelivery,
-        syncFailTarget: '对方'
-      });
-      persistConversations();
-      renderChatMessages(conv);
-      renderChatList();
-      if (deliveryResult.autoSent) {
-        showToast('🎉 AI 运行完成！成果已发送给客户');
-      } else if (deliveryResult.autoSendSkipped) {
-        showToast('AI 已生成结果，请登录后预览并发送给对方');
-      } else if (deliveryResult.syncFailed) {
-        showToast('⚠️ AI 已生成结果，请预览后手动发送给对方');
-      } else {
-        showToast('AI 已生成结果，请点击预览确认后发送');
+  try {
+    const result = await api('/api/skills/hire', {
+      method: 'POST',
+      body: {
+        skillId: ability.id,
+        requirement,
+        selectedStyleId: '',
+        referenceImages: Array.isArray(draft.referenceImages)
+          ? draft.referenceImages.map(item => item?.dataUrl).filter(Boolean)
+          : []
       }
-    }, 3000);
+    });
+
+    const loadingIndex = conv.messages.indexOf(loadingMsg);
+    if (loadingIndex >= 0) conv.messages.splice(loadingIndex, 1);
+
+    const deliveryMsg = buildLocalDeliveryMessage(ability, {
+      content: result?.data?.content || '交付完成，但内容为空。',
+      images: result?.data?.images || []
+    });
+    const deliveryResult = await appendGeneratedDeliveryResult(conv, deliveryMsg, {
+      autoSend: shouldAutoSendDelivery,
+      syncFailTarget: '对方'
+    });
+
+    persistConversations();
+    renderChatMessages(conv);
+    renderChatList();
+
+    if (deliveryResult.autoSent) {
+      showToast('🎉 AI 运行完成！成果已发送给客户');
+    } else if (deliveryResult.autoSendSkipped) {
+      showToast('AI 已生成结果，请登录后预览并发送给对方');
+    } else if (deliveryResult.syncFailed) {
+      showToast('⚠️ AI 已生成结果，请预览后手动发送给对方');
+    } else {
+      showToast('AI 已生成结果，请点击预览确认后发送');
+    }
+  } catch (err) {
+    const loadingIndex = conv.messages.indexOf(loadingMsg);
+    if (loadingIndex >= 0) conv.messages.splice(loadingIndex, 1);
+    const message = err?.message || '交付失败，请重试';
+    conv.messages.push({
+      type: 'system',
+      text: `❌ 交付失败：${message}`,
+      time: new Date().toISOString()
+    });
+    conv.updatedAt = new Date().toISOString();
+    persistConversations();
+    renderChatMessages(conv);
+    renderChatList();
+    showToast(message);
   }
 });
 
@@ -3979,7 +4021,25 @@ function renderChatMessages(conv) {
         </div>
       `;
     } else if (msg.type === 'peer') {
-      html += `<div class="chat-bubble chat-bubble-peer">${escapeHtml(msg.text)}</div>`;
+      const formalDemandBody = conv.role === 'worker' ? extractFormalDemandBody(msg.text) : '';
+      if (formalDemandBody) {
+        const hasAbilities = Array.isArray(state.abilities) && state.abilities.length > 0;
+        html += `
+          <div class="chat-formal-demand-wrap">
+            <div class="chat-bubble chat-bubble-peer chat-bubble-formal-demand">
+              <div class="chat-formal-demand-label">📋 【正式需求】</div>
+              <div class="chat-formal-demand-body">${escapeHtml(formalDemandBody).replace(/\n/g, '<br>')}</div>
+            </div>
+            <div class="chat-formal-demand-actions">
+              <button type="button" class="chat-demand-deliver-btn" data-msg-index="${msgIndex}" ${hasAbilities ? '' : 'disabled'}>
+                ${hasAbilities ? '选择技能并交付' : '暂无技能可选'}
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        html += `<div class="chat-bubble chat-bubble-peer">${escapeHtml(msg.text).replace(/\n/g, '<br>')}</div>`;
+      }
     } else if (msg.type === 'delivery') {
       const isPendingPreview = isPendingDeliveryPreviewMessage(msg);
       const isSendingPreview = Boolean(msg.sending);
@@ -4019,6 +4079,16 @@ function renderChatMessages(conv) {
 }
 
 chatMessagesEl?.addEventListener('click', (e) => {
+  const demandActionBtn = e.target.closest('.chat-demand-deliver-btn[data-msg-index]');
+  if (demandActionBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const idx = Number(demandActionBtn.dataset.msgIndex);
+    if (!Number.isInteger(idx) || idx < 0) return;
+    window.openDeliverySheet(chatState.selectedSkill?.id, idx);
+    return;
+  }
+
   const card = e.target.closest('.chat-bubble-delivery[data-msg-index]');
   if (!card) return;
   const conv = chatState.conversations.find(c => c.id === chatState.activeConversationId);
@@ -4123,6 +4193,8 @@ function switchConversation(convId) {
   chatState.activeConversationId = convId;
   chatState.selectedSkill = null;
   chatState.skillDropdownOpen = false;
+  chatState.deliverySheetDraft = null;
+  window.closeDeliverySheet?.();
   const conv = chatState.conversations.find(c => c.id === convId);
   markConversationRead(conv);
 
@@ -4153,6 +4225,8 @@ function backToChatList() {
   chatState.activeConversationId = null;
   chatState.selectedSkill = null;
   chatState.skillDropdownOpen = false;
+  chatState.deliverySheetDraft = null;
+  window.closeDeliverySheet?.();
   chatSkillDropdown?.classList.add('hidden');
   if (chatSubmitDemandBtn) chatSubmitDemandBtn.classList.add('hidden');
 
