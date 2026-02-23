@@ -1045,6 +1045,13 @@ function getWorkerProfileByAnyId(id) {
   }) || null;
 }
 
+function resolveChatUserId(id) {
+  const raw = String(id || '').trim();
+  if (!raw) return '';
+  const worker = getWorkerProfileByAnyId(raw);
+  return String(worker?.secondUserId || worker?.id || raw).trim();
+}
+
 function buildDetailPublisherProfile(type, data) {
   const isTask = type === 'task';
   const userId = String(isTask ? (data.publisherId || '') : (data.ownerId || '')).trim();
@@ -3658,12 +3665,24 @@ async function openConversation(role, data, options = {}) {
   const sourceEl = options?.sourceEl || null;
 
   const isDemand = role === 'demand';
-  const peerId = isDemand ? (data.ownerId || data.id) : (data.publisherId || data.id);
+  const rawPeerId = isDemand ? (data.ownerId || data.id) : (data.publisherId || data.id);
+  const peerId = resolveChatUserId(rawPeerId) || String(rawPeerId || data.id || '').trim();
   const peerName = isDemand ? (data.ownerName || data.name || '技能提供者') : (data.publisherName || data.title || '任务发布者');
   const title = isDemand ? (data.name || '技能对话') : (data.title || '任务对话');
   const desc = isDemand ? (data.description || '') : (data.description || '');
-  const peerAvatar = data.avatar || '';
-  const refId = data.id; // 技能 ID 或 任务 ID
+  const peerAvatar = isDemand
+    ? (data.ownerAvatar || data.avatar || '')
+    : (data.publisherAvatar || data.avatar || '');
+  const refId = String(data.id || '').trim(); // 技能 ID 或 任务 ID
+
+  if (!peerId) {
+    showToast('无法识别对方账号，暂时不能发起对话');
+    return;
+  }
+  if (!refId) {
+    showToast('对话对象无效，请刷新后重试');
+    return;
+  }
 
   // 查找是否已有对应对话（同一对象 + 同一对方），避免不同人使用相同技能 ID 时串会话
   let conv = chatState.conversations.find(c =>

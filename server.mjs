@@ -982,6 +982,68 @@ function workersMap(workers = []) {
   return map;
 }
 
+function getChatIdentityAliases(session = {}) {
+  const user = session?.user || {};
+  const userId = String(user.userId || '').trim();
+  const aliases = [
+    userId,
+    String(user.id || '').trim(),
+    userId ? buildWorkerId(userId) : ''
+  ].filter(Boolean);
+  return Array.from(new Set(aliases));
+}
+
+function conversationHasParticipant(conv, aliases = []) {
+  if (!conv || !Array.isArray(aliases) || aliases.length === 0) return false;
+  const set = new Set(aliases.map((id) => String(id || '').trim()).filter(Boolean));
+  const initiatorId = String(conv.initiator_id || '').trim();
+  const receiverId = String(conv.receiver_id || '').trim();
+  return set.has(initiatorId) || set.has(receiverId);
+}
+
+async function resolveConversationUserId(inputId) {
+  const raw = String(inputId || '').trim();
+  if (!raw) return '';
+
+  try {
+    const profiles = await loadProfiles();
+    const worker = workersMap(profiles).get(raw);
+    const mapped = String(worker?.secondUserId || '').trim();
+    if (mapped) return mapped;
+  } catch (e) {
+    console.warn('解析聊天用户ID失败（降级使用原值）', e);
+  }
+
+  // workerId 默认格式为 sm_{secondUserId}
+  if (raw.startsWith('sm_') && raw.length > 3) {
+    return raw.slice(3);
+  }
+  return raw;
+}
+
+function buildConversationAliasOrQuery(aliases = []) {
+  const normalized = Array.from(new Set((aliases || []).map((id) => String(id || '').trim()).filter(Boolean)));
+  if (!normalized.length) return '';
+  return normalized.flatMap((id) => [
+    `initiator_id.eq.${id}`,
+    `receiver_id.eq.${id}`
+  ]).join(',');
+}
+
+function buildConversationPairOrQuery(myAliases = [], peerAliases = []) {
+  const mine = Array.from(new Set((myAliases || []).map((id) => String(id || '').trim()).filter(Boolean)));
+  const peers = Array.from(new Set((peerAliases || []).map((id) => String(id || '').trim()).filter(Boolean)));
+  if (!mine.length || !peers.length) return '';
+  const clauses = [];
+  for (const me of mine) {
+    for (const peer of peers) {
+      clauses.push(`and(initiator_id.eq.${me},receiver_id.eq.${peer})`);
+      clauses.push(`and(initiator_id.eq.${peer},receiver_id.eq.${me})`);
+    }
+  }
+  return clauses.join(',');
+}
+
 function workerById(workerId, workers = []) {
   return workers.find((worker) => worker.id === workerId);
 }
@@ -3903,31 +3965,40 @@ async function handleApi(req, res, urlObj) {
 
     const refId = String(body.refId || '').trim();
     const refType = String(body.refType || 'skill').trim();
-    const receiverId = String(body.receiverId || '').trim();
+    const rawReceiverId = String(body.receiverId || '').trim();
     const receiverName = String(body.receiverName || '').trim();
     const receiverAvatar = String(body.receiverAvatar || '').trim();
     const title = String(body.title || '').trim();
 
-    if (!refId || !receiverId) {
+    if (!refId || !rawReceiverId) {
       return badRequest(res, 'refId 和 receiverId 不能为空');
     }
+
+    const receiverId = await resolveConversationUserId(rawReceiverId);
 
     const myId = String(session.user.userId);
     const myName = session.user.name || session.user.displayName || '匿名用户';
     const myAvatar = session.user.avatar || session.user.profileImageUrl || '';
+    const myAliases = getChatIdentityAliases(session);
+    const receiverAliases = Array.from(new Set([
+      rawReceiverId,
+      receiverId,
+      receiverId ? buildWorkerId(receiverId) : ''
+    ].filter(Boolean)));
 
     // 不能和自己对话
-    if (myId === receiverId) {
+    if (new Set(myAliases).has(receiverId) || new Set(myAliases).has(rawReceiverId)) {
       return badRequest(res, '不能和自己发起对话');
     }
 
     // 查重：同一 ref + 双方 ID（不区分发起方/接收方顺序）
+    const pairOrQuery = buildConversationPairOrQuery(myAliases, receiverAliases);
     const { data: existing } = await supabase
       .from('conversations')
       .select('*')
       .eq('ref_id', refId)
       .eq('ref_type', refType)
-      .or(`and(initiator_id.eq.${myId},receiver_id.eq.${receiverId}),and(initiator_id.eq.${receiverId},receiver_id.eq.${myId})`);
+      .or(pairOrQuery);
 
     if (existing && existing.length > 0) {
       // 已有对话，直接返回
@@ -3979,12 +4050,13 @@ async function handleApi(req, res, urlObj) {
       return json(res, 503, { code: 503, message: '数据库未配置' });
     }
 
-    const myId = String(session.user.userId);
+    const myAliases = getChatIdentityAliases(session);
+    const aliasOrQuery = buildConversationAliasOrQuery(myAliases);
 
     const { data, error: fetchErr } = await supabase
       .from('conversations')
       .select('*')
-      .or(`initiator_id.eq.${myId},receiver_id.eq.${myId}`)
+      .or(aliasOrQuery)
       .order('updated_at', { ascending: false });
 
     if (fetchErr) {
@@ -4007,7 +4079,7 @@ async function handleApi(req, res, urlObj) {
       return json(res, 503, { code: 503, message: '数据库未配置' });
     }
 
-    const myId = String(session.user.userId);
+    const myAliases = getChatIdentityAliases(session);
 
     // 验证用户是对话参与方
     const { data: conv } = await supabase
@@ -4019,7 +4091,7 @@ async function handleApi(req, res, urlObj) {
     if (!conv) {
       return json(res, 404, { code: 404, message: '对话不存在' });
     }
-    if (String(conv.initiator_id || '') !== myId && String(conv.receiver_id || '') !== myId) {
+    if (!conversationHasParticipant(conv, myAliases)) {
       return json(res, 403, { code: 403, message: '无权访问此对话' });
     }
 
@@ -4056,6 +4128,7 @@ async function handleApi(req, res, urlObj) {
 
     const myId = String(session.user.userId);
     const myName = session.user.name || session.user.displayName || '匿名用户';
+    const myAliases = getChatIdentityAliases(session);
 
     // 验证用户是对话参与方
     const { data: conv } = await supabase
@@ -4067,7 +4140,7 @@ async function handleApi(req, res, urlObj) {
     if (!conv) {
       return json(res, 404, { code: 404, message: '对话不存在' });
     }
-    if (String(conv.initiator_id || '') !== myId && String(conv.receiver_id || '') !== myId) {
+    if (!conversationHasParticipant(conv, myAliases)) {
       return json(res, 403, { code: 403, message: '无权访问此对话' });
     }
 
@@ -4129,6 +4202,7 @@ async function handleApi(req, res, urlObj) {
 
     const myId = String(session.user.userId);
     const myName = session.user.name || session.user.displayName || '匿名用户';
+    const myAliases = getChatIdentityAliases(session);
 
     // 验证用户是对话参与方
     const { data: conv } = await supabase
@@ -4140,7 +4214,7 @@ async function handleApi(req, res, urlObj) {
     if (!conv) {
       return json(res, 404, { code: 404, message: '对话不存在' });
     }
-    if (String(conv.initiator_id || '') !== myId && String(conv.receiver_id || '') !== myId) {
+    if (!conversationHasParticipant(conv, myAliases)) {
       return json(res, 403, { code: 403, message: '无权访问此对话' });
     }
 
